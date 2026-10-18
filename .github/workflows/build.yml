@@ -3,7 +3,6 @@ name: Build
 on:
   push:
     branches:
-      - main
       - master
   pull_request:
     types: [opened, synchronize, reopened]
@@ -16,14 +15,11 @@ jobs:
     name: SonarQube
     runs-on: ubuntu-latest
     timeout-minutes: 360
-    env:
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
         with:
-          fetch-depth: 0
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -36,8 +32,14 @@ jobs:
       - name: Test with coverage
         run: pytest --cov=upload --cov-report=xml:coverage.xml --cov-report=term-missing
 
+      - name: Cache SonarQube packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
       - name: SonarQube Scan
-        if: ${{ env.SONAR_TOKEN != '' }}
-        uses: SonarSource/sonarqube-scan-action@7006c4492b2e0ee0f816d36501671557c97f5995 # v8.1.0
+        uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
