@@ -420,6 +420,9 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 		'notes': [],
 		'contents': [],
 		'subjects': [],
+		'genres': [],
+		'geo_places': [],
+		'shelfmarks': [],
 		'authors': [],
 		'languages': [],
 		'country': '',
@@ -522,16 +525,51 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 			for note in submap.get('a', []):
 				if note not in result['notes']:
 					result['notes'].append(note)
-		elif tag in {'600', '606', '607'}:
-			subj_parts = submap.get('a', []) + submap.get('b', []) + submap.get('d', []) + submap.get('f', []) + submap.get('x', []) + submap.get('y', []) + submap.get('z', [])
+		elif tag == '608':
+			genre_parts = (
+				submap.get('a', [])
+				+ submap.get('x', [])
+				+ submap.get('y', [])
+				+ submap.get('z', [])
+			)
+			if genre_parts:
+				genre = ' — '.join(genre_parts)
+				if genre not in result['genres']:
+					result['genres'].append(genre)
+		elif tag in {'600', '605', '606', '607', '690'}:
+			subj_parts = (
+				submap.get('a', [])
+				+ submap.get('b', [])
+				+ submap.get('d', [])
+				+ submap.get('f', [])
+				+ submap.get('x', [])
+				+ submap.get('y', [])
+				+ submap.get('z', [])
+			)
 			if subj_parts:
 				subj = ' — '.join(subj_parts)
 				if subj not in result['subjects']:
 					result['subjects'].append(subj)
+		elif tag == '620':
+			geo_parts = (
+				submap.get('d', [])
+				+ submap.get('c', [])
+				+ submap.get('b', [])
+				+ submap.get('a', [])
+			)
+			if geo_parts:
+				geo = ' — '.join(geo_parts)
+				if geo not in result['geo_places']:
+					result['geo_places'].append(geo)
 		elif tag == '675':
 			for udc in submap.get('a', []):
 				if udc not in result['udc']:
 					result['udc'].append(udc)
+		elif tag == '899':
+			for shelfmark in submap.get('p', []):
+				clean_shelfmark = shelfmark.rstrip(',').strip()
+				if clean_shelfmark and clean_shelfmark not in result['shelfmarks']:
+					result['shelfmarks'].append(clean_shelfmark)
 		elif tag in {'700', '701', '702', '710', '711', '712'}:
 			surname = ' '.join(submap.get('a', []))
 			given = ' '.join(submap.get('g', []) or submap.get('b', []))
@@ -671,6 +709,11 @@ def build_commons_description(
 
 	if marc_meta.get('places'):
 		metadata_lines.append(format_metadata_field('Место издания (MARC 210$a)', marc_meta['places']))
+	if marc_meta.get('geo_places'):
+		places_normalized = {p.strip().lower() for p in marc_meta.get('places', [])}
+		new_geo = [g for g in marc_meta['geo_places'] if g.strip().lower() not in places_normalized]
+		if new_geo:
+			metadata_lines.append(format_metadata_field('Место издания (MARC 620)', new_geo))
 	if marc_meta.get('publishers'):
 		metadata_lines.append(format_metadata_field('Издатель (MARC 210$c)', marc_meta['publishers']))
 	if marc_meta.get('edition'):
@@ -684,7 +727,31 @@ def build_commons_description(
 	if marc_meta.get('country'):
 		metadata_lines.append(format_metadata_field('Код страны (MARC 102)', [marc_meta['country']]))
 	if marc_meta.get('subjects'):
-		metadata_lines.append(format_metadata_field('Тематика (MARC 6xx)', marc_meta['subjects']))
+		existing_subjects = {
+			val.strip().lower()
+			for field in record_meta.get('fields', [])
+			if field.get('name', '').strip() in ('Предмет', 'Тематика')
+			for val in (field.get('values') or [field.get('value', '')])
+		}
+		new_subjects = [
+			s for s in marc_meta['subjects']
+			if s.strip().lower() not in existing_subjects
+		]
+		if new_subjects:
+			metadata_lines.append(format_metadata_field('Тематика (MARC 6xx)', new_subjects))
+	if marc_meta.get('genres'):
+		existing_genres = {
+			val.strip().lower().replace(' - ', ' — ')
+			for field in record_meta.get('fields', [])
+			if field.get('name', '').strip() == 'Жанр'
+			for val in (field.get('values') or [field.get('value', '')])
+		}
+		new_genres = [
+			g for g in marc_meta['genres']
+			if g.strip().lower().replace(' - ', ' — ') not in existing_genres
+		]
+		if new_genres:
+			metadata_lines.append(format_metadata_field('Форма / жанр (MARC 608)', new_genres))
 	contents = marc_meta.get('contents') or record_meta.get('contents') or []
 	if contents:
 		metadata_lines.append(format_metadata_field('Содержание (MARC 327)', contents))
@@ -692,6 +759,19 @@ def build_commons_description(
 		metadata_lines.append(format_metadata_field('Примечания (MARC 3xx)', marc_meta['notes']))
 	if marc_meta.get('udc'):
 		metadata_lines.append(format_metadata_field('УДК (MARC 675)', marc_meta['udc']))
+	if marc_meta.get('shelfmarks'):
+		existing_shelfmarks = {
+			val.strip().rstrip(',').lower()
+			for field in record_meta.get('fields', [])
+			if 'шифр' in field.get('name', '').lower()
+			for val in (field.get('values') or [field.get('value', '')])
+		}
+		new_shelfmarks = [
+			s for s in marc_meta['shelfmarks']
+			if s.strip().rstrip(',').lower() not in existing_shelfmarks
+		]
+		if new_shelfmarks:
+			metadata_lines.append(format_metadata_field('Шифр хранения (MARC 899)', new_shelfmarks))
 
 	metadata_lines.append(f"* '''NLB Record ID (marcID):''' <code>{escape_wikitext(marc_id)}</code>")
 	metadata_lines.append(f"* '''NLB File ID (fileID):''' <code>{escape_wikitext(file_id)}</code>")

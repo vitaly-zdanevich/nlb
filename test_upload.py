@@ -363,6 +363,102 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 			self.assertIn(f'** {entry}', wikitext)
 		self.assertIn("* '''Примечания (MARC 3xx):'''", wikitext)
 
+	def test_parse_marcxml_and_description_with_geo_places_genres_shelfmarks_and_deduplication(self) -> None:
+		"""Verify MARC 620 geographic places, 608 genres, 690 collections, and 899 shelfmarks are parsed and deduplicated."""
+		marcxml = """<?xml version="1.0" encoding="UTF-8"?>
+		<collection xmlns="http://www.loc.gov/MARC21/slim">
+			<record>
+				<controlfield tag="001">BY-NLB-br0000015701</controlfield>
+				<datafield tag="200" ind1="1" ind2=" ">
+					<subfield code="a">Псалтирь</subfield>
+				</datafield>
+				<datafield tag="210" ind1=" " ind2=" ">
+					<subfield code="a">[Гродно [т. е. Махновка]</subfield>
+					<subfield code="d">1788 [после 1802]]</subfield>
+				</datafield>
+				<datafield tag="605" ind1=" " ind2=" ">
+					<subfield code="a">Псалтирь (богослужебное издание)</subfield>
+				</datafield>
+				<datafield tag="608" ind1=" " ind2=" ">
+					<subfield code="a">КАНОН (религия)</subfield>
+				</datafield>
+				<datafield tag="608" ind1=" " ind2=" ">
+					<subfield code="a">Пометы</subfield>
+					<subfield code="z">19 ВЕК</subfield>
+					<subfield code="z">20 ВЕК</subfield>
+				</datafield>
+				<datafield tag="620" ind1=" " ind2=" ">
+					<subfield code="d">Гродно</subfield>
+					<subfield code="c">Гродненский район</subfield>
+					<subfield code="b">Гродненская область</subfield>
+				</datafield>
+				<datafield tag="620" ind1=" " ind2=" ">
+					<subfield code="d">Комсомольское</subfield>
+				</datafield>
+				<datafield tag="690" ind1=" " ind2=" ">
+					<subfield code="a">Кірыліца ― беларускія выданні</subfield>
+				</datafield>
+				<datafield tag="899" ind1=" " ind2=" ">
+					<subfield code="b">076</subfield>
+					<subfield code="j">08:1</subfield>
+					<subfield code="p">12//4(026),</subfield>
+				</datafield>
+			</record>
+		</collection>
+		"""
+		marc_meta = upload_nlb.parse_marcxml(marcxml)
+		self.assertEqual(
+			marc_meta['geo_places'],
+			['Гродно — Гродненский район — Гродненская область', 'Комсомольское'],
+		)
+		self.assertEqual(
+			marc_meta['genres'],
+			['КАНОН (религия)', 'Пометы — 19 ВЕК — 20 ВЕК'],
+		)
+		self.assertEqual(
+			marc_meta['shelfmarks'],
+			['12//4(026)'],
+		)
+		self.assertIn('Псалтирь (богослужебное издание)', marc_meta['subjects'])
+		self.assertIn('Кірыліца ― беларускія выданні', marc_meta['subjects'])
+
+		# Case 1: When HTML fields are empty, all fields are rendered
+		wikitext_plain = upload_nlb.build_commons_description(
+			record_meta={'title': 'Псалтирь', 'fields': []},
+			marc_meta=marc_meta,
+			marc_id='BY-NLB-br0000015701',
+			file_id='7386109',
+		)
+		self.assertIn("* '''Место издания (MARC 620):'''", wikitext_plain)
+		self.assertIn('** Гродно — Гродненский район — Гродненская область', wikitext_plain)
+		self.assertIn('** Комсомольское', wikitext_plain)
+		self.assertIn("* '''Форма / жанр (MARC 608):'''", wikitext_plain)
+		self.assertIn('** КАНОН (религия)', wikitext_plain)
+		self.assertIn('** Пометы — 19 ВЕК — 20 ВЕК', wikitext_plain)
+		self.assertIn("* '''Шифр хранения (MARC 899):''' 12//4(026)", wikitext_plain)
+		self.assertIn("* '''Тематика (MARC 6xx):'''", wikitext_plain)
+		self.assertIn('** Кірыліца ― беларускія выданні', wikitext_plain)
+
+		# Case 2: When HTML already contains identical shelfmark, genre, and subject, avoid duplicate entries
+		wikitext_dedup = upload_nlb.build_commons_description(
+			record_meta={
+				'title': 'Псалтирь',
+				'fields': [
+					{'name': 'Шифр документа', 'value': '12//4(026),', 'values': ['12//4(026),']},
+					{'name': 'Предмет', 'value': 'Псалтирь (богослужебное издание)', 'values': ['Псалтирь (богослужебное издание)']},
+					{'name': 'Жанр', 'value': 'КАНОН (религия)\nПометы — 19 ВЕК — 20 ВЕК', 'values': ['КАНОН (религия)', 'Пометы — 19 ВЕК — 20 ВЕК']},
+				],
+			},
+			marc_meta=marc_meta,
+			marc_id='BY-NLB-br0000015701',
+			file_id='7386109',
+		)
+		self.assertIn("* '''Шифр документа:''' 12//4(026),", wikitext_dedup)
+		self.assertNotIn("* '''Шифр хранения (MARC 899):'''", wikitext_dedup)
+		self.assertNotIn("* '''Форма / жанр (MARC 608):'''", wikitext_dedup)
+		self.assertIn("* '''Место издания (MARC 620):'''", wikitext_dedup)
+		self.assertIn("* '''Тематика (MARC 6xx):''' Кірыліца ― беларускія выданні", wikitext_dedup)
+
 	def test_build_commons_filename_truncates_within_utf8_byte_limit(self) -> None:
 		"""Verify Commons filename sanitization and 240-byte UTF-8 length bound."""
 		record_meta = {'title': 'Сборник ' * 40, 'fields': []}
