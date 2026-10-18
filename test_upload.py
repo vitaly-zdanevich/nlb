@@ -952,8 +952,8 @@ class TestComponentIntegration(unittest.TestCase):
 			upload_nlb.VIEWER_BASIC_AUTH,
 		)
 
-	def test_nlb_client_rejects_non_pdf_and_truncated_stream(self) -> None:
-		"""Verify NlbClient raises ValueError if downloaded content is not a complete PDF."""
+	def test_nlb_client_rejects_non_pdf(self) -> None:
+		"""Reject a complete non-PDF response without retrying the download."""
 		mock_session = mock.MagicMock()
 		mock_session.headers = {}
 		mock_session.post.return_value = mock.MagicMock()
@@ -965,7 +965,7 @@ class TestComponentIntegration(unittest.TestCase):
 		bad_stream = mock.MagicMock()
 		bad_stream.__enter__.return_value = bad_stream
 		bad_stream.__exit__.return_value = False
-		bad_stream.headers = {'Content-Length': '14'}
+		bad_stream.headers = {'Content-Length': str(len(b'<html>Error</html>'))}
 		bad_stream.iter_content.return_value = [b'<html>Error</html>']
 
 		mock_session.get.side_effect = [manifest_resp, ok_resp, ok_resp, bad_stream]
@@ -1034,6 +1034,162 @@ class TestComponentIntegration(unittest.TestCase):
 
 		self.assertEqual(result['status'], 'duplicate_sha1')
 		self.assertEqual(result['duplicates'], ['Old_Scan.pdf'])
+
+
+class TestNlbDownloadRetries(unittest.TestCase):
+	"""Exercise download retries with mocked responses and real temporary files."""
+
+	def setUp(self) -> None:
+		"""Prepare a client and successful IIIF responses without network access."""
+		self.session = mock.MagicMock()
+		self.session.headers = {}
+		self.client = upload_nlb.NlbClient(session=self.session)
+		self.manifest = mock.MagicMock()
+		self.manifest.json.return_value = {'rendering': []}
+		self.ok_response = mock.MagicMock()
+		self.payload = b'%PDF-1.4\nComplete scan\n%%EOF\n'
+
+	def stream_response(self, payload: bytes) -> mock.MagicMock:
+		"""Return a context-managed PDF response split into two chunks."""
+		response = mock.MagicMock()
+		response.__enter__.return_value = response
+		response.headers = {'Content-Length': str(len(payload))}
+		response.iter_content.return_value = [payload[:12], payload[12:]]
+		return response
+
+	def download_responses(self, stream: mock.MagicMock) -> list[mock.MagicMock]:
+		"""Return the manifest, statistics and stream responses for one attempt."""
+		return [self.manifest, self.ok_response, self.ok_response, stream]
+
+	def test_manifest_timeout_then_success(self) -> None:
+		"""Retry the reported manifest ReadTimeout and write the complete PDF."""
+		self.session.get.side_effect = [
+			upload_nlb.requests.exceptions.ReadTimeout('manifest timed out'),
+			*self.download_responses(self.stream_response(self.payload)),
+		]
+		with tempfile.TemporaryDirectory() as tmp_dir, mock.patch('upload.time.sleep') as sleep:
+			target = Path(tmp_dir) / 'scan.pdf'
+			written = self.client.download_pdf_scan('BY-NLB-br0000059041', '12541593', target)
+			self.assertEqual(written, len(self.payload))
+			self.assertEqual(target.read_bytes(), self.payload)
+			sleep.assert_called_once_with(5)
+		self.assertEqual(self.session.get.call_count, 5)
+		self.assertEqual(self.session.get.call_args_list[0], self.session.get.call_args_list[1])
+		self.session.post.assert_called_once()
+
+	def test_interrupted_stream_restarts_without_partial_bytes(self) -> None:
+		"""Discard partial output before retrying timeouts and broken transfers."""
+		for error_type in (
+			upload_nlb.requests.exceptions.ConnectionError,
+			upload_nlb.requests.exceptions.ChunkedEncodingError,
+		):
+			with self.subTest(error=error_type.__name__):
+				partial = b'%PDF-1.4\n' + b'partial scan data' * 10
+				broken_stream = self.stream_response(partial)
+
+				def interrupted_chunks(**_):
+					"""Emit a partial PDF before simulating a lost connection."""
+					yield partial
+					raise error_type('connection lost while reading PDF')
+
+				broken_stream.iter_content.side_effect = interrupted_chunks
+				self.session.get.side_effect = [
+					*self.download_responses(broken_stream),
+					*self.download_responses(self.stream_response(self.payload)),
+				]
+				with tempfile.TemporaryDirectory() as tmp_dir, mock.patch('upload.time.sleep') as sleep:
+					target = Path(tmp_dir) / 'scan.pdf'
+					sleep.side_effect = lambda _: self.assertFalse(target.exists())
+					self.assertEqual(
+						self.client.download_pdf_scan('BY-NLB-rr111', '1001', target),
+						len(self.payload),
+					)
+					self.assertEqual(target.read_bytes(), self.payload)
+					sleep.assert_called_once_with(5)
+				broken_stream.__exit__.assert_called_once()
+
+	def test_truncated_pdf_is_downloaded_again(self) -> None:
+		"""Retry a transfer that ends before its advertised Content-Length."""
+		for partial in (b'', b'%P', self.payload[:12]):
+			with self.subTest(partial=partial):
+				truncated = self.stream_response(partial)
+				truncated.headers['Content-Length'] = str(len(self.payload))
+				self.session.get.side_effect = [
+					*self.download_responses(truncated),
+					*self.download_responses(self.stream_response(self.payload)),
+				]
+				with tempfile.TemporaryDirectory() as tmp_dir, mock.patch('upload.time.sleep') as sleep:
+					target = Path(tmp_dir) / 'scan.pdf'
+					self.client.download_pdf_scan('BY-NLB-rr111', '1001', target)
+					self.assertEqual(target.read_bytes(), self.payload)
+					sleep.assert_called_once_with(5)
+
+	def test_exhausted_retries_leave_scan_resumable(self) -> None:
+		"""Bound retries, remove partial files, and resume without a false upload."""
+		error = upload_nlb.requests.exceptions.ConnectionError('stream timed out')
+		broken_stream = self.stream_response(self.payload)
+
+		def interrupted_chunks(**_):
+			"""Leave partial bytes on disk before failing each attempt."""
+			yield self.payload[:12]
+			raise error
+
+		broken_stream.iter_content.side_effect = interrupted_chunks
+		self.session.get.side_effect = self.download_responses(broken_stream) * 5
+		uploader = FakeCommonsUploader()
+		with tempfile.TemporaryDirectory() as tmp_dir, mock.patch('upload.time.sleep') as sleep, mock.patch(
+			'upload.check_commons_by_hash',
+			side_effect=lambda path, **_: (upload_nlb.calculate_sha1(path), []),
+		) as hash_check:
+			tmp_path = Path(tmp_dir)
+			kwargs = {
+				'client': self.client,
+				'uploader': uploader,
+				'state': upload_nlb.default_state(),
+				'state_path': tmp_path / 'state.json',
+				'staging_dir': tmp_path / 'staging',
+				'marc_id': 'BY-NLB-rr111',
+				'file_id': '1001',
+				'part_label': '',
+				'record_meta': upload_nlb.parse_record_html(MOCK_RECORD_HTML_111, 'BY-NLB-rr111'),
+				'marc_meta': upload_nlb.parse_marcxml(MOCK_MARCXML_111),
+			}
+			with self.assertRaises(upload_nlb.requests.exceptions.ConnectionError) as raised:
+				upload_nlb.process_single_scan(**kwargs)
+			self.assertIs(raised.exception, error)
+			self.assertEqual(self.session.get.call_count, 20)
+			self.assertEqual(sleep.call_args_list, [mock.call(5), mock.call(10), mock.call(20), mock.call(40)])
+			self.assertEqual(list(kwargs['staging_dir'].iterdir()), [])
+			self.assertEqual(uploader.uploads, [])
+			hash_check.assert_not_called()
+			state = upload_nlb.load_state(kwargs['state_path'])
+			self.assertEqual(state['current_item_key'], 'BY-NLB-rr111:1001')
+			self.assertFalse(upload_nlb.is_item_completed(state, 'BY-NLB-rr111', '1001'))
+
+			kwargs['state'] = state
+			self.session.get.side_effect = self.download_responses(self.stream_response(self.payload))
+			self.assertEqual(upload_nlb.process_single_scan(**kwargs), 'uploaded')
+			self.assertEqual(len(uploader.uploads), 1)
+			self.assertEqual(list(kwargs['staging_dir'].iterdir()), [])
+			self.assertTrue(upload_nlb.is_item_completed(upload_nlb.load_state(kwargs['state_path']), 'BY-NLB-rr111', '1001'))
+
+	def test_permanent_errors_and_interrupts_are_not_retried(self) -> None:
+		"""Propagate HTTP, certificate, filesystem and interrupt errors immediately."""
+		for error in (
+			upload_nlb.requests.exceptions.HTTPError('403 Forbidden'),
+			upload_nlb.requests.exceptions.SSLError('certificate verify failed'),
+			OSError('disk full'),
+			KeyboardInterrupt(),
+		):
+			with self.subTest(error=type(error).__name__):
+				self.session.get.reset_mock()
+				self.session.get.side_effect = error
+				with tempfile.TemporaryDirectory() as tmp_dir, mock.patch('upload.time.sleep') as sleep:
+					with self.assertRaises(type(error)) as raised:
+						self.client.download_pdf_scan('BY-NLB-rr111', '1001', Path(tmp_dir) / 'scan.pdf')
+					self.assertIs(raised.exception, error)
+					sleep.assert_not_called()
+				self.session.get.assert_called_once()
 
 
 class FakeNlbClient:

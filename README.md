@@ -6,8 +6,8 @@
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
-[![Production code](https://img.shields.io/badge/production%20code-1%2C518%20lines-blue)](upload.py)
-[![Test code](https://img.shields.io/badge/test%20code-1%2C325%20lines-blue)](test_upload.py)
+[![Production code](https://img.shields.io/badge/production%20code-1%2C546%20lines-blue)](upload.py)
+[![Test code](https://img.shields.io/badge/test%20code-1%2C466%20lines-blue)](test_upload.py)
 
 [`upload.py`](upload.py) iterates over open-access digitized scans from the Electronic Library of the National Library of Belarus (`https://elib.nlb.by`) and uploads them to Wikimedia Commons with full HTML and UNIMARC (`MARCXML`) metadata.
 
@@ -20,6 +20,7 @@
 - **SHA-1 deduplication**: Checks Wikimedia Commons by SHA-1 hash before uploading (via `find_by_hash.sh` or the MediaWiki `allimages` API).
 - **Resumable state**: Saves progress atomically in `state.json` after each item and page so interrupted runs continue from the exact item on restart.
 - **Automatic cleanup**: Deletes each temporary PDF scan locally immediately after uploading or skipping.
+- **Download retries**: Retries manifest/download timeouts, connection failures and interrupted PDF transfers up to five total attempts, waiting 5, 10, 20 and 40 seconds. Each retry discards the partial PDF and starts again. If all attempts fail, the scan stays pending in `state.json` for the next run.
 - **Graceful `Ctrl-C` shutdown**: On `SIGINT` (`Ctrl-C`), finishes the current item in progress, updates `state.json`, prints the uploaded file count and uploaded megabytes, and exits cleanly.
 
 ## Duplicate Titles and SHA-1 Deduplication

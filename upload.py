@@ -42,6 +42,8 @@ DEFAULT_UNTIL_YEAR = 1900
 SEARCH_PAGE_SIZE = 100
 UPLOAD_CHUNK_SIZE = 4 * 1024 * 1024
 UPLOAD_MAX_RETRIES = 10
+DOWNLOAD_MAX_ATTEMPTS = 5
+DOWNLOAD_RETRY_DELAY = 5
 
 ILLEGAL_COMMONS_TITLE_CHARS_RE = re.compile(r'[\x00-\x1f\x7f#<>\[\]|{}]')
 RECORD_ID_RE = re.compile(r'/elib/(?:Record|Collection)/([^/?#"\'<>\s]+)')
@@ -1067,8 +1069,36 @@ class NlbClient:
 		return files
 
 	def download_pdf_scan(self, marc_id: str, file_id: str, target_path: Path) -> int:
-		"""Perform the IIIF handshake and stream the full PDF scan to target_path."""
+		"""Retry transient download failures with backoff, discarding partial PDFs.
+
+		The viewer session POST runs once. Each GET/stream attempt starts from
+		byte zero; exhausted retries propagate so the scan remains resumable.
+		"""
 		self.ensure_viewer_session()
+		attempt = 1
+		while True:
+			try:
+				return self._download_pdf_scan_once(marc_id, file_id, target_path)
+			except (
+				requests.exceptions.Timeout,
+				requests.exceptions.ConnectionError,
+				requests.exceptions.ChunkedEncodingError,
+			) as error:
+				if isinstance(error, requests.exceptions.SSLError):
+					raise
+				target_path.unlink(missing_ok=True)
+				if attempt >= DOWNLOAD_MAX_ATTEMPTS:
+					raise
+				delay = DOWNLOAD_RETRY_DELAY * 2 ** (attempt - 1)
+				log_progress(
+					f'[{marc_id}:{file_id}] Download attempt {attempt}/{DOWNLOAD_MAX_ATTEMPTS} '
+					f'failed ({type(error).__name__}: {error}); retrying in {delay} seconds'
+				)
+				time.sleep(delay)
+				attempt += 1
+
+	def _download_pdf_scan_once(self, marc_id: str, file_id: str, target_path: Path) -> int:
+		"""Fetch the manifest, record download events, and stream one complete PDF."""
 		auth_headers = {'Authorization': VIEWER_BASIC_AUTH}
 
 		manifest_resp = self.session.get(
@@ -1124,12 +1154,12 @@ class NlbClient:
 					out_file.write(chunk)
 					bytes_written += len(chunk)
 
-		if not first_chunk.startswith(b'%PDF-'):
-			raise ValueError(f'Downloaded content for {marc_id}:{file_id} is not a valid PDF: {first_chunk!r}')
 		if expected_length is not None and int(expected_length) != bytes_written:
-			raise ValueError(
+			raise requests.exceptions.ChunkedEncodingError(
 				f'Incomplete PDF transfer for {marc_id}:{file_id}: got {bytes_written} of {expected_length} bytes'
 			)
+		if not first_chunk.startswith(b'%PDF-'):
+			raise ValueError(f'Downloaded content for {marc_id}:{file_id} is not a valid PDF: {first_chunk!r}')
 		return bytes_written
 
 
