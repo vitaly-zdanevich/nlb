@@ -459,6 +459,124 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 		self.assertIn("* '''Место издания (MARC 620):'''", wikitext_dedup)
 		self.assertIn("* '''Тематика (MARC 6xx):''' Кірыліца ― беларускія выданні", wikitext_dedup)
 
+	def test_parse_marcxml_and_description_with_secondary_responsibility_and_accompanying_material(self) -> None:
+		"""Verify UNIMARC 200$g secondary responsibility and 215$e accompanying material are parsed and rendered."""
+		marcxml = """<?xml version="1.0" encoding="UTF-8"?>
+		<collection xmlns="http://www.loc.gov/MARC21/slim">
+			<record>
+				<controlfield tag="001">BY-NLB-rr333</controlfield>
+				<datafield tag="200" ind1="1" ind2=" ">
+					<subfield code="a">Сборник материалов</subfield>
+					<subfield code="f">составил И. И. Мещерский</subfield>
+					<subfield code="g">под редакцией А. А. Сидорова</subfield>
+					<subfield code="g">художник В. В. Васильев</subfield>
+				</datafield>
+				<datafield tag="215" ind1=" " ind2=" ">
+					<subfield code="a">48 с.</subfield>
+					<subfield code="d">35 см</subfield>
+					<subfield code="e">1 прил. (16 с.)</subfield>
+					<subfield code="e">1 карта</subfield>
+				</datafield>
+			</record>
+		</collection>
+		"""
+		marc_meta = upload_nlb.parse_marcxml(marcxml)
+		self.assertEqual(
+			marc_meta['responsibility'],
+			'составил И. И. Мещерский ; под редакцией А. А. Сидорова ; художник В. В. Васильев',
+		)
+		self.assertEqual(
+			marc_meta['physical_description'],
+			'48 с. : 35 см + 1 прил. (16 с.) + 1 карта',
+		)
+
+		wikitext = upload_nlb.build_commons_description(
+			record_meta={'title': 'Сборник материалов', 'fields': []},
+			marc_meta=marc_meta,
+			marc_id='BY-NLB-rr333',
+			file_id='3001',
+		)
+		self.assertIn(
+			"* '''Ответственность / Responsibility:''' составил И. И. Мещерский ; под редакцией А. А. Сидорова ; художник В. В. Васильев",
+			wikitext,
+		)
+		self.assertIn(
+			"* '''Физическое описание (MARC 215):''' 48 с. : 35 см + 1 прил. (16 с.) + 1 карта",
+			wikitext,
+		)
+
+	def test_parse_marcxml_and_description_with_language_roles(self) -> None:
+		"""Verify UNIMARC 101 language roles (text 101$a, original 101$c, summary 101$d) are parsed and rendered."""
+		marcxml = """<?xml version="1.0" encoding="UTF-8"?>
+		<collection xmlns="http://www.loc.gov/MARC21/slim">
+			<record>
+				<controlfield tag="001">BY-NLB-rr444</controlfield>
+				<datafield tag="200" ind1="1" ind2=" ">
+					<subfield code="a">Книга</subfield>
+				</datafield>
+				<datafield tag="101" ind1="1" ind2=" ">
+					<subfield code="a">chu</subfield>
+					<subfield code="c">heb</subfield>
+					<subfield code="d">rus</subfield>
+				</datafield>
+			</record>
+		</collection>
+		"""
+		marc_meta = upload_nlb.parse_marcxml(marcxml)
+		self.assertEqual(marc_meta['languages'], ['chu'])
+		self.assertEqual(marc_meta['original_languages'], ['heb'])
+		self.assertEqual(marc_meta['summary_languages'], ['rus'])
+
+		wikitext = upload_nlb.build_commons_description(
+			record_meta={'title': 'Книга', 'fields': []},
+			marc_meta=marc_meta,
+			marc_id='BY-NLB-rr444',
+			file_id='4001',
+		)
+		self.assertIn("* '''Код языка (MARC 101$a):''' chu", wikitext)
+		self.assertIn("* '''Код языка оригинала (MARC 101$c):''' heb", wikitext)
+		self.assertIn("* '''Код языка резюме (MARC 101$d):''' rus", wikitext)
+
+	def test_parse_marcxml_repeated_physical_descriptions_with_substring_extents(self) -> None:
+		"""Verify repeated 215 fields are preserved when one entry is a substring of another."""
+		marcxml = """<?xml version="1.0" encoding="UTF-8"?>
+		<collection xmlns="http://www.loc.gov/MARC21/slim">
+			<record>
+				<controlfield tag="001">BY-NLB-rr555</controlfield>
+				<datafield tag="200" ind1="1" ind2=" ">
+					<subfield code="a">Многотомник</subfield>
+				</datafield>
+				<datafield tag="215" ind1=" " ind2=" ">
+					<subfield code="a">148 с.</subfield>
+					<subfield code="d">20 см</subfield>
+				</datafield>
+				<datafield tag="215" ind1=" " ind2=" ">
+					<subfield code="a">48 с.</subfield>
+					<subfield code="d">20 см</subfield>
+				</datafield>
+			</record>
+		</collection>
+		"""
+		marc_meta = upload_nlb.parse_marcxml(marcxml)
+		self.assertEqual(
+			marc_meta['physical_descriptions'],
+			['148 с. : 20 см', '48 с. : 20 см'],
+		)
+		self.assertEqual(
+			marc_meta['physical_description'],
+			'148 с. : 20 см ; 48 с. : 20 см',
+		)
+
+		wikitext = upload_nlb.build_commons_description(
+			record_meta={'title': 'Многотомник', 'fields': []},
+			marc_meta=marc_meta,
+			marc_id='BY-NLB-rr555',
+			file_id='5001',
+		)
+		self.assertIn("* '''Физическое описание (MARC 215):'''", wikitext)
+		self.assertIn('** 148 с. : 20 см', wikitext)
+		self.assertIn('** 48 с. : 20 см', wikitext)
+
 	def test_build_commons_filename_truncates_within_utf8_byte_limit(self) -> None:
 		"""Verify Commons filename sanitization and 240-byte UTF-8 length bound."""
 		record_meta = {'title': 'Сборник ' * 40, 'fields': []}
@@ -556,6 +674,59 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 		self.assertNotIn('Russia', wikitext)
 		self.assertIn('[[Category:elib.nlb.by]]', wikitext)
 		self.assertEqual(wikitext.count('[[Category:'), 1)
+
+	def test_description_preserves_marc_subtitle_missing_from_html_title(self) -> None:
+		"""Keep the parsed MARC subtitle in the description before the scan part label."""
+		record_meta = upload_nlb.parse_record_html(
+			'<h1>Минские губернские ведомости</h1>',
+			'BY-NLB-rr111',
+		)
+		marc_meta = upload_nlb.parse_marcxml(MOCK_MARCXML_111)
+		wikitext = upload_nlb.build_commons_description(
+			record_meta=record_meta,
+			marc_meta=marc_meta,
+			marc_id='BY-NLB-rr111',
+			file_id='1001',
+			part_label='Том 1',
+		)
+		self.assertIn(
+			"|description={{ru|1='''Минские губернские ведомости: официальная часть (Том 1)'''\n",
+			wikitext,
+		)
+
+	def test_description_does_not_duplicate_subtitle_already_in_title(self) -> None:
+		"""Retain a complete HTML title even when its subtitle uses different capitalization."""
+		marc_meta = upload_nlb.parse_marcxml(MOCK_MARCXML_111)
+		for subtitle in ('официальная часть', 'Официальная часть'):
+			with self.subTest(subtitle=subtitle):
+				title = f'Минские губернские ведомости : {subtitle}'
+				wikitext = upload_nlb.build_commons_description(
+					record_meta={'title': title, 'fields': []},
+					marc_meta=marc_meta,
+					marc_id='BY-NLB-rr111',
+					file_id='1001',
+				)
+				self.assertIn("|description={{ru|1='''" + title + "'''\n", wikitext)
+				self.assertEqual(wikitext.casefold().count('официальная часть'), 1)
+
+	def test_description_subtitle_fallback_empty_values_and_escaping(self) -> None:
+		"""Handle missing HTML titles and empty subtitles while escaping subtitle pipes."""
+		cases = [
+			('', '  Очерки и документы  ', 'История Беларуси: Очерки и документы'),
+			('История Беларуси', None, 'История Беларуси'),
+			('История Беларуси', '', 'История Беларуси'),
+			('История Беларуси', '   ', 'История Беларуси'),
+			('История Беларуси', 'Очерки | документы', 'История Беларуси: Очерки {{!}} документы'),
+		]
+		for html_title, subtitle, expected_title in cases:
+			with self.subTest(html_title=html_title, subtitle=subtitle):
+				wikitext = upload_nlb.build_commons_description(
+					record_meta={'title': html_title, 'fields': []},
+					marc_meta={'title': 'История Беларуси', 'subtitle': subtitle},
+					marc_id='BY-NLB-rr111',
+					file_id='1001',
+				)
+				self.assertIn("|description={{ru|1='''" + expected_title + "'''\n", wikitext)
 
 	def test_multiline_metadata_fields_are_formatted_on_separate_lines(self) -> None:
 		"""Verify multi-value HTML and MARC fields are rendered on separate lines, not collapsed."""

@@ -410,12 +410,14 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 		'title': '',
 		'subtitle': '',
 		'responsibility': '',
+		'responsibilities': [],
 		'edition': '',
 		'places': [],
 		'publishers': [],
 		'date': '',
 		'year': '',
 		'physical_description': '',
+		'physical_descriptions': [],
 		'series': [],
 		'notes': [],
 		'contents': [],
@@ -425,6 +427,9 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 		'shelfmarks': [],
 		'authors': [],
 		'languages': [],
+		'original_languages': [],
+		'intermediate_languages': [],
+		'summary_languages': [],
 		'country': '',
 		'udc': [],
 		'raw_fields': [],
@@ -479,6 +484,15 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 			for lang in submap.get('a', []):
 				if lang not in result['languages']:
 					result['languages'].append(lang)
+			for lang in submap.get('c', []):
+				if lang not in result['original_languages']:
+					result['original_languages'].append(lang)
+			for lang in submap.get('b', []):
+				if lang not in result['intermediate_languages']:
+					result['intermediate_languages'].append(lang)
+			for lang in submap.get('d', []):
+				if lang not in result['summary_languages']:
+					result['summary_languages'].append(lang)
 		elif tag == '102':
 			if submap.get('a') and not result['country']:
 				result['country'] = submap['a'][0]
@@ -487,8 +501,9 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 				result['title'] = ' ; '.join(submap['a'])
 			if submap.get('e') and not result['subtitle']:
 				result['subtitle'] = ' : '.join(submap['e'])
-			if submap.get('f') and not result['responsibility']:
-				result['responsibility'] = ' / '.join(submap['f'])
+			for resp in submap.get('f', []) + submap.get('g', []):
+				if resp not in result['responsibilities']:
+					result['responsibilities'].append(resp)
 		elif tag == '205':
 			if submap.get('a') and not result['edition']:
 				result['edition'] = ' '.join(submap['a'])
@@ -502,9 +517,14 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 			if submap.get('d') and not result['date']:
 				result['date'] = ', '.join(submap['d'])
 		elif tag == '215':
-			phys_parts = submap.get('a', []) + submap.get('c', []) + submap.get('d', [])
-			if phys_parts and not result['physical_description']:
-				result['physical_description'] = ' : '.join(phys_parts)
+			main_parts = submap.get('a', []) + submap.get('c', []) + submap.get('d', [])
+			acc_parts = submap.get('e', [])
+			phys_entry = ' : '.join(main_parts)
+			if acc_parts:
+				acc_str = ' + '.join(acc_parts)
+				phys_entry = f'{phys_entry} + {acc_str}' if phys_entry else acc_str
+			if phys_entry and phys_entry not in result['physical_descriptions']:
+				result['physical_descriptions'].append(phys_entry)
 		elif tag in {'225', '461'}:
 			if tag == '461' and submap.get('a') and not parent_title:
 				parent_title = ' ; '.join(submap['a'])
@@ -587,6 +607,12 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 		match = YEAR_RE.search(result['date'])
 		if match:
 			result['year'] = match.group(1)
+
+	if result['responsibilities']:
+		result['responsibility'] = ' ; '.join(result['responsibilities'])
+
+	if result['physical_descriptions']:
+		result['physical_description'] = ' ; '.join(result['physical_descriptions'])
 
 	return result
 
@@ -680,8 +706,11 @@ def build_commons_description(
 	category: str = DEFAULT_CATEGORY,
 	license_template: str = DEFAULT_LICENSE,
 ) -> str:
-	"""Build the Wikimedia Commons page wikitext containing all NLB metadata and single category."""
+	"""Build Commons wikitext, adding a missing MARC subtitle before the scan part label."""
 	title = (record_meta.get('title') or marc_meta.get('title') or marc_id).strip()
+	subtitle = (marc_meta.get('subtitle') or '').strip()
+	if subtitle and subtitle.casefold() not in title.casefold():
+		title = f'{title}: {subtitle}'
 	if part_label:
 		title = f'{title} ({part_label})'
 
@@ -718,12 +747,26 @@ def build_commons_description(
 		metadata_lines.append(format_metadata_field('Издатель (MARC 210$c)', marc_meta['publishers']))
 	if marc_meta.get('edition'):
 		metadata_lines.append(format_metadata_field('Издание (MARC 205)', [marc_meta['edition']]))
-	if marc_meta.get('physical_description'):
-		metadata_lines.append(format_metadata_field('Физическое описание (MARC 215)', [marc_meta['physical_description']]))
+	phys_list = marc_meta.get('physical_descriptions') or (
+		[marc_meta['physical_description']] if marc_meta.get('physical_description') else []
+	)
+	if phys_list:
+		metadata_lines.append(format_metadata_field('Физическое описание (MARC 215)', phys_list))
 	if marc_meta.get('series'):
 		metadata_lines.append(format_metadata_field('Серия (MARC 225/461)', marc_meta['series']))
 	if marc_meta.get('languages'):
-		metadata_lines.append(format_metadata_field('Код языка (MARC 101)', marc_meta['languages']))
+		label = 'Код языка (MARC 101$a)' if (
+			marc_meta.get('original_languages')
+			or marc_meta.get('intermediate_languages')
+			or marc_meta.get('summary_languages')
+		) else 'Код языка (MARC 101)'
+		metadata_lines.append(format_metadata_field(label, marc_meta['languages']))
+	if marc_meta.get('original_languages'):
+		metadata_lines.append(format_metadata_field('Код языка оригинала (MARC 101$c)', marc_meta['original_languages']))
+	if marc_meta.get('intermediate_languages'):
+		metadata_lines.append(format_metadata_field('Код языка промежуточного перевода (MARC 101$b)', marc_meta['intermediate_languages']))
+	if marc_meta.get('summary_languages'):
+		metadata_lines.append(format_metadata_field('Код языка резюме (MARC 101$d)', marc_meta['summary_languages']))
 	if marc_meta.get('country'):
 		metadata_lines.append(format_metadata_field('Код страны (MARC 102)', [marc_meta['country']]))
 	if marc_meta.get('subjects'):
