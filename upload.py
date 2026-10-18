@@ -392,6 +392,17 @@ def parse_record_html(html: str, marc_id: str) -> dict[str, Any]:
 	}
 
 
+def extract_contents_entries(text: str) -> list[str]:
+	"""Split a raw contents string (e.g. MARC 327 or TOC) into structured section entries."""
+	stripped = text.strip()
+	for prefix in ('содержание:', 'содержание :', 'contents:'):
+		if stripped.lower().startswith(prefix):
+			stripped = stripped[len(prefix):].strip()
+			break
+	parts = [p.strip() for p in re.split(r';\s+|\n+', stripped) if p.strip()]
+	return parts if parts else ([stripped] if stripped else [])
+
+
 def parse_marcxml(xml_text: str) -> dict[str, Any]:
 	"""Parse UNIMARC/BELMARC XML export into structured bibliographic fields and raw tags."""
 	result: dict[str, Any] = {
@@ -407,6 +418,7 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 		'physical_description': '',
 		'series': [],
 		'notes': [],
+		'contents': [],
 		'subjects': [],
 		'authors': [],
 		'languages': [],
@@ -501,7 +513,12 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 		elif tag == '961':
 			if submap.get('a') and not parent_title:
 				parent_title = ' ; '.join(submap['a'])
-		elif tag in {'300', '320', '330'}:
+		elif tag == '327':
+			for val in submap.get('a', []):
+				for entry in extract_contents_entries(val):
+					if entry not in result['contents']:
+						result['contents'].append(entry)
+		elif tag.startswith('3'):
 			for note in submap.get('a', []):
 				if note not in result['notes']:
 					result['notes'].append(note)
@@ -668,6 +685,9 @@ def build_commons_description(
 		metadata_lines.append(format_metadata_field('Код страны (MARC 102)', [marc_meta['country']]))
 	if marc_meta.get('subjects'):
 		metadata_lines.append(format_metadata_field('Тематика (MARC 6xx)', marc_meta['subjects']))
+	contents = marc_meta.get('contents') or record_meta.get('contents') or []
+	if contents:
+		metadata_lines.append(format_metadata_field('Содержание (MARC 327)', contents))
 	if marc_meta.get('notes'):
 		metadata_lines.append(format_metadata_field('Примечания (MARC 3xx)', marc_meta['notes']))
 	if marc_meta.get('udc'):
@@ -835,6 +855,20 @@ class NlbClient:
 		marcxml_url = f'{ELIB_BASE_URL}/elib/Record/{marc_id}/Export?style=MARCXML'
 		marc_resp = self.session.get(marcxml_url, timeout=self.timeout)
 		marc_meta = parse_marcxml(marc_resp.text) if marc_resp.status_code == 200 else parse_marcxml('')
+		if not marc_meta.get('contents'):
+			toc_url = f'{ELIB_BASE_URL}/elib/Record/{marc_id}/TOC'
+			try:
+				toc_resp = self.session.get(toc_url, timeout=self.timeout)
+				if toc_resp.status_code == 200:
+					toc_soup = BeautifulSoup(toc_resp.text, 'html.parser')
+					for li in toc_soup.select('.tab-pane.toc-tab li, ul.toc li'):
+						txt = re.sub(r'\s+', ' ', li.get_text(' ', strip=True)).strip()
+						if txt:
+							for entry in extract_contents_entries(txt):
+								if entry not in record_meta.setdefault('contents', []):
+									record_meta['contents'].append(entry)
+			except Exception:
+				pass
 		return record_meta, marc_meta
 
 	def ensure_viewer_session(self, force: bool = False) -> None:

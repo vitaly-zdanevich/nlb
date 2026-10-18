@@ -307,6 +307,62 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 		self.assertEqual(marc_meta['authors'], ['Иванов, Иван Иванович (1840—1912)'])
 		self.assertEqual(upload_nlb.resolve_publication_year(record_meta, marc_meta), 1890)
 
+	def test_parse_marcxml_and_description_with_contents_and_all_notes(self) -> None:
+		"""Verify MARC 327 contents note (TOC with section numbers and folio ranges) and 3xx notes are parsed."""
+		marcxml = """<?xml version="1.0" encoding="UTF-8"?>
+		<collection xmlns="http://www.loc.gov/MARC21/slim">
+			<record>
+				<controlfield tag="001">BY-NLB-br0000015701</controlfield>
+				<datafield tag="100" ind1=" " ind2=" ">
+					<subfield code="a">20070206f18021805|||y0rusy50  ||||ca</subfield>
+				</datafield>
+				<datafield tag="200" ind1="1" ind2=" ">
+					<subfield code="a">Псалтирь</subfield>
+				</datafield>
+				<datafield tag="210" ind1=" " ind2=" ">
+					<subfield code="a">[Гродно [т. е. Махновка]</subfield>
+					<subfield code="d">1788 [после 1802]]</subfield>
+				</datafield>
+				<datafield tag="306" ind1=" " ind2=" ">
+					<subfield code="a">Старообрядческое издание с московского издания 1651 г.</subfield>
+				</datafield>
+				<datafield tag="307" ind1=" " ind2=" ">
+					<subfield code="a">Фолиация в нижнем правом углу: 1-367 л.</subfield>
+				</datafield>
+				<datafield tag="316" ind1=" " ind2=" ">
+					<subfield code="a">Дефектный экземпляр: утрачены л. 1-5</subfield>
+				</datafield>
+				<datafield tag="321" ind1=" " ind2=" ">
+					<subfield code="a">Библиография: Вознесенский № 152</subfield>
+				</datafield>
+				<datafield tag="327" ind1="1" ind2=" ">
+					<subfield code="a">Содержание: 1) 1-143, кафизмы, 1-20; 2) 8-12, 6-7, 13-14, о крестном знамении; 3) 14 об.-20 об., о вере Анастасия Антиохийского, Кирилла Александрийского, Максима Грека; 4) 21-24 об., указ о поклонах; 5) 25-33 об., устав о Псалтири; 6) 152-197, кафизмы; 7) 197 об.-218, библейские песни; 8) 218 об.-285, многомилостивое; 9) 285-319, устав всем, хотящим пети Псалтирь; 10) 319 об.-329, канон за единоумершего; 11) 329 об.-340, за умерших; 12) 340 об.-349, за творящих милостыню; 13) 349-355, на исход души</subfield>
+				</datafield>
+			</record>
+		</collection>
+		"""
+		marc_meta = upload_nlb.parse_marcxml(marcxml)
+		self.assertIn('contents', marc_meta)
+		self.assertEqual(len(marc_meta['contents']), 13)
+		self.assertTrue(marc_meta['contents'][0].startswith('1) 1-143, кафизмы'))
+		self.assertTrue(marc_meta['contents'][-1].startswith('13) 349-355, на исход души'))
+		self.assertIn('Старообрядческое издание с московского издания 1651 г.', marc_meta['notes'])
+		self.assertIn('Фолиация в нижнем правом углу: 1-367 л.', marc_meta['notes'])
+		self.assertIn('Дефектный экземпляр: утрачены л. 1-5', marc_meta['notes'])
+		self.assertIn('Библиография: Вознесенский № 152', marc_meta['notes'])
+
+		wikitext = upload_nlb.build_commons_description(
+			record_meta={'title': 'Псалтирь', 'fields': []},
+			marc_meta=marc_meta,
+			marc_id='BY-NLB-br0000015701',
+			file_id='7386109',
+			part_label='Ч. 3',
+		)
+		self.assertIn("* '''Содержание (MARC 327):'''", wikitext)
+		for entry in marc_meta['contents']:
+			self.assertIn(f'** {entry}', wikitext)
+		self.assertIn("* '''Примечания (MARC 3xx):'''", wikitext)
+
 	def test_build_commons_filename_truncates_within_utf8_byte_limit(self) -> None:
 		"""Verify Commons filename sanitization and 240-byte UTF-8 length bound."""
 		record_meta = {'title': 'Сборник ' * 40, 'fields': []}
@@ -652,6 +708,29 @@ class TestComponentIntegration(unittest.TestCase):
 			target = Path(tmp_dir) / 'bad.pdf'
 			with self.assertRaisesRegex(ValueError, 'not a valid PDF'):
 				client.download_pdf_scan('BY-NLB-rr111', '1001', target)
+
+	def test_nlb_client_fetch_record_metadata_with_toc_fallback(self) -> None:
+		"""Verify NlbClient.fetch_record_metadata falls back to /TOC tab when MARCXML lacks 327."""
+		mock_session = mock.MagicMock()
+		mock_session.headers = {}
+
+		record_resp = mock.MagicMock()
+		record_resp.status_code = 200
+		record_resp.text = MOCK_RECORD_HTML_111
+
+		marc_resp = mock.MagicMock()
+		marc_resp.status_code = 200
+		marc_resp.text = MOCK_MARCXML_111
+
+		toc_resp = mock.MagicMock()
+		toc_resp.status_code = 200
+		toc_resp.text = '<div class="tab-pane toc-tab"><ul class="toc"><li>Содержание: 1) Глава 1; 2) Глава 2</li></ul></div>'
+
+		mock_session.get.side_effect = [record_resp, marc_resp, toc_resp]
+		client = upload_nlb.NlbClient(session=mock_session)
+
+		record_meta, marc_meta = client.fetch_record_metadata('BY-NLB-rr111')
+		self.assertEqual(record_meta['contents'], ['1) Глава 1', '2) Глава 2'])
 
 	def test_commons_uploader_retry_and_duplicate_handling(self) -> None:
 		"""Verify CommonsUploader retries transient errors and parses duplicate warnings."""
