@@ -710,7 +710,6 @@ def build_commons_description(
 		f'|date={date_value}\n'
 		f'|source={source_value}\n'
 		f'{author_line}'
-		f'|permission={{{{{license_template}}}}}\n'
 		'|other_versions=\n'
 		'}}\n\n'
 		'=={{int:license-header}}==\n'

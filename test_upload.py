@@ -399,6 +399,8 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 		self.assertEqual(upload_nlb.DEFAULT_UNTIL_YEAR, 1900)
 		self.assertEqual(upload_nlb.DEFAULT_LICENSE, 'PD-scan|PD-old-assumed-expired')
 		self.assertIn('{{PD-scan|PD-old-assumed-expired}}', wikitext)
+		self.assertEqual(wikitext.count('{{PD-scan|PD-old-assumed-expired}}'), 1)
+		self.assertNotIn('|permission=', wikitext)
 		self.assertNotIn('Russia', wikitext)
 		self.assertIn('[[Category:elib.nlb.by]]', wikitext)
 		self.assertEqual(wikitext.count('[[Category:'), 1)
