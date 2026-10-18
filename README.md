@@ -6,8 +6,8 @@
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
-[![Production code](https://img.shields.io/badge/production%20code-1%2C546%20lines-blue)](upload.py)
-[![Test code](https://img.shields.io/badge/test%20code-1%2C466%20lines-blue)](test_upload.py)
+[![Production code](https://img.shields.io/badge/production%20code-1%2C556%20lines-blue)](upload.py)
+[![Test code](https://img.shields.io/badge/test%20code-1%2C582%20lines-blue)](test_upload.py)
 
 [`upload.py`](upload.py) iterates over open-access digitized scans from the Electronic Library of the National Library of Belarus (`https://elib.nlb.by`) and uploads them to Wikimedia Commons with full HTML and UNIMARC (`MARCXML`) metadata.
 
@@ -17,7 +17,7 @@
 - **Configurable year range and custom URLs**: Supports `--from-year`, `--to-year` (`--until-year`), or passing a custom `elib.nlb.by` search or record URL directly.
 - **Original title extraction**: Extracts the full title from the record page heading (`<h1>` / `<h3 property="name">`) and UNIMARC `200$a` + `961$a` / `461$a` parent work fields so multi-volume child records retain the work's full title instead of just a volume label such as `T. 2`.
 - **Single-file and multi-part (`METS`) support**: Resolves both direct `fileID` viewer links and multi-volume `metsID` document trees on `https://elib.nlb.by:8070`.
-- **SHA-1 deduplication**: Checks Wikimedia Commons by SHA-1 hash before uploading (via `find_by_hash.sh` or the MediaWiki `allimages` API).
+- **SHA-1 deduplication**: Computes the digest with Python's `hashlib` and queries the MediaWiki `allimages` API directly. No shell helper is required. Timeouts, broken connections, invalid JSON and HTTP 500/502/503/504 receive up to five attempts with 5, 10, 20 and 40 seconds between attempts; failed or invalid lookups leave the scan pending without uploading.
 - **Resumable state**: Saves progress atomically in `state.json` after each item and page so interrupted runs continue from the exact item on restart.
 - **Automatic cleanup**: Deletes each temporary PDF scan locally immediately after uploading or skipping.
 - **Download retries**: Retries manifest/download timeouts, connection failures and interrupted PDF transfers up to five total attempts, waiting 5, 10, 20 and 40 seconds. Each retry discards the partial PDF and starts again. If all attempts fail, the scan stays pending in `state.json` for the next run.
@@ -38,6 +38,8 @@
    - If `state.json` does not have the item (or was reset), the script downloads the PDF to `--staging-dir` and checks its SHA-1 digest on Wikimedia Commons via `check_commons_by_hash`. When Commons reports an existing file with the same SHA-1 (even under an older or different title), the script logs `Skipping (duplicate SHA-1 on Commons: [...])`, records `"status": "duplicate_sha1"` in `state.json`, deletes the temporary PDF, and skips uploading.
 
 ## Usage
+
+The former `--find-by-hash-script` option has been removed; SHA-1 checks always use the Python API client.
 
 ```bash
 # Run with defaults (all open-access scans published up to 1900)

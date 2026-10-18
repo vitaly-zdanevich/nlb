@@ -18,7 +18,6 @@ import os
 from pathlib import Path
 import re
 import signal
-import subprocess
 import time
 from typing import Any, Iterator
 from urllib.parse import parse_qs, parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
@@ -32,10 +31,9 @@ ELIB_BASE_URL = 'https://elib.nlb.by'
 VIEWER_BASE_URL = 'https://elib.nlb.by:8070'
 VIEWER_BASIC_AUTH = 'Basic ZWxpYjppdTIzeC0yMzQ='
 COMMONS_API_URL = 'https://commons.wikimedia.org/w/api.php'
-FIND_BY_HASH_USER_AGENT = 'find_by_hash_by_vitaly_zdanevich'
+COMMONS_USER_AGENT = 'nlb-commons-uploader (https://github.com/vitaly-zdanevich/nlb)'
 DEFAULT_USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0'
 DEFAULT_PYWIKIBOT_DIR = '/home/vitaly/.pywikibot'
-DEFAULT_FIND_BY_HASH_SCRIPT = '/home/vitaly/p/wikimedia/commons/code/find_by_hash/find_by_hash.sh'
 DEFAULT_CATEGORY = 'elib.nlb.by'
 DEFAULT_LICENSE = 'PD-scan|PD-old-assumed-expired'
 DEFAULT_UNTIL_YEAR = 1900
@@ -44,6 +42,8 @@ UPLOAD_CHUNK_SIZE = 4 * 1024 * 1024
 UPLOAD_MAX_RETRIES = 10
 DOWNLOAD_MAX_ATTEMPTS = 5
 DOWNLOAD_RETRY_DELAY = 5
+HASH_CHECK_MAX_ATTEMPTS = 5
+HASH_CHECK_RETRY_DELAY = 5
 
 ILLEGAL_COMMONS_TITLE_CHARS_RE = re.compile(r'[\x00-\x1f\x7f#<>\[\]|{}]')
 RECORD_ID_RE = re.compile(r'/elib/(?:Record|Collection)/([^/?#"\'<>\s]+)')
@@ -869,62 +869,82 @@ def calculate_sha1(file_path: Path) -> str:
 		return hashlib.file_digest(handle, 'sha1').hexdigest()
 
 
-def parse_commons_allimages_response(payload: dict[str, Any], expected_sha1: str) -> list[str]:
-	"""Extract matching Commons file titles from an allimages API JSON response."""
-	if 'error' in payload or 'query' not in payload or 'allimages' not in payload['query']:
-		raise ValueError(f"Invalid Commons allimages response: {payload.get('error', 'missing query.allimages')}")
-	matches = payload['query']['allimages']
+def parse_commons_allimages_response(payload: Any, expected_sha1: str) -> list[str]:
+	"""Validate Commons results; only a complete empty result proves absence."""
+	if not isinstance(payload, dict):
+		raise ValueError('Invalid Commons allimages response: expected a JSON object')
+	if 'error' in payload or 'errors' in payload:
+		raise ValueError(f"Commons allimages API error: {payload.get('error', payload.get('errors'))}")
+	query = payload.get('query')
+	if not isinstance(query, dict) or not isinstance(query.get('allimages'), list):
+		raise ValueError('Invalid Commons allimages response: expected query.allimages list')
+	matches = query['allimages']
+	if not matches and payload.get('continue'):
+		raise ValueError('Incomplete Commons allimages response: empty results with continuation')
 	titles: list[str] = []
 	for item in matches:
+		if not isinstance(item, dict):
+			raise ValueError('Invalid Commons allimages response: expected a file object')
 		sha1 = item.get('sha1')
-		if sha1 and sha1.lower() != expected_sha1.lower():
+		if not isinstance(sha1, str) or sha1.lower() != expected_sha1.lower():
 			raise ValueError(f'Unexpected SHA-1 in Commons response: {sha1} != {expected_sha1}')
 		title = item.get('title') or item.get('name')
-		if title:
-			titles.append(str(title))
+		if not isinstance(title, str) or not title.strip():
+			raise ValueError('Invalid Commons allimages response: missing file title')
+		titles.append(title)
 	return titles
 
 
 def check_commons_by_hash(
 	file_path: Path,
 	session: requests.Session | None = None,
-	find_by_hash_script: Path | None = Path(DEFAULT_FIND_BY_HASH_SCRIPT),
 ) -> tuple[str, list[str]]:
-	"""Check whether a file's SHA-1 already exists on Wikimedia Commons.
+	"""Hash the file once and query Commons directly, retrying transient failures.
 
-	Uses /home/vitaly/p/wikimedia/commons/code/find_by_hash/find_by_hash.sh when
-	available and falls back to querying the identical MediaWiki allimages API.
+	Timeouts, broken connections, invalid JSON and HTTP 500/502/503/504 receive
+	bounded retries. An inconclusive lookup raises instead of allowing an upload.
 	"""
 	digest = calculate_sha1(file_path)
-	if find_by_hash_script is not None and find_by_hash_script.is_file():
-		completed = subprocess.run(
-			['bash', str(find_by_hash_script), str(file_path)],
-			check=True,
-			capture_output=True,
-			text=True,
-			timeout=60,
-		)
-		output = completed.stdout
-		brace_index = output.find('{')
-		if brace_index == -1:
-			raise ValueError(f'find_by_hash.sh returned non-JSON output: {output!r}')
-		payload = json.loads(output[brace_index:])
-		return digest, parse_commons_allimages_response(payload, digest)
-
-	http = session or requests.Session()
-	response = http.get(
-		COMMONS_API_URL,
-		params={
-			'action': 'query',
-			'list': 'allimages',
-			'format': 'json',
-			'aisha1': digest,
-		},
-		headers={'User-Agent': FIND_BY_HASH_USER_AGENT},
-		timeout=30,
-	)
-	response.raise_for_status()
-	return digest, parse_commons_allimages_response(response.json(), digest)
+	http = session or requests
+	attempt = 1
+	while True:
+		try:
+			with http.get(
+				COMMONS_API_URL,
+				params={
+					'action': 'query',
+					'list': 'allimages',
+					'format': 'json',
+					'aisha1': digest,
+					'aiprop': 'sha1',
+				},
+				headers={'User-Agent': COMMONS_USER_AGENT},
+				timeout=30,
+			) as response:
+				response.raise_for_status()
+				return digest, parse_commons_allimages_response(response.json(), digest)
+		except (
+			requests.exceptions.Timeout,
+			requests.exceptions.ConnectionError,
+			requests.exceptions.ChunkedEncodingError,
+			requests.exceptions.JSONDecodeError,
+			requests.exceptions.HTTPError,
+		) as error:
+			if isinstance(error, requests.exceptions.SSLError):
+				raise
+			if isinstance(error, requests.exceptions.HTTPError) and (
+				error.response is None or error.response.status_code not in {500, 502, 503, 504}
+			):
+				raise
+			if attempt >= HASH_CHECK_MAX_ATTEMPTS:
+				raise
+			delay = HASH_CHECK_RETRY_DELAY * 2 ** (attempt - 1)
+			log_progress(
+				f'[SHA-1 {digest}] Commons lookup attempt {attempt}/{HASH_CHECK_MAX_ATTEMPTS} '
+				f'failed ({type(error).__name__}: {error}); retrying in {delay} seconds'
+			)
+			time.sleep(delay)
+			attempt += 1
 
 
 class NlbClient:
@@ -1317,7 +1337,6 @@ def process_single_scan(
 	marc_meta: dict[str, Any],
 	category: str = DEFAULT_CATEGORY,
 	license_template: str = DEFAULT_LICENSE,
-	find_by_hash_script: Path | None = Path(DEFAULT_FIND_BY_HASH_SCRIPT),
 	dry_run: bool = False,
 ) -> str:
 	"""Download, hash-check, upload, and delete a single NLB scan, updating state.json."""
@@ -1376,7 +1395,6 @@ def process_single_scan(
 		sha1, existing_titles = check_commons_by_hash(
 			temp_pdf,
 			session=client.session,
-			find_by_hash_script=find_by_hash_script,
 		)
 		if existing_titles:
 			log_progress(f'[{marc_id}:{file_id}] Skipping (duplicate SHA-1 on Commons: {existing_titles}): {viewer_url}')
@@ -1444,7 +1462,6 @@ def iterate_and_upload(
 	category: str = DEFAULT_CATEGORY,
 	license_template: str = DEFAULT_LICENSE,
 	max_uploads: int = 0,
-	find_by_hash_script: Path | None = Path(DEFAULT_FIND_BY_HASH_SCRIPT),
 	dry_run: bool = False,
 ) -> dict[str, int]:
 	"""Iterate through NLB search pages (or a custom URL) and upload available scans."""
@@ -1569,7 +1586,6 @@ def iterate_and_upload(
 						marc_meta=marc_meta,
 						category=category,
 						license_template=license_template,
-						find_by_hash_script=find_by_hash_script,
 						dry_run=dry_run,
 					)
 					counts[status] = counts.get(status, 0) + 1
@@ -1666,12 +1682,6 @@ def build_arg_parser() -> argparse.ArgumentParser:
 		help='Directory containing user-config.py and Pywikibot session files.',
 	)
 	parser.add_argument(
-		'--find-by-hash-script',
-		type=Path,
-		default=Path(DEFAULT_FIND_BY_HASH_SCRIPT),
-		help='Path to find_by_hash.sh script used to check SHA-1 on Commons.',
-	)
-	parser.add_argument(
 		'--max-uploads',
 		type=int,
 		default=0,
@@ -1710,7 +1720,6 @@ def main(argv: list[str] | None = None) -> int:
 			category=args.category,
 			license_template=args.license,
 			max_uploads=args.max_uploads,
-			find_by_hash_script=args.find_by_hash_script,
 			dry_run=args.dry_run,
 		)
 		print(json.dumps(counts, ensure_ascii=False))

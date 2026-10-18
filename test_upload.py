@@ -830,17 +830,17 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 class TestComponentIntegration(unittest.TestCase):
 	"""Level 2 component and integration tests for hash checking, IIIF handshake, and uploader."""
 
-	def test_check_commons_by_hash_via_find_by_hash_script(self) -> None:
-		"""Verify check_commons_by_hash executes find_by_hash.sh and parses JSON output."""
+	def test_check_commons_by_hash_uses_api_without_shell(self) -> None:
+		"""Ignore a legacy helper's hash-only output and query Commons in Python."""
 		with tempfile.TemporaryDirectory() as tmp_dir:
-			tmp_path = Path(tmp_dir)
-			pdf_file = tmp_path / 'sample.pdf'
+			pdf_file = Path(tmp_dir) / 'sample.pdf'
 			pdf_bytes = b'%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF\n'
 			pdf_file.write_bytes(pdf_bytes)
 			expected_sha1 = hashlib.sha1(pdf_bytes).hexdigest()
 
-			mock_script = tmp_path / 'find_by_hash.sh'
-			response_json = json.dumps({
+			session = mock.MagicMock()
+			session.get.return_value.__enter__.return_value = session.get.return_value
+			session.get.return_value.json.return_value = {
 				'batchcomplete': '',
 				'query': {
 					'allimages': [
@@ -851,24 +851,26 @@ class TestComponentIntegration(unittest.TestCase):
 						}
 					]
 				},
-			})
-			mock_script.write_text(
-				'#!/usr/bin/env bash\n'
-				'echo "* Connected to commons.wikimedia.org" >&2\n'
-				f"printf '%s\\n' '{response_json}'\n",
-				encoding='utf-8',
-			)
-			mock_script.chmod(0o755)
-
-			sha1, matches = upload_nlb.check_commons_by_hash(
-				pdf_file,
-				find_by_hash_script=mock_script,
-			)
+			}
+			with mock.patch.object(Path, 'is_file', return_value=True), mock.patch(
+				'subprocess.run',
+				return_value=types.SimpleNamespace(stdout=f'sha1:\n{expected_sha1}\n\n'),
+			) as shell:
+				sha1, matches = upload_nlb.check_commons_by_hash(pdf_file, session=session)
+				shell.assert_not_called()
 			self.assertEqual(sha1, expected_sha1)
 			self.assertEqual(matches, ['File:Existing NLB Scan.pdf'])
+			session.get.assert_called_once()
+			request = session.get.call_args
+			self.assertEqual(request.args, (upload_nlb.COMMONS_API_URL,))
+			self.assertEqual(request.kwargs['params']['aisha1'], expected_sha1)
+			self.assertEqual(request.kwargs['params']['list'], 'allimages')
+			self.assertEqual(request.kwargs['params']['aiprop'], 'sha1')
+			self.assertEqual(request.kwargs['timeout'], 30)
+			session.get.return_value.raise_for_status.assert_called_once()
 
-	def test_check_commons_by_hash_http_fallback_and_mismatch_error(self) -> None:
-		"""Verify HTTP API fallback when find_by_hash.sh is absent and SHA-1 mismatch detection."""
+	def test_check_commons_by_hash_empty_result_and_mismatch_error(self) -> None:
+		"""Accept an empty Commons result and reject a different file's digest."""
 		with tempfile.TemporaryDirectory() as tmp_dir:
 			pdf_file = Path(tmp_dir) / 'sample.pdf'
 			pdf_bytes = b'%PDF-1.5\n%test\n%%EOF\n'
@@ -877,6 +879,7 @@ class TestComponentIntegration(unittest.TestCase):
 
 			mock_session = mock.MagicMock()
 			mock_response = mock.MagicMock()
+			mock_response.__enter__.return_value = mock_response
 			mock_response.json.return_value = {
 				'batchcomplete': '',
 				'query': {'allimages': []},
@@ -886,7 +889,6 @@ class TestComponentIntegration(unittest.TestCase):
 			sha1, matches = upload_nlb.check_commons_by_hash(
 				pdf_file,
 				session=mock_session,
-				find_by_hash_script=Path(tmp_dir) / 'nonexistent.sh',
 			)
 			self.assertEqual(sha1, expected_sha1)
 			self.assertEqual(matches, [])
@@ -896,6 +898,26 @@ class TestComponentIntegration(unittest.TestCase):
 					{'query': {'allimages': [{'title': 'File:Bad.pdf', 'sha1': '0' * 40}]}},
 					expected_sha1,
 				)
+
+	def test_commons_hash_response_rejects_incomplete_results(self) -> None:
+		"""Do not interpret malformed or incomplete API results as no duplicates."""
+		for payload in (
+			[],
+			{},
+			{'error': {'code': 'badvalue', 'info': 'Invalid hash'}},
+			{'errors': [{'code': 'badvalue'}], 'query': {'allimages': []}},
+			{'query': None},
+			{'query': {'allimages': None}},
+			{'query': {'allimages': {}}},
+			{'query': {'allimages': [{}]}},
+			{'query': {'allimages': ['File:Invalid.pdf']}},
+			{'query': {'allimages': [{'title': 'File:Missing hash.pdf'}]}},
+			{'query': {'allimages': [{'title': '', 'sha1': '0' * 40}]}},
+			{'query': {'allimages': [{'title': 123, 'sha1': '0' * 40}]}},
+			{'query': {'allimages': []}, 'continue': {'aicontinue': 'Next.pdf'}},
+		):
+			with self.subTest(payload=payload), self.assertRaises(ValueError):
+				upload_nlb.parse_commons_allimages_response(payload, '0' * 40)
 
 	def test_nlb_client_handshake_and_pdf_download(self) -> None:
 		"""Verify NlbClient executes the 5-step port-8070 IIIF handshake and streams the PDF."""
@@ -1034,6 +1056,110 @@ class TestComponentIntegration(unittest.TestCase):
 
 		self.assertEqual(result['status'], 'duplicate_sha1')
 		self.assertEqual(result['duplicates'], ['Old_Scan.pdf'])
+
+
+class TestCommonsHashLookup(unittest.TestCase):
+	"""Exercise direct Commons lookups with real files and mocked HTTP responses."""
+
+	def setUp(self) -> None:
+		"""Create a PDF fixture and an isolated HTTP session for each test."""
+		tmp_dir = tempfile.TemporaryDirectory()
+		self.addCleanup(tmp_dir.cleanup)
+		self.tmp_path = Path(tmp_dir.name)
+		self.pdf_file = self.tmp_path / 'scan.pdf'
+		self.pdf_file.write_bytes(b'%PDF-1.4\nMock scan\n%%EOF\n')
+		self.digest = upload_nlb.calculate_sha1(self.pdf_file)
+		self.session = mock.MagicMock()
+
+	def response(self, payload: object, status: int = 200) -> upload_nlb.requests.Response:
+		"""Create a real Requests response to exercise status and JSON handling."""
+		response = upload_nlb.requests.Response()
+		response.status_code = status
+		response._content = json.dumps(payload).encode('utf-8')
+		response._content_consumed = True
+		return response
+
+	def test_timeout_and_server_error_retry_without_rehashing(self) -> None:
+		"""Recover from transient failures while computing the file hash once."""
+		self.session.get.side_effect = [
+			upload_nlb.requests.exceptions.ReadTimeout('Commons timed out'),
+			self.response({}, status=503),
+			self.response({'query': {'allimages': []}}),
+		]
+		with mock.patch('upload.time.sleep') as sleep, mock.patch(
+			'upload.calculate_sha1', wraps=upload_nlb.calculate_sha1,
+		) as hash_file:
+			self.assertEqual(upload_nlb.check_commons_by_hash(self.pdf_file, self.session), (self.digest, []))
+			hash_file.assert_called_once_with(self.pdf_file)
+			self.assertEqual(sleep.call_args_list, [mock.call(5), mock.call(10)])
+		self.assertEqual(self.session.get.call_count, 3)
+
+	def test_empty_response_is_retried(self) -> None:
+		"""Retry an empty HTTP body instead of interpreting it as no duplicates."""
+		empty = self.response(None)
+		empty._content = b''
+		self.session.get.side_effect = [empty, self.response({'query': {'allimages': []}})]
+		with mock.patch('upload.time.sleep') as sleep:
+			self.assertEqual(upload_nlb.check_commons_by_hash(self.pdf_file, self.session), (self.digest, []))
+			sleep.assert_called_once_with(5)
+
+	def test_permanent_errors_are_not_retried(self) -> None:
+		"""Reject permanent HTTP/API errors and bad certificates immediately."""
+		for response, error_type in (
+			(self.response({}, status=403), upload_nlb.requests.exceptions.HTTPError),
+			(self.response({'error': {'code': 'badvalue'}}), ValueError),
+			(self.response({'query': {'allimages': [{}]}}), ValueError),
+			(upload_nlb.requests.exceptions.SSLError('invalid certificate'), upload_nlb.requests.exceptions.SSLError),
+		):
+			with self.subTest(error=error_type.__name__), mock.patch('upload.time.sleep') as sleep:
+				self.session.get.reset_mock()
+				self.session.get.side_effect = [response]
+				with self.assertRaises(error_type):
+					upload_nlb.check_commons_by_hash(self.pdf_file, self.session)
+				sleep.assert_not_called()
+				self.session.get.assert_called_once()
+
+	def test_exhausted_lookup_does_not_upload_and_can_resume(self) -> None:
+		"""Leave the item pending after lookup failure and skip it on a later match."""
+		error = upload_nlb.requests.exceptions.ReadTimeout('Commons timed out')
+		self.session.get.side_effect = error
+		client = FakeNlbClient()
+		client.session = self.session
+		uploader = FakeCommonsUploader()
+		kwargs = {
+			'client': client,
+			'uploader': uploader,
+			'state': upload_nlb.default_state(),
+			'state_path': self.tmp_path / 'state.json',
+			'staging_dir': self.tmp_path / 'staging',
+			'marc_id': 'BY-NLB-rr111',
+			'file_id': '1001',
+			'part_label': '',
+			'record_meta': upload_nlb.parse_record_html(MOCK_RECORD_HTML_111, 'BY-NLB-rr111'),
+			'marc_meta': upload_nlb.parse_marcxml(MOCK_MARCXML_111),
+		}
+		with mock.patch('upload.time.sleep') as sleep:
+			with self.assertRaises(upload_nlb.requests.exceptions.ReadTimeout) as raised:
+				upload_nlb.process_single_scan(**kwargs)
+			self.assertIs(raised.exception, error)
+			self.assertEqual(self.session.get.call_count, 5)
+			self.assertEqual(sleep.call_args_list, [mock.call(5), mock.call(10), mock.call(20), mock.call(40)])
+		self.assertEqual(uploader.uploads, [])
+		self.assertEqual(list(kwargs['staging_dir'].iterdir()), [])
+		state = upload_nlb.load_state(kwargs['state_path'])
+		self.assertEqual(state['current_item_key'], 'BY-NLB-rr111:1001')
+		self.assertFalse(upload_nlb.is_item_completed(state, 'BY-NLB-rr111', '1001'))
+
+		downloaded_payload = b'%PDF-1.4\nRecord=BY-NLB-rr111 File=1001\n%%EOF\n'
+		self.session.get.side_effect = [self.response({'query': {'allimages': [{
+			'title': 'File:Existing scan.pdf',
+			'sha1': hashlib.sha1(downloaded_payload).hexdigest(),
+		}]}})]
+		kwargs['state'] = state
+		self.assertEqual(upload_nlb.process_single_scan(**kwargs), 'duplicate_sha1')
+		self.assertEqual(uploader.uploads, [])
+		self.assertEqual(list(kwargs['staging_dir'].iterdir()), [])
+		self.assertTrue(upload_nlb.is_item_completed(upload_nlb.load_state(kwargs['state_path']), 'BY-NLB-rr111', '1001'))
 
 
 class TestNlbDownloadRetries(unittest.TestCase):
@@ -1289,7 +1415,6 @@ class TestEndToEndPipeline(unittest.TestCase):
 			def fake_hash_check(
 				file_path: Path,
 				session: object = None,
-				find_by_hash_script: Path | None = None,
 			) -> tuple[str, list[str]]:
 				digest = upload_nlb.calculate_sha1(file_path)
 				if digest == dup_sha1:
