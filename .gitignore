@@ -1,0 +1,7 @@
+/__pycache__/
+/.pytest_cache/
+/.coverage
+/coverage.xml
+/state.json
+/state.json.new
+*.pyc
