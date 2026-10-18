@@ -1005,6 +1005,22 @@ def extract_duplicate_filenames(error: Exception) -> list[str]:
 	return [name for name in duplicates if isinstance(name, str)]
 
 
+def patch_mime_multipart_from_mangling(mime_multipart_cls: Any) -> None:
+	"""Disable Unix mbox '>From ' mangling in Pywikibot's multipart MIME serializer."""
+	if getattr(mime_multipart_cls, '_no_from_mangle_patched', False):
+		return
+	orig_as_bytes = mime_multipart_cls.as_bytes
+
+	def as_bytes_without_from_mangling(self: Any, unixfrom: bool = False, policy: Any = None) -> bytes:
+		base_policy = self.policy if policy is None else policy
+		if hasattr(base_policy, 'clone'):
+			base_policy = base_policy.clone(mangle_from_=False)
+		return orig_as_bytes(self, unixfrom=unixfrom, policy=base_policy)
+
+	mime_multipart_cls.as_bytes = as_bytes_without_from_mangling
+	mime_multipart_cls._no_from_mangle_patched = True
+
+
 class CommonsUploader:
 	"""Wrapper around Pywikibot to upload files to Wikimedia Commons with retries."""
 
@@ -1013,9 +1029,11 @@ class CommonsUploader:
 		os.environ.setdefault('PYWIKIBOT_DIR', pywikibot_dir)
 		import pywikibot
 		from pywikibot import config as pwb_config
+		import pywikibot.data.api
 
 		pwb_config.socket_timeout = 200
 		pwb_config.put_throttle = 0
+		patch_mime_multipart_from_mangling(pywikibot.data.api.CTEBinaryMIMEMultipart)
 		self.pywikibot = pywikibot
 		self.site = pywikibot.Site('commons', 'commons')
 

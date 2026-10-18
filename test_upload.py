@@ -1094,6 +1094,33 @@ class TestEndToEndPipeline(unittest.TestCase):
 		self.assertTrue(upload_calls[0].get('asynchronous'))
 		sleep_mock.assert_called_once_with(60)
 
+	def test_disable_pywikibot_mime_from_mangling(self) -> None:
+		"""Verify multipart MIME serialization does not prepend '>' to summaries starting with 'From '."""
+		from email.generator import BytesGenerator
+		from email.mime.multipart import MIMEMultipart
+		from email.mime.nonmultipart import MIMENonMultipart
+		from io import BytesIO
+
+		class FakeCTEBinaryMIMEMultipart(MIMEMultipart):
+			def as_bytes(self, unixfrom: bool = False, policy: Any = None) -> bytes:
+				active_policy = self.policy if policy is None else policy
+				fp = BytesIO()
+				gen = BytesGenerator(fp, policy=active_policy)
+				gen.flatten(self, unixfrom=unixfrom)
+				return fp.getvalue()
+
+		upload_nlb.patch_mime_multipart_from_mangling(FakeCTEBinaryMIMEMultipart)
+
+		container = FakeCTEBinaryMIMEMultipart(_subtype='form-data')
+		part = MIMENonMultipart('text', 'plain')
+		part.add_header('Content-disposition', 'form-data', name='comment')
+		part.set_payload('From https://elib.nlb.by/elib/Record/BY-NLB-br0000017173 (fileID 3973676)')
+		container.attach(part)
+
+		serialized = container.as_bytes().decode('utf-8')
+		self.assertIn('\n\nFrom https://elib.nlb.by/elib/Record/BY-NLB-br0000017173 (fileID 3973676)', serialized)
+		self.assertNotIn('>From ', serialized)
+
 
 if __name__ == '__main__':
 	unittest.main()
