@@ -558,7 +558,8 @@ def resolve_publication_year(record_meta: dict[str, Any], marc_meta: dict[str, A
 
 def sanitize_commons_filename(filename: str) -> str:
 	"""Sanitize a filename so it conforms to Wikimedia Commons naming rules."""
-	sanitized = ILLEGAL_COMMONS_TITLE_CHARS_RE.sub('_', filename)
+	sanitized = filename.replace('[', '(').replace(']', ')')
+	sanitized = ILLEGAL_COMMONS_TITLE_CHARS_RE.sub('_', sanitized)
 	sanitized = sanitized.replace("'", 'Ꞌ')
 	sanitized = sanitized.replace('/', '-')
 	sanitized = sanitized.replace('\\', '-')

@@ -323,6 +323,12 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 		self.assertNotIn('[', filename)
 		self.assertNotIn('|', filename)
 		self.assertNotIn('/', filename)
+		self.assertEqual(
+			upload_nlb.sanitize_commons_filename(
+				'Сборник постановлений по Министерству народного просвещения : [в 17 т.]. Алфавитный указатель'
+			),
+			'Сборник постановлений по Министерству народного просвещения - (в 17 т.). Алфавитный указатель',
+		)
 
 	def test_volume_record_uses_full_original_title_instead_of_volume_number(self) -> None:
 		"""Verify records like BY-NLB-br0000002570 use the full original title instead of bare 'T. 2'."""
