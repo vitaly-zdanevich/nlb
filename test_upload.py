@@ -1037,6 +1037,57 @@ class TestEndToEndPipeline(unittest.TestCase):
 			)
 			self.assertEqual(upload_nlb.format_elapsed_time(0), 'Spent 0 seconds')
 
+	def test_commons_uploader_retries_on_uploadstash_bad_path_and_uses_async_chunked_upload(self) -> None:
+		"""Verify uploadstash-bad-path is treated as retryable and CommonsUploader passes asynchronous=True."""
+		class FakeAPIError(Exception):
+			def __init__(self, code: str, info: str = '') -> None:
+				super().__init__(f'{code}: {info}')
+				self.code = code
+				self.info = info
+
+		class FakeUploadError(Exception):
+			def __init__(self, code: str, message: str = '') -> None:
+				super().__init__(message)
+				self.code = code
+				self.message = message
+
+		bad_path_error = FakeAPIError('uploadstash-bad-path', "Path doesn't exist.")
+		self.assertTrue(upload_nlb.is_retryable_upload_error(bad_path_error))
+
+		uploader = upload_nlb.CommonsUploader.__new__(upload_nlb.CommonsUploader)
+		fake_site = mock.MagicMock()
+		upload_calls: list[dict[str, Any]] = []
+
+		def fake_upload_call(path_str: str, **kwargs: Any) -> bool:
+			upload_calls.append({'path': path_str, **kwargs})
+			if len(upload_calls) == 1:
+				raise bad_path_error
+			return True
+
+		fake_file_page = mock.MagicMock()
+		fake_file_page.exists.return_value = False
+		fake_file_page.upload.side_effect = fake_upload_call
+
+		fake_pywikibot = mock.MagicMock()
+		fake_pywikibot.FilePage.return_value = fake_file_page
+		fake_pywikibot.exceptions.UploadError = FakeUploadError
+
+		uploader.pywikibot = fake_pywikibot
+		uploader.site = fake_site
+
+		with mock.patch('upload.time.sleep') as sleep_mock:
+			result = uploader.upload(
+				Path('/tmp/scan.pdf'),
+				'Book (1888) -- BY-NLB-br0000010197 -- 9884583.pdf',
+				'== {{int:filedesc}} ==',
+				'From https://elib.nlb.by/elib/Record/BY-NLB-br0000010197 (fileID 9884583)',
+			)
+
+		self.assertEqual(result['status'], 'uploaded')
+		self.assertEqual(len(upload_calls), 2)
+		self.assertTrue(upload_calls[0].get('asynchronous'))
+		sleep_mock.assert_called_once_with(60)
+
 
 if __name__ == '__main__':
 	unittest.main()

@@ -66,12 +66,14 @@ RETRYABLE_UPLOAD_API_ERROR_CODES = frozenset({
 	'ratelimited',
 	'readonly',
 	'stashfailed',
+	'uploadstash-bad-path',
 	'uploadstash-exception',
 	'uploadstash-file-not-found',
 })
 
 RETRYABLE_UPLOAD_API_ERROR_PREFIXES = (
 	'backend-fail-',
+	'uploadstash-',
 )
 
 MARC_NS = {'marc': 'http://www.loc.gov/MARC21/slim'}
@@ -1030,10 +1032,13 @@ class CommonsUploader:
 
 		file_page.text = wikitext
 		for attempt in range(1, UPLOAD_MAX_RETRIES + 1):
+			if attempt > 1 and file_page.exists():
+				return {'status': 'uploaded', 'commons_title': f'File:{commons_filename}'}
 			try:
 				file_page.upload(
 					str(file_path),
 					chunk_size=UPLOAD_CHUNK_SIZE,
+					asynchronous=True,
 					comment=summary,
 					ignore_warnings=False,
 				)
@@ -1051,10 +1056,18 @@ class CommonsUploader:
 					}
 				if attempt >= UPLOAD_MAX_RETRIES or not is_retryable_upload_error(error):
 					raise
+				err_label = error_code or type(error).__name__
+				log_progress(
+					f'Attempt {attempt}/{UPLOAD_MAX_RETRIES} failed with {err_label}. Retrying in 60s...'
+				)
 				time.sleep(60)
 			except Exception as error:
 				if attempt >= UPLOAD_MAX_RETRIES or not is_retryable_upload_error(error):
 					raise
+				err_label = getattr(error, 'code', None) or type(error).__name__
+				log_progress(
+					f'Attempt {attempt}/{UPLOAD_MAX_RETRIES} failed with {err_label}. Retrying in 60s...'
+				)
 				time.sleep(60)
 
 		raise RuntimeError(f'Upload failed after {UPLOAD_MAX_RETRIES} attempts: {commons_filename}')
