@@ -908,16 +908,19 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 			self.assertFalse(upload_nlb.is_item_completed(state, 'BY-NLB-rr111', '1001'))
 
 			state['current_page'] = 3
+			state['retry_from_page'] = 2
 			state['items']['BY-NLB-rr111:1001'] = {'status': 'uploaded'}
 			upload_nlb.save_state(state_path, state)
 
 			reloaded = upload_nlb.load_state(state_path, until_year=1900)
 			self.assertEqual(reloaded['current_page'], 3)
+			self.assertEqual(reloaded['retry_from_page'], 2)
 			self.assertTrue(upload_nlb.is_item_completed(reloaded, 'BY-NLB-rr111', '1001'))
 
 			changed_year = upload_nlb.load_state(state_path, until_year=1880)
 			self.assertEqual(changed_year['until_year'], 1880)
 			self.assertEqual(changed_year['current_page'], 1)
+			self.assertIsNone(changed_year.get('retry_from_page'))
 			self.assertTrue(upload_nlb.is_item_completed(changed_year, 'BY-NLB-rr111', '1001'))
 
 
@@ -1446,6 +1449,64 @@ class TestNlbDownloadRetries(unittest.TestCase):
 		self.assertEqual(self.session.get.call_args_list[0], self.session.get.call_args_list[1])
 		self.session.post.assert_called_once()
 
+	def test_download_rejection_reports_library_reason_and_leaves_scan_pending(self) -> None:
+		"""Skip the reported HTTP 400 without retries, uploading or completing the scan."""
+		response = upload_nlb.requests.Response()
+		response.status_code = 400
+		response.url = 'https://elib.nlb.by:8070/iiif/file/12541585/bytes?attachmentName=r18108_4_1'
+		response._content = b'Security alert! Some conditions are missed!'
+		response._content_consumed = True
+		self.session.get.side_effect = self.download_responses(response)
+		uploader = FakeCommonsUploader()
+		with tempfile.TemporaryDirectory() as tmp_dir, mock.patch('upload.time.sleep') as sleep, mock.patch(
+			'upload.check_commons_by_hash',
+		) as hash_check:
+			tmp_path = Path(tmp_dir)
+			state_path = tmp_path / 'state.json'
+			staging_dir = tmp_path / 'staging'
+			status = upload_nlb.process_single_scan(
+				client=self.client, uploader=uploader, state=upload_nlb.default_state(),
+				state_path=state_path, staging_dir=staging_dir,
+				marc_id='BY-NLB-br0000059074', file_id='12541585', part_label='',
+				record_meta={'title': 'Test record'}, marc_meta={},
+			)
+			self.assertEqual(status, 'download_rejected')
+			self.assertEqual(uploader.uploads, [])
+			self.assertEqual(list(staging_dir.iterdir()), [])
+			hash_check.assert_not_called()
+			sleep.assert_not_called()
+			state = upload_nlb.load_state(state_path)
+			self.assertEqual(state['current_item_key'], 'BY-NLB-br0000059074:12541585')
+			self.assertFalse(upload_nlb.is_item_completed(state, 'BY-NLB-br0000059074', '12541585'))
+			entry = state['items']['BY-NLB-br0000059074:12541585']
+			self.assertEqual(entry['status'], 'download_rejected')
+			self.assertEqual(entry['http_status'], 400)
+			self.assertIn('Security alert! Some conditions are missed!', entry['error'])
+			self.assertEqual(state['retry_from_page'], 1)
+		self.assertEqual(self.session.get.call_count, 4)
+
+	def test_download_error_body_is_bounded_and_read_failure_preserves_http_error(self) -> None:
+		"""Limit diagnostic text and keep an HTTP rejection if its body cannot be read."""
+		for unreadable in (False, True):
+			with self.subTest(unreadable=unreadable):
+				response = upload_nlb.requests.Response()
+				response.status_code = 400
+				response._content = b'Denied\n' + b'x' * 2000
+				response._content_consumed = True
+				self.session.get.side_effect = self.download_responses(response)
+				if unreadable:
+					response.iter_content = mock.Mock(side_effect=upload_nlb.requests.exceptions.ReadTimeout('error body timed out'))
+				with tempfile.TemporaryDirectory() as tmp_dir, mock.patch('upload.time.sleep') as sleep:
+					with self.assertRaises(upload_nlb.requests.exceptions.HTTPError) as raised:
+						self.client.download_pdf_scan('record', 'file', Path(tmp_dir) / 'scan.pdf')
+					self.assertIs(raised.exception.response, response)
+					if unreadable:
+						self.assertNotIn('NLB response:', str(raised.exception))
+					else:
+						self.assertIn('NLB response: Denied ', str(raised.exception))
+						self.assertLess(len(str(raised.exception)), 650)
+					sleep.assert_not_called()
+
 	def test_interrupted_stream_restarts_without_partial_bytes(self) -> None:
 		"""Discard partial output before retrying timeouts and broken transfers."""
 		for error_type in (
@@ -1644,6 +1705,138 @@ class FakeCommonsUploader:
 
 class TestEndToEndPipeline(unittest.TestCase):
 	"""Level 3 end-to-end tests covering full iteration, hash deduplication, cleanup, and resume."""
+
+	def test_http_400_continues_across_pages_and_retries_on_restart(self) -> None:
+		"""Continue past a rejection, including upload limits, and revisit it on restart."""
+		for first_run_limit in (0, 1):
+			with self.subTest(max_uploads=first_run_limit), tempfile.TemporaryDirectory() as tmp_dir:
+				tmp_path = Path(tmp_dir)
+				client = FakeNlbClient()
+				uploader = FakeCommonsUploader()
+				records = client.fetch_search_page(1)['records']
+				client.fetch_search_page = mock.Mock(side_effect=lambda page, **_: {
+					'total_results': 2, 'records': records[page - 1:page],
+				})
+				original_download = client.download_pdf_scan
+				reject_first = True
+
+				def download_with_rejection(marc_id: str, file_id: str, target_path: Path) -> int:
+					"""Write partial bytes before rejecting the first scan until it recovers."""
+					size = original_download(marc_id, file_id, target_path)
+					if file_id == '1001' and reject_first:
+						response = upload_nlb.requests.Response()
+						response.status_code = 400
+						raise upload_nlb.requests.exceptions.HTTPError(
+							'400; NLB response: Security alert! Some conditions are missed!', response=response,
+						)
+					return size
+
+				client.download_pdf_scan = download_with_rejection
+				kwargs = {
+					'client': client, 'uploader': uploader,
+					'state_path': tmp_path / 'state.json', 'staging_dir': tmp_path / 'staging',
+				}
+				output = io.StringIO()
+				with mock.patch('upload.SEARCH_PAGE_SIZE', 1), mock.patch(
+					'upload.check_commons_by_hash', side_effect=lambda path, **_: (upload_nlb.calculate_sha1(path), []),
+				) as hash_check, mock.patch('sys.stdout', output):
+					counts = upload_nlb.iterate_and_upload(**kwargs, max_uploads=first_run_limit)
+					self.assertEqual(counts['download_rejected'], 1)
+					self.assertEqual(counts['uploaded'], first_run_limit or 2)
+					self.assertEqual(client.downloaded_file_ids, ['1001', '2001'] if first_run_limit else ['1001', '2001', '2002'])
+					self.assertEqual(hash_check.call_count, first_run_limit or 2)
+					self.assertEqual(list(kwargs['staging_dir'].iterdir()), [])
+					state = upload_nlb.load_state(kwargs['state_path'])
+					self.assertEqual(state['current_page'], 2)
+					self.assertEqual(state['retry_from_page'], 1)
+					self.assertFalse(upload_nlb.is_item_completed(state, 'BY-NLB-rr111', '1001'))
+
+					# A persistent rejection is attempted just once on each later run.
+					client.downloaded_file_ids.clear()
+					counts = upload_nlb.iterate_and_upload(**kwargs)
+					self.assertEqual(counts['download_rejected'], 1)
+					self.assertEqual(counts['uploaded'], 1 if first_run_limit else 0)
+					self.assertEqual(client.downloaded_file_ids, ['1001', '2002'] if first_run_limit else ['1001'])
+
+					# A successful dry run must not lose the pending upload on an earlier page.
+					reject_first = False
+					client.downloaded_file_ids.clear()
+					counts = upload_nlb.iterate_and_upload(**kwargs, dry_run=True)
+					self.assertEqual(counts['dry_run_ready'], 1)
+					self.assertEqual(client.downloaded_file_ids, ['1001'])
+					self.assertEqual(len(uploader.uploads), 2)
+					self.assertEqual(upload_nlb.load_state(kwargs['state_path'])['retry_from_page'], 1)
+
+					# Once the library recovers, the rejected scan is uploaded and saved.
+					client.downloaded_file_ids.clear()
+					counts = upload_nlb.iterate_and_upload(**kwargs)
+					self.assertEqual(counts['download_rejected'], 0)
+					self.assertEqual(counts['uploaded'], 1)
+					self.assertEqual(client.downloaded_file_ids, ['1001'])
+					self.assertEqual(len(uploader.uploads), 3)
+					state = upload_nlb.load_state(kwargs['state_path'])
+					self.assertTrue(upload_nlb.is_item_completed(state, 'BY-NLB-rr111', '1001'))
+					self.assertIsNone(state.get('retry_from_page'))
+					self.assertEqual(list(kwargs['staging_dir'].iterdir()), [])
+				self.assertIn('Security alert! Some conditions are missed!', output.getvalue())
+				self.assertIn('Skipping download (HTTP 400)', output.getvalue())
+
+	def test_rejection_retry_page_survives_an_immediate_interrupt(self) -> None:
+		"""Persist the rewind before a search request can fail or be interrupted."""
+		with tempfile.TemporaryDirectory() as tmp_dir:
+			tmp_path = Path(tmp_dir)
+			state_path = tmp_path / 'state.json'
+			state = upload_nlb.default_state()
+			state['current_page'] = 5
+			state['retry_from_page'] = 2
+			upload_nlb.save_state(state_path, state)
+			client = FakeNlbClient()
+			client.fetch_search_page = mock.Mock(side_effect=KeyboardInterrupt())
+			kwargs = {
+				'client': client, 'uploader': FakeCommonsUploader(),
+				'state_path': state_path, 'staging_dir': tmp_path / 'staging',
+			}
+			with self.assertRaises(KeyboardInterrupt):
+				upload_nlb.iterate_and_upload(**kwargs)
+			self.assertEqual(upload_nlb.load_state(state_path)['current_page'], 2)
+			client.fetch_search_page = mock.Mock(return_value={'total_results': 0, 'records': []})
+			upload_nlb.iterate_and_upload(**kwargs)
+			self.assertEqual(client.fetch_search_page.call_args.kwargs['page'], 2)
+
+	def test_unrelated_http_errors_are_not_skipped(self) -> None:
+		"""Keep other download failures and Commons HTTP 400 errors visible to callers."""
+		for stage, http_status in (
+			('download_pdf_scan', 401), ('download_pdf_scan', 403),
+			('download_pdf_scan', 429), ('download_pdf_scan', 500),
+			('check_commons_by_hash', 400), ('upload', 400),
+		):
+			with self.subTest(stage=stage, status=http_status), tempfile.TemporaryDirectory() as tmp_dir:
+				tmp_path = Path(tmp_dir)
+				client = FakeNlbClient()
+				uploader = FakeCommonsUploader()
+				response = upload_nlb.requests.Response()
+				response.status_code = http_status
+				error = upload_nlb.requests.exceptions.HTTPError(f'{http_status} error', response=response)
+				if stage == 'download_pdf_scan':
+					client.download_pdf_scan = mock.Mock(side_effect=error)
+				elif stage == 'upload':
+					uploader.upload = mock.Mock(side_effect=error)
+				with mock.patch('upload.check_commons_by_hash') as hash_check:
+					hash_check.return_value = ('0' * 40, [])
+					if stage == 'check_commons_by_hash':
+						hash_check.side_effect = error
+					with self.assertRaises(upload_nlb.requests.exceptions.HTTPError) as raised:
+						upload_nlb.process_single_scan(
+							client=client, uploader=uploader, state=upload_nlb.default_state(),
+							state_path=tmp_path / 'state.json', staging_dir=tmp_path / 'staging',
+							marc_id='BY-NLB-rr111', file_id='1001', part_label='',
+							record_meta={'title': 'Test record'}, marc_meta={},
+						)
+					self.assertIs(raised.exception, error)
+				state = upload_nlb.load_state(tmp_path / 'state.json')
+				self.assertEqual(state['items'], {})
+				self.assertIsNone(state.get('retry_from_page'))
+				self.assertEqual(list((tmp_path / 'staging').iterdir()), [])
 
 	def test_end_to_end_pipeline_deletes_local_scans_and_skips_sha1_duplicates(self) -> None:
 		"""Verify full pipeline uploads new scans, skips SHA-1 matches, and removes local PDFs."""

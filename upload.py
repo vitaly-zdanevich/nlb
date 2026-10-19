@@ -123,6 +123,7 @@ def load_state(
 		state['until_year'] = until_year
 		state['search_url'] = search_url
 		state['current_page'] = 1
+		state.pop('retry_from_page', None)
 	if not isinstance(state.get('items'), dict):
 		state['items'] = {}
 	return state
@@ -1233,7 +1234,7 @@ class NlbClient:
 				attempt += 1
 
 	def _download_pdf_scan_once(self, marc_id: str, file_id: str, target_path: Path) -> int:
-		"""Fetch the manifest, record download events, and stream one complete PDF."""
+		"""Stream a complete PDF, including bounded library response text in HTTP errors."""
 		auth_headers = {'Authorization': VIEWER_BASIC_AUTH}
 
 		manifest_resp = self.session.get(
@@ -1276,7 +1277,18 @@ class NlbClient:
 			stream=True,
 			timeout=self.timeout,
 		) as stream_resp:
-			stream_resp.raise_for_status()
+			try:
+				stream_resp.raise_for_status()
+			except requests.exceptions.HTTPError as error:
+				# Reading diagnostic text must not turn a rejection into a retryable timeout.
+				try:
+					preview = next(stream_resp.iter_content(chunk_size=512), b'')
+					message = ' '.join(preview.decode('utf-8', errors='replace').split())
+				except requests.exceptions.RequestException:
+					message = ''
+				if message:
+					error.args = (f'{error}; NLB response: {message}',)
+				raise
 			expected_length = stream_resp.headers.get('Content-Length')
 			bytes_written = 0
 			first_chunk = b''
@@ -1454,7 +1466,11 @@ def process_single_scan(
 	license_template: str = DEFAULT_LICENSE,
 	dry_run: bool = False,
 ) -> str:
-	"""Download, hash-check, upload, and delete a single NLB scan, updating state.json."""
+	"""Process a scan, deferring HTTP 400 downloads until a later run.
+
+	Record rejections without marking them completed. Save their earliest page
+	so advancing through the remaining results cannot lose pending scans.
+	"""
 	key = item_state_key(marc_id, file_id)
 	state['current_record_id'] = marc_id
 	state['current_item_key'] = key
@@ -1491,6 +1507,22 @@ def process_single_scan(
 		log_progress(f'[{marc_id}:{file_id}] Downloading scan:\n{viewer_url} (record: {record_url})')
 		try:
 			size_bytes = client.download_pdf_scan(marc_id, file_id, temp_pdf)
+		except requests.exceptions.HTTPError as error:
+			if error.response is None or error.response.status_code != 400:
+				raise
+			log_progress(f'[{marc_id}:{file_id}] Skipping download (HTTP 400): {viewer_url}\n{error}')
+			state['items'][key] = {
+				'status': 'download_rejected',
+				'marc_id': marc_id,
+				'file_id': file_id,
+				'http_status': 400,
+				'error': str(error),
+				'updated_at': datetime.now(timezone.utc).isoformat(),
+			}
+			page = max(1, int(state.get('current_page') or 1))
+			state['retry_from_page'] = min(page, int(state.get('retry_from_page') or page))
+			save_state(state_path, state)
+			return 'download_rejected'
 		except ValueError as error:
 			if 'not a valid PDF' in str(error):
 				log_progress(f'[{marc_id}:{file_id}] Skipping (not a valid PDF): {viewer_url}')
@@ -1579,7 +1611,7 @@ def iterate_and_upload(
 	max_uploads: int = 0,
 	dry_run: bool = False,
 ) -> dict[str, int]:
-	"""Iterate through NLB search pages (or a custom URL) and upload available scans."""
+	"""Upload available scans, revisiting earlier HTTP 400 rejections on each run."""
 	if search_url:
 		url_from, url_to = extract_year_bounds_from_search_url(search_url)
 		if from_year is None:
@@ -1594,8 +1626,17 @@ def iterate_and_upload(
 		search_url=search_url,
 	)
 	page = max(1, int(state.get('current_page') or 1))
+	if state.get('retry_from_page') is not None:
+		page = max(1, min(page, int(state['retry_from_page'])))
+		# A dry run cannot resolve pending uploads, even when downloads now succeed.
+		if not dry_run:
+			state.pop('retry_from_page')
+		# Save the rewind before fetching: even an immediate interruption can resume.
+		state['current_page'] = page
+		save_state(state_path, state)
 	counts: dict[str, int] = {
 		'uploaded': 0,
+		'download_rejected': 0,
 		'duplicate_sha1': 0,
 		'existing_title': 0,
 		'restricted': 0,
