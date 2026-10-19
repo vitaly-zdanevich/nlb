@@ -11,6 +11,8 @@
 
 [`upload.py`](upload.py) iterates over open-access digitized scans from the Electronic Library of the National Library of Belarus (`https://elib.nlb.by`) and uploads them to Wikimedia Commons with full HTML and UNIMARC (`MARCXML`) metadata.
 
+![Screenshot of the website](screenshot.webp)
+
 ## Features
 
 - **Default year boundary (`<= 1900`)**: By default, queries digitized records published up to 1900 and applies `{{PD-scan|PD-old-assumed-expired}}`.
