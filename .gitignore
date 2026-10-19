@@ -4,4 +4,5 @@
 /coverage.xml
 /state.json
 /state.json.new
+/nlb-cookies.txt
 *.pyc

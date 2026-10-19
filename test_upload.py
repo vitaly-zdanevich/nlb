@@ -7,9 +7,11 @@ import json
 from pathlib import Path
 import signal
 import tempfile
+import traceback
 import types
 import unittest
 from unittest import mock
+import warnings
 
 import upload as upload_nlb
 
@@ -1252,6 +1254,155 @@ class TestCommonsHashLookup(unittest.TestCase):
 		self.assertEqual(uploader.uploads, [])
 		self.assertEqual(list(kwargs['staging_dir'].iterdir()), [])
 		self.assertTrue(upload_nlb.is_item_completed(upload_nlb.load_state(kwargs['state_path']), 'BY-NLB-rr111', '1001'))
+
+
+class TestViewerCookies(unittest.TestCase):
+	"""Reuse browser cookies without replacing the authenticated viewer session."""
+
+	def setUp(self) -> None:
+		"""Create a local cookie export and a real session with no network requests."""
+		self.directory = tempfile.TemporaryDirectory()
+		self.addCleanup(self.directory.cleanup)
+		self.cookie_path = Path(self.directory.name) / 'viewer-cookies.txt'
+		self.session = upload_nlb.requests.Session()
+		self.addCleanup(self.session.close)
+
+	def write_cookies(self, rows: list[str]) -> None:
+		"""Write Netscape-format mock browser cookies, preserving tab-delimited fields."""
+		self.cookie_path.write_text('# Netscape HTTP Cookie File\n' + '\n'.join(rows) + '\n', encoding='utf-8')
+
+	def cookie_header(self, url: str) -> str:
+		"""Prepare a real request to inspect domain, path and secure cookie filtering."""
+		request = upload_nlb.requests.Request('GET', url)
+		return self.session.prepare_request(request).headers.get('Cookie', '')
+
+	def test_import_scopes_browser_cookies_and_preserves_authenticated_session(self) -> None:
+		"""Keep HttpOnly and session cookies, honoring scope without posting a guest session."""
+		self.write_cookies([
+			'#HttpOnly_.nlb.by\tTRUE\t/\tTRUE\t4102444800\telib_session_id\tviewer-secret',
+			'#HttpOnly_elib.nlb.by\tFALSE\t/\tTRUE\t\tJSESSIONID\tauth-secret',
+			'elib.nlb.by\tFALSE\t/\tTRUE\t0\tzero_expiry\tsession-secret',
+			'.nlb.by\tTRUE\t/iiif\tTRUE\t4102444800\tpath_cookie\tpath-secret',
+			'www.nlb.by\tFALSE\t/\tTRUE\t4102444800\tportal_cookie\tportal-secret',
+			'nlb.by\tFALSE\t/\tTRUE\t4102444800\tJSESSIONID\troot-host-only-secret',
+			'.nlb.by\tTRUE\t/\tTRUE\t1\texpired_cookie\texpired-secret',
+			'.wikimedia.org\tTRUE\t/\tTRUE\t4102444800\tforeign_cookie\tforeign-secret',
+			'.notnlb.by\tTRUE\t/\tTRUE\t4102444800\tlookalike_cookie\tlookalike-secret',
+		])
+		client = upload_nlb.NlbClient(session=self.session, viewer_cookies=self.cookie_path)
+		with mock.patch.object(self.session, 'post') as post:
+			client.ensure_viewer_session()
+			post.assert_not_called()
+		cookies = {cookie.name: cookie for cookie in self.session.cookies}
+		self.assertEqual(set(cookies), {'elib_session_id', 'JSESSIONID', 'zero_expiry', 'path_cookie'})
+		self.assertEqual(cookies['elib_session_id'].domain, '.nlb.by')
+		self.assertEqual(cookies['elib_session_id'].expires, 4102444800)
+		self.assertTrue(cookies['elib_session_id'].secure)
+		self.assertTrue(cookies['elib_session_id'].has_nonstandard_attr('HTTPOnly'))
+		self.assertIsNone(cookies['JSESSIONID'].expires)
+		self.assertIsNone(cookies['zero_expiry'].expires)
+		self.assertEqual(cookies['path_cookie'].path, '/iiif')
+		self.assertFalse(cookies['JSESSIONID'].domain_specified)
+		viewer_header = self.cookie_header('https://elib.nlb.by:8070/iiif/file/123/bytes')
+		for cookie in ('elib_session_id=viewer-secret', 'JSESSIONID=auth-secret', 'zero_expiry=session-secret', 'path_cookie=path-secret'):
+			self.assertIn(cookie, viewer_header)
+		self.assertNotIn('portal_cookie', viewer_header)
+		self.assertNotIn('root-host-only-secret', viewer_header)
+		self.assertNotIn('path_cookie', self.cookie_header('https://elib.nlb.by/elib/Record/example'))
+		self.assertNotIn('JSESSIONID', self.cookie_header('https://www.nlb.by/'))
+		self.assertEqual(self.cookie_header('http://elib.nlb.by:8070/iiif/file/123/bytes'), '')
+		self.assertEqual(self.cookie_header('https://commons.wikimedia.org/w/api.php'), '')
+
+	def test_rejects_missing_expired_or_inapplicable_viewer_session(self) -> None:
+		"""Explain unusable exports instead of silently replacing them with guest cookies."""
+		for viewer_cookie in (
+			'',
+			'.nlb.by\tTRUE\t/\tTRUE\t1\telib_session_id\texpired-secret',
+			'www.nlb.by\tFALSE\t/\tTRUE\t4102444800\telib_session_id\twrong-domain-secret',
+			'nlb.by\tFALSE\t/\tTRUE\t4102444800\telib_session_id\troot-host-only-secret',
+			'.nlb.by\tTRUE\t/account\tTRUE\t4102444800\telib_session_id\twrong-path-secret',
+		):
+			with self.subTest(cookie=viewer_cookie):
+				self.write_cookies([
+					'elib.nlb.by\tFALSE\t/\tTRUE\t4102444800\tJSESSIONID\tauth-secret',
+					viewer_cookie,
+				])
+				with upload_nlb.requests.Session() as session, mock.patch.object(session, 'post') as post:
+					with self.assertRaises(ValueError) as raised:
+						upload_nlb.NlbClient(session=session, viewer_cookies=self.cookie_path)
+					self.assertIn('elib_session_id', str(raised.exception))
+					self.assertIn('export', str(raised.exception).lower())
+					self.assertNotIn('secret', str(raised.exception))
+					post.assert_not_called()
+
+	def test_invalid_cookie_export_does_not_disclose_cookie_contents(self) -> None:
+		"""Sanitize both invalid headers and malformed cookie rows before reporting them."""
+		for contents in (
+			'not-a-cookie-file secret-auth-value\n',
+			'# Netscape HTTP Cookie File\n.nlb.by\tTRUE\t/\tTRUE\tbroken-expiry\telib_session_id\tsecret-auth-value\n',
+		):
+			with self.subTest(contents=contents):
+				self.cookie_path.write_text(contents, encoding='utf-8')
+				with warnings.catch_warnings(record=True) as emitted_warnings:
+					warnings.simplefilter('always')
+					with self.assertRaises(ValueError) as raised:
+						upload_nlb.NlbClient(session=self.session, viewer_cookies=self.cookie_path)
+					self.assertIn('Netscape', str(raised.exception))
+					self.assertNotIn('secret-auth-value', ''.join(traceback.format_exception(raised.exception)))
+					self.assertNotIn('secret-auth-value', '\n'.join(str(item.message) for item in emitted_warnings))
+
+	def test_download_sends_browser_cookies_only_to_library(self) -> None:
+		"""Exercise authenticated download and Commons lookup through prepared requests."""
+		self.write_cookies([
+			'#HttpOnly_.nlb.by\tTRUE\t/\tTRUE\t4102444800\telib_session_id\tviewer-secret',
+			'elib.nlb.by\tFALSE\t/\tTRUE\t0\tJSESSIONID\tauth-secret',
+		])
+		client = upload_nlb.NlbClient(session=self.session, viewer_cookies=self.cookie_path)
+		payload = b'%PDF-1.4\nMock authenticated scan\n%%EOF\n'
+		requests_seen = []
+
+		def send(request, **_) -> upload_nlb.requests.Response:
+			"""Return local HTTP responses after Requests has applied the cookie policy."""
+			requests_seen.append(request)
+			self.assertEqual(request.method, 'GET')
+			response = upload_nlb.requests.Response()
+			response.status_code = 200
+			response.request = request
+			response.url = request.url
+			response._content_consumed = True
+			if '/iiif/file/' in request.url:
+				response._content = payload
+				response.headers['Content-Length'] = str(len(payload))
+			elif 'commons.wikimedia.org' in request.url:
+				response._content = b'{"query":{"allimages":[]}}'
+			else:
+				response._content = b'{"rendering":[]}'
+			return response
+
+		with mock.patch.object(self.session, 'send', side_effect=send):
+			target = Path(self.directory.name) / 'scan.pdf'
+			self.assertEqual(client.download_pdf_scan('BY-NLB-br0000059074', '12541585', target), len(payload))
+			self.assertEqual(target.read_bytes(), payload)
+			self.assertEqual(upload_nlb.check_commons_by_hash(target, session=self.session), (hashlib.sha1(payload).hexdigest(), []))
+		self.assertEqual(len(requests_seen), 5)
+		for request in requests_seen[:-1]:
+			self.assertIn('elib_session_id=viewer-secret', request.headers.get('Cookie', ''))
+			self.assertIn('JSESSIONID=auth-secret', request.headers.get('Cookie', ''))
+		self.assertNotIn('Cookie', requests_seen[-1].headers)
+
+	def test_cli_passes_viewer_cookie_export_to_client(self) -> None:
+		"""Wire the optional cookie path into the client while retaining dry-run behavior."""
+		with (
+			mock.patch('upload.NlbClient') as client_type,
+			mock.patch('upload.CommonsUploader') as uploader_type,
+			mock.patch('upload.iterate_and_upload', return_value={'dry_run_ready': 1}) as iterate,
+			mock.patch('sys.stdout', new_callable=io.StringIO),
+		):
+			self.assertEqual(upload_nlb.main(['--viewer-cookies', str(self.cookie_path), '--dry-run']), 0)
+			client_type.assert_called_once_with(viewer_cookies=self.cookie_path)
+			uploader_type.assert_not_called()
+			self.assertIs(iterate.call_args.kwargs['client'], client_type.return_value)
+			self.assertTrue(iterate.call_args.kwargs['dry_run'])
 
 
 class TestNlbDownloadRetries(unittest.TestCase):

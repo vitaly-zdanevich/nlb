@@ -6,8 +6,8 @@
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
-[![Production code](https://img.shields.io/badge/production%20code-1%2C615%20lines-blue)](upload.py)
-[![Test code](https://img.shields.io/badge/test%20code-1%2C671%20lines-blue)](test_upload.py)
+[![Production code](https://img.shields.io/badge/production%20code-1%2C666%20lines-blue)](upload.py)
+[![Test code](https://img.shields.io/badge/test%20code-1%2C810%20lines-blue)](test_upload.py)
 
 [`upload.py`](upload.py) iterates over open-access digitized scans from the Electronic Library of the National Library of Belarus (`https://elib.nlb.by`) and uploads them to Wikimedia Commons with full HTML and UNIMARC (`MARCXML`) metadata.
 
@@ -42,6 +42,13 @@
 
 The former `--find-by-hash-script` option has been removed; SHA-1 checks always use the Python API client.
 
+If downloads work in your signed-in browser but the uploader receives HTTP 400, export the cookies for `nlb.by` and its subdomains in Netscape `cookies.txt` format after opening the library viewer. Pass that local file with `--viewer-cookies`. It must include a current `elib_session_id` for the viewer and the cookies from your signed-in session. The uploader imports cookies applicable to `elib.nlb.by`, including cookies explicitly shared across NLB subdomains, and preserves their expiry, path and secure attributes along with the viewer session. Re-export the file after signing in again if the session expires.
+
+```bash
+chmod 600 ~/.config/nlb/cookies.txt
+./upload.py --viewer-cookies ~/.config/nlb/cookies.txt
+```
+
 ```bash
 # Run with defaults (all open-access scans published up to 1900)
 ./upload.py
@@ -70,6 +77,7 @@ python3 -m unittest -v test_upload.py
 - [VuFind Documentation](https://vufind.org/wiki/documentation)
 - [IIIF Presentation API Specification](https://iiif.io/api/presentation/2.1/)
 - [MARC 21 / UNIMARC XML Schema (Library of Congress)](https://www.loc.gov/standards/marcxml/)
+- [Python cookie handling and Netscape cookie files](https://docs.python.org/3/library/http.cookiejar.html#http.cookiejar.MozillaCookieJar)
 - [MediaWiki API: `allimages` (SHA-1 lookup)](https://www.mediawiki.org/wiki/API:Allimages)
 - [Pywikibot Documentation](https://doc.wikimedia.org/pywikibot/stable/)
 - [Wikimedia Commons Licensing Policy](https://commons.wikimedia.org/wiki/Commons:Licensing)

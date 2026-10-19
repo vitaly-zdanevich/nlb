@@ -13,6 +13,7 @@ import argparse
 import ast
 from datetime import datetime, timezone
 import hashlib
+from http.cookiejar import LoadError, MozillaCookieJar
 import json
 import os
 from pathlib import Path
@@ -22,6 +23,7 @@ import time
 from typing import Any, Iterator
 from urllib.parse import parse_qs, parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 import xml.etree.ElementTree as ET
+import warnings
 
 from bs4 import BeautifulSoup, Comment
 import requests
@@ -1011,15 +1013,64 @@ def check_commons_by_hash(
 			attempt += 1
 
 
+def load_viewer_cookies(path: Path) -> requests.cookies.RequestsCookieJar:
+	"""Import unexpired viewer cookies from a browser's Netscape-format export.
+
+	Preserve domain, path, secure and HttpOnly attributes. Blank or zero expiry
+	represents a browser session cookie. Require a viewer session applicable to
+	the IIIF endpoint so initialization cannot replace it with a guest session.
+	"""
+	exported = MozillaCookieJar(path)
+	try:
+		with warnings.catch_warnings():
+			# The standard parser's warning and LoadError can expose malformed cookie lines.
+			warnings.filterwarnings('ignore', message=r'http\.cookiejar bug!')
+			exported.load(ignore_discard=True, ignore_expires=True)
+	except LoadError:
+		raise ValueError('Invalid viewer cookie file; export NLB cookies in Netscape cookies.txt format.') from None
+
+	cookies = requests.cookies.RequestsCookieJar()
+	viewer_session = requests.cookies.RequestsCookieJar()
+	viewer_host = urlsplit(VIEWER_BASE_URL).hostname
+	for cookie in exported:
+		domain = cookie.domain.lstrip('.').lower()
+		# Requests sends host-only parent cookies to subdomains; exclude those here.
+		if domain != viewer_host and not (cookie.domain_specified and domain == 'nlb.by'):
+			continue
+		if cookie.expires == 0:
+			cookie.expires = None
+			cookie.discard = True
+		if cookie.is_expired():
+			continue
+		cookies.set_cookie(cookie)
+		if cookie.name == 'elib_session_id' and cookie.value:
+			viewer_session.set_cookie(cookie)
+	request = requests.Request('GET', f'{VIEWER_BASE_URL}/iiif/manifest').prepare()
+	if not requests.cookies.get_cookie_header(viewer_session, request):
+		raise ValueError(
+			'Viewer cookies lack a current elib_session_id for elib.nlb.by; '
+			'sign in, open the library viewer, and export fresh cookies.'
+		)
+	return cookies
+
+
 class NlbClient:
 	"""HTTP client for browsing elib.nlb.by metadata and downloading IIIF PDF scans."""
 
-	def __init__(self, session: requests.Session | None = None, timeout: int = 60) -> None:
-		"""Initialize the client with persistent cookies and viewer headers."""
+	def __init__(
+		self,
+		session: requests.Session | None = None,
+		timeout: int = 60,
+		viewer_cookies: Path | None = None,
+	) -> None:
+		"""Initialize the client, optionally reusing an exported signed-in viewer session."""
 		self.session = session or requests.Session()
 		self.session.headers.setdefault('User-Agent', DEFAULT_USER_AGENT)
 		self.timeout = timeout
 		self._viewer_session_initialized = False
+		if viewer_cookies is not None:
+			self.session.cookies.update(load_viewer_cookies(viewer_cookies))
+			self._viewer_session_initialized = True
 
 	def fetch_search_page(
 		self,
@@ -1741,6 +1792,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
 		help='Temporary directory for downloaded PDFs prior to removal.',
 	)
 	parser.add_argument(
+		'--viewer-cookies',
+		type=Path,
+		default=None,
+		help='Netscape cookie file exported from a signed-in NLB viewer session.',
+	)
+	parser.add_argument(
 		'--pywikibot-dir',
 		default=DEFAULT_PYWIKIBOT_DIR,
 		help='Directory containing user-config.py and Pywikibot session files.',
@@ -1769,7 +1826,7 @@ def main(argv: list[str] | None = None) -> int:
 	if until_year is None and not target_url:
 		until_year = DEFAULT_UNTIL_YEAR
 
-	client = NlbClient()
+	client = NlbClient(viewer_cookies=args.viewer_cookies)
 	uploader = None if args.dry_run else CommonsUploader(pywikibot_dir=args.pywikibot_dir)
 
 	try:
