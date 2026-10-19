@@ -1449,6 +1449,20 @@ class TestNlbDownloadRetries(unittest.TestCase):
 		self.assertEqual(self.session.get.call_args_list[0], self.session.get.call_args_list[1])
 		self.session.post.assert_called_once()
 
+	def test_download_progress_omits_unknown_size(self) -> None:
+		"""Stream normally without inventing a size when Content-Length is unusable."""
+		for header in (None, '', 'unknown', '-1'):
+			with self.subTest(content_length=header), tempfile.TemporaryDirectory() as tmp_dir, mock.patch('upload.time.sleep'):
+				response = self.stream_response(self.payload)
+				response.headers = {} if header is None else {'Content-Length': header}
+				self.session.get.side_effect = self.download_responses(response)
+				with mock.patch('sys.stdout', new_callable=io.StringIO) as output:
+					written = self.client.download_pdf_scan('BY-NLB-rr111', '1001', Path(tmp_dir) / 'scan.pdf')
+				self.assertEqual(written, len(self.payload))
+				self.assertIn('[BY-NLB-rr111:1001] Downloading scan:\n', output.getvalue())
+				self.assertNotIn(' MB', output.getvalue())
+		self.session.head.assert_not_called()
+
 	def test_download_rejection_reports_library_reason_and_leaves_scan_pending(self) -> None:
 		"""Skip the reported HTTP 400 without retries, uploading or completing the scan."""
 		response = upload_nlb.requests.Response()
@@ -1926,7 +1940,7 @@ class TestEndToEndPipeline(unittest.TestCase):
 			self.assertEqual(list(staging_dir.glob('*')), [])
 
 	def test_progress_logging_prints_urls_and_current_actions(self) -> None:
-		"""Verify progress output prints the item URLs and current actions (downloading, hash check, uploading)."""
+		"""Show decimal MB before streaming and keep the later hash-check line size-free."""
 		with tempfile.TemporaryDirectory() as tmp_dir:
 			tmp_path = Path(tmp_dir)
 			state_path = tmp_path / 'state.json'
@@ -1934,6 +1948,22 @@ class TestEndToEndPipeline(unittest.TestCase):
 
 			client = FakeNlbClient()
 			uploader = FakeCommonsUploader()
+			payload = b'%PDF-1.4\n' + b'x' * 1_600_000 + b'\n%%EOF\n'
+			stream = mock.MagicMock()
+			stream.__enter__.return_value = stream
+			stream.headers = {'Content-Length': str(len(payload))}
+			manifest = mock.MagicMock()
+			manifest.json.return_value = {'rendering': []}
+			client.session.get.side_effect = [manifest, mock.MagicMock(), mock.MagicMock(), stream]
+			client.download_pdf_scan = upload_nlb.NlbClient(session=client.session).download_pdf_scan
+
+			def chunks_after_progress(**_):
+				"""Require the size message before the first response bytes are consumed."""
+				self.assertIn('[BY-NLB-rr111:1001] Downloading scan (1.6 MB):\n', stdout_buf.getvalue())
+				self.assertNotIn('Checking SHA-1', stdout_buf.getvalue())
+				yield payload
+
+			stream.iter_content.side_effect = chunks_after_progress
 
 			with (
 				mock.patch(
@@ -1962,11 +1992,20 @@ class TestEndToEndPipeline(unittest.TestCase):
 				output,
 			)
 			self.assertIn(
-				'[BY-NLB-rr111:1001] Downloading scan:\n'
+				'[BY-NLB-rr111:1001] Downloading scan (1.6 MB):\n'
 				'https://elib.nlb.by:8070/viewer?markID=BY-NLB-rr111&fileID=1001 '
 				'(record: https://elib.nlb.by/elib/Record/BY-NLB-rr111)',
 				output,
 			)
+			self.assertEqual(output.count('Downloading scan'), 1)
+			self.assertIn(
+				'[BY-NLB-rr111:1001] Checking SHA-1 hash on Commons: '
+				'https://elib.nlb.by:8070/viewer?markID=BY-NLB-rr111&fileID=1001',
+				output,
+			)
+			self.assertNotIn('Checking SHA-1 hash on Commons (', output)
+			self.assertEqual(client.session.get.call_count, 4)
+			client.session.head.assert_not_called()
 			self.assertIn(
 				'[BY-NLB-rr111:1001] Uploading to Wikimedia Commons:\n'
 				'File:Минские губернские ведомости - официальная часть(1890) -- BY-NLB-rr111 -- 1001.pdf',

@@ -1234,7 +1234,11 @@ class NlbClient:
 				attempt += 1
 
 	def _download_pdf_scan_once(self, marc_id: str, file_id: str, target_path: Path) -> int:
-		"""Stream a complete PDF, including bounded library response text in HTTP errors."""
+		"""Log the header's size before streaming; retain bounded HTTP error details.
+
+		Use decimal MB for progress when Content-Length is valid. Unknown sizes
+		are omitted, and valid lengths still guard against incomplete transfers.
+		"""
 		auth_headers = {'Authorization': VIEWER_BASIC_AUTH}
 
 		manifest_resp = self.session.get(
@@ -1289,7 +1293,16 @@ class NlbClient:
 				if message:
 					error.args = (f'{error}; NLB response: {message}',)
 				raise
-			expected_length = stream_resp.headers.get('Content-Length')
+			try:
+				expected_length = int(stream_resp.headers.get('Content-Length', ''))
+			except (TypeError, ValueError):
+				expected_length = None
+			if expected_length is not None and expected_length < 0:
+				expected_length = None
+			size_label = f' ({expected_length / 1_000_000:.1f} MB)' if expected_length is not None else ''
+			viewer_url = f'{VIEWER_BASE_URL}/viewer?markID={marc_id}&fileID={file_id}'
+			record_url = f'{ELIB_BASE_URL}/elib/Record/{marc_id}'
+			log_progress(f'[{marc_id}:{file_id}] Downloading scan{size_label}:\n{viewer_url} (record: {record_url})')
 			bytes_written = 0
 			first_chunk = b''
 			with target_path.open('wb') as out_file:
@@ -1301,7 +1314,7 @@ class NlbClient:
 					out_file.write(chunk)
 					bytes_written += len(chunk)
 
-		if expected_length is not None and int(expected_length) != bytes_written:
+		if expected_length is not None and expected_length != bytes_written:
 			raise requests.exceptions.ChunkedEncodingError(
 				f'Incomplete PDF transfer for {marc_id}:{file_id}: got {bytes_written} of {expected_length} bytes'
 			)
@@ -1476,7 +1489,6 @@ def process_single_scan(
 	state['current_item_key'] = key
 	save_state(state_path, state)
 
-	record_url = f'{ELIB_BASE_URL}/elib/Record/{marc_id}'
 	viewer_url = f'{VIEWER_BASE_URL}/viewer?markID={marc_id}&fileID={file_id}'
 
 	commons_filename = build_commons_filename(
@@ -1504,7 +1516,6 @@ def process_single_scan(
 	staging_dir.mkdir(parents=True, exist_ok=True)
 	temp_pdf = staging_dir / f'{marc_id}_{file_id}.pdf'
 	try:
-		log_progress(f'[{marc_id}:{file_id}] Downloading scan:\n{viewer_url} (record: {record_url})')
 		try:
 			size_bytes = client.download_pdf_scan(marc_id, file_id, temp_pdf)
 		except requests.exceptions.HTTPError as error:
@@ -1538,7 +1549,7 @@ def process_single_scan(
 			raise
 
 		size_mib = size_bytes / (1024 * 1024)
-		log_progress(f'[{marc_id}:{file_id}] Checking SHA-1 hash on Commons ({size_mib:.2f} MiB): {viewer_url}')
+		log_progress(f'[{marc_id}:{file_id}] Checking SHA-1 hash on Commons: {viewer_url}')
 		sha1, existing_titles = check_commons_by_hash(
 			temp_pdf,
 			session=client.session,
