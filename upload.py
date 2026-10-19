@@ -82,6 +82,20 @@ RETRYABLE_UPLOAD_API_ERROR_PREFIXES = (
 
 MARC_NS = {'marc': 'http://www.loc.gov/MARC21/slim'}
 
+# UNIMARC Appendix B, not MARC 21 relator codes; unknown codes stay visible.
+# https://cdn.ifla.org/wp-content/uploads/files/assets/uca/unimarc_updates/BIBLIOGRAPHIC/u_b_appb_update2020_online_final.pdf
+UNIMARC_ROLE_LABELS = {
+	'000': 'Функция не установлена',
+	'070': 'Автор',
+	'080': 'Автор вступления, примечаний и т. п.',
+	'220': 'Составитель',
+	'340': 'Редактор',
+	'390': 'Предыдущий владелец',
+	'475': 'Выпускающая организация',
+	'650': 'Издатель',
+	'730': 'Переводчик',
+}
+
 
 def default_state() -> dict[str, Any]:
 	"""Return a fresh resumable state dictionary."""
@@ -431,7 +445,11 @@ def split_marc_alternate_headings(
 
 
 def parse_marcxml(xml_text: str) -> dict[str, Any]:
-	"""Parse UNIMARC/BELMARC XML export into structured bibliographic fields and raw tags."""
+	"""Parse UNIMARC/BELMARC metadata, retaining contributor roles and copy associations.
+
+	Explicit $4 roles determine authorship. Without a role, only primary/equal
+	responsibility fields (700/701/710/711) retain the author fallback.
+	"""
 	result: dict[str, Any] = {
 		'control_number': '',
 		'title': '',
@@ -455,6 +473,7 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 		'alternate_geo_places': [],
 		'shelfmarks': [],
 		'authors': [],
+		'contributors': [],
 		'languages': [],
 		'original_languages': [],
 		'intermediate_languages': [],
@@ -577,6 +596,9 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 						result['contents'].append(entry)
 		elif tag.startswith('3'):
 			for note in submap.get('a', []):
+				# Retain the note's own copy scope without assigning it to a contributor.
+				if submap.get('5'):
+					note += f"; экземпляр в каталоге: {'; '.join(dict.fromkeys(submap['5']))}"
 				if note not in result['notes']:
 					result['notes'].append(note)
 		elif tag == '608':
@@ -646,9 +668,21 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 			given = ' '.join(submap.get('g', []) or submap.get('b', []))
 			dates = ' '.join(submap.get('f', []))
 			name = f'{surname}, {given}'.strip(', ') if given else surname
+			if not name:
+				continue
 			if dates:
 				name = f'{name} ({dates})'
-			if name and name not in result['authors']:
+			roles = list(dict.fromkeys(submap.get('4', [])))
+			contributor = {
+				'name': name,
+				'tag': tag,
+				'roles': roles,
+				'copies': list(dict.fromkeys(submap.get('5', []))),
+			}
+			if contributor not in result['contributors']:
+				result['contributors'].append(contributor)
+			is_author = '070' in roles or (not roles and tag in {'700', '701', '710', '711'})
+			if is_author and name not in result['authors']:
 				result['authors'].append(name)
 
 	for (main_tag, authority_id), variants in alternate_headings.items():
@@ -762,6 +796,20 @@ def format_metadata_field(label: str, values: list[str]) -> str:
 	return f"* '''{escape_wikitext(label)}:'''\n" + '\n'.join(sub_lines)
 
 
+def format_contributor(contributor: dict[str, Any]) -> str:
+	"""Describe all roles and copy associations; the metadata formatter escapes this text."""
+	roles = [
+		f'{UNIMARC_ROLE_LABELS[code]} ({code})' if code in UNIMARC_ROLE_LABELS else f'Роль UNIMARC {code}'
+		for code in contributor['roles']
+	]
+	if not roles:
+		roles = [f"Роль не указана (MARC {contributor['tag']})"]
+	entry = f"{contributor['name']} — {'; '.join(roles)}"
+	if contributor['copies']:
+		entry += f"; экземпляр в каталоге: {'; '.join(contributor['copies'])}"
+	return entry
+
+
 def build_commons_description(
 	record_meta: dict[str, Any],
 	marc_meta: dict[str, Any],
@@ -771,7 +819,10 @@ def build_commons_description(
 	category: str = DEFAULT_CATEGORY,
 	license_template: str = DEFAULT_LICENSE,
 ) -> str:
-	"""Build Commons wikitext, adding a missing MARC subtitle before the scan part label."""
+	"""Build Commons wikitext with subtitles and catalog-attributed contributor roles.
+
+	Catalog copy references are preserved, but are not matched to the scanned copy.
+	"""
 	title = (record_meta.get('title') or marc_meta.get('title') or marc_id).strip()
 	subtitle = (marc_meta.get('subtitle') or '').strip()
 	if subtitle and subtitle.casefold() not in title.casefold():
@@ -782,6 +833,16 @@ def build_commons_description(
 	metadata_lines: list[str] = [f"'''{escape_wikitext(title)}'''"]
 	if marc_meta.get('responsibility'):
 		metadata_lines.append(format_metadata_field('Ответственность / Responsibility', [marc_meta['responsibility']]))
+	if marc_meta.get('contributors'):
+		metadata_lines.append(format_metadata_field(
+			'Участники и роли по каталогу НББ (MARC 7xx$4)',
+			[format_contributor(contributor) for contributor in marc_meta['contributors']],
+		))
+		if any('390' in contributor['roles'] for contributor in marc_meta['contributors']):
+			metadata_lines.append(
+				"''Сведения о прежних владельцах приведены по каталогу НББ; "
+				"их связь с отсканированным экземпляром не установлена.''"
+			)
 	if part_label:
 		metadata_lines.append(format_metadata_field('Часть / Выпуск / Part', [part_label]))
 
@@ -891,15 +952,17 @@ def build_commons_description(
 	description_body = '\n'.join(metadata_lines)
 
 	authors_list = list(marc_meta.get('authors') or [])
-	if not authors_list and marc_meta.get('responsibility'):
-		authors_list.append(marc_meta['responsibility'])
-	if not authors_list:
-		for field in record_meta.get('fields', []):
-			if field.get('name') in {'Авторы', 'Автор', 'Другие авторы'}:
-				raw_vals = field.get('values') or str(field.get('value', '')).splitlines()
-				for val in raw_vals:
-					if str(val).strip():
-						authors_list.append(str(val).strip())
+	# Untyped source lists must not turn known former owners or editors back into authors.
+	if not authors_list and not marc_meta.get('contributors'):
+		if marc_meta.get('responsibility'):
+			authors_list.append(marc_meta['responsibility'])
+		else:
+			for field in record_meta.get('fields', []):
+				if field.get('name') in {'Авторы', 'Автор', 'Другие авторы'}:
+					raw_vals = field.get('values') or str(field.get('value', '')).splitlines()
+					for val in raw_vals:
+						if str(val).strip():
+							authors_list.append(str(val).strip())
 	author_line = f"|author={'<br>'.join(escape_wikitext(a) for a in authors_list)}\n" if authors_list else ''
 
 	year = resolve_publication_year(record_meta, marc_meta)

@@ -1,0 +1,18 @@
+<!-- Contributor fields extracted from https://elib.nlb.by/elib/Record/BY-NLB-br0000058446/Export?style=MARCXML -->
+<collection xmlns="http://www.loc.gov/MARC21/slim">
+	<record>
+		<controlfield tag="001">BY-NLB-br0000058446</controlfield>
+		<datafield tag="200" ind1="0" ind2=" ">
+			<subfield code="a">Кн. 4</subfield>
+		</datafield>
+		<datafield tag="702" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar102258</subfield>
+			<subfield code="a">Сапунов</subfield>
+			<subfield code="b">А. П.</subfield>
+			<subfield code="g">Алексей Парфенович</subfield>
+			<subfield code="c">историк</subfield>
+			<subfield code="f">1851—1924</subfield>
+			<subfield code="4">390</subfield>
+		</datafield>
+	</record>
+</collection>

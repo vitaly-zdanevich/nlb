@@ -1,0 +1,29 @@
+<!-- Contributor fields extracted from https://elib.nlb.by/elib/Record/BY-NLB-br0000060109/Export?style=MARCXML -->
+<collection xmlns="http://www.loc.gov/MARC21/slim">
+	<record>
+		<controlfield tag="001">BY-NLB-br0000060109</controlfield>
+		<datafield tag="200" ind1="1" ind2=" ">
+			<subfield code="a">Переклады з Н. Гоголя</subfield>
+			<subfield code="e">(два розмаитых зразкы)</subfield>
+			<subfield code="f">Олены Пчилкы</subfield>
+		</datafield>
+		<datafield tag="700" ind1=" " ind2="1">
+			<subfield code="3">BY-SEK-ar4636604</subfield>
+			<subfield code="a">Гоголь</subfield>
+			<subfield code="b">М. В.</subfield>
+			<subfield code="g">Микола Васильович</subfield>
+			<subfield code="c">пісьменнік</subfield>
+			<subfield code="f">1809—1852</subfield>
+		</datafield>
+		<datafield tag="701" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar2273191</subfield>
+			<subfield code="a">Пчилка</subfield>
+			<subfield code="b">О.</subfield>
+			<subfield code="g">Олена</subfield>
+			<subfield code="c">писательница</subfield>
+			<subfield code="f">1849–1930</subfield>
+			<subfield code="4">730</subfield>
+			<subfield code="4">080</subfield>
+		</datafield>
+	</record>
+</collection>

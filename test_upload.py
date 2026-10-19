@@ -309,6 +309,157 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 		self.assertEqual(marc_meta['authors'], ['Иванов, Иван Иванович (1840—1912)'])
 		self.assertEqual(upload_nlb.resolve_publication_year(record_meta, marc_meta), 1890)
 
+	def test_real_contributor_roles_preserve_names_without_misattributing_authorship(self) -> None:
+		"""Keep former owners and issuing bodies separate, preserving a translator's two roles."""
+		cases = {
+			'BY-NLB-br0000060196': {
+				'authors': ['Миллер, Всеволод Федорович (1848—1913)', 'Кнауэр, Ф. И.'],
+				'roles': [['070'], ['070'], ['390'], ['390'], ['475'], ['475']],
+				'labels': ['Автор (070)', 'Предыдущий владелец (390)', 'Выпускающая организация (475)'],
+			},
+			'BY-NLB-br0000058446': {
+				'authors': [],
+				'roles': [['390']],
+				'labels': ['Сапунов, Алексей Парфенович (1851—1924) — Предыдущий владелец (390)'],
+			},
+			'BY-NLB-br0000060109': {
+				'authors': ['Гоголь, Микола Васильович (1809—1852)'],
+				'roles': [[], ['730', '080']],
+				'labels': ['Переводчик (730)', 'Автор вступления, примечаний и т. п. (080)'],
+			},
+		}
+		for record_id, expected in cases.items():
+			with self.subTest(record_id=record_id):
+				fixture = Path(__file__).parent / 'tests' / 'fixtures' / f'{record_id}-contributors.xml'
+				metadata = upload_nlb.parse_marcxml(fixture.read_text(encoding='utf-8'))
+				self.assertEqual(metadata['authors'], expected['authors'])
+				self.assertEqual([entry['roles'] for entry in metadata['contributors']], expected['roles'])
+				wikitext = upload_nlb.build_commons_description({'title': 'Library record'}, metadata, record_id, '123')
+				for label in expected['labels']:
+					self.assertIn(label, wikitext)
+				for contributor in metadata['contributors']:
+					self.assertIn(contributor['name'], wikitext)
+				author_lines = [line for line in wikitext.splitlines() if line.startswith('|author=')]
+				self.assertEqual(author_lines, ['|author=' + '<br>'.join(expected['authors'])] if expected['authors'] else [])
+
+	def test_owner_roles_do_not_claim_verified_ownership_of_the_scan(self) -> None:
+		"""Keep catalog ownership separate from the scan even when a role has a copy reference."""
+		qualification = 'Сведения о прежних владельцах приведены по каталогу НББ; их связь с отсканированным экземпляром не установлена.'
+		for role, copy_id in (('390', ''), ('390', 'BY-HM0000:13//7647K(026)'), ('070', '')):
+			with self.subTest(role=role, copy_id=copy_id):
+				copy_xml = f'<subfield code="5">{copy_id}</subfield>' if copy_id else ''
+				metadata = upload_nlb.parse_marcxml(f'''<collection><record>
+					<datafield tag="702"><subfield code="a">Сапунов</subfield>
+						<subfield code="4">{role}</subfield>{copy_xml}
+					</datafield>
+				</record></collection>''')
+				wikitext = upload_nlb.build_commons_description({
+					'title': 'Test', 'fields': [{
+						'name': 'Примечания',
+						'value': 'Владельческая запись: А. Сапунов BY-HM0000:13//7647K(026)',
+					}],
+				}, metadata, 'record', '7396778')
+				self.assertIn('Участники и роли по каталогу НББ (MARC 7xx$4)', wikitext)
+				self.assertIn('Владельческая запись: А. Сапунов BY-HM0000:13//7647K(026)', wikitext)
+				if role == '390':
+					self.assertIn(qualification, wikitext)
+					self.assertNotIn('|author=', wikitext)
+				else:
+					self.assertNotIn(qualification, wikitext)
+					self.assertIn('|author=Сапунов\n', wikitext)
+				if copy_id:
+					self.assertIn(f'экземпляр в каталоге: {copy_id}', wikitext)
+
+	def test_ownership_notes_keep_copy_references_without_assigning_them_to_people(self) -> None:
+		"""Preserve distinct copy notes without guessing which copy an unscoped role describes."""
+		metadata = upload_nlb.parse_marcxml('''<collection><record>
+			<datafield tag="702"><subfield code="a">Сапунов</subfield><subfield code="4">390</subfield></datafield>
+			<datafield tag="317"><subfield code="a">Владельческая запись: А. Сапунов</subfield>
+				<subfield code="5">BY-HM0000:13//7647K(026)</subfield></datafield>
+			<datafield tag="317"><subfield code="a">Владельческая запись: А. Сапунов</subfield>
+				<subfield code="5">Another|copy</subfield><subfield code="5">Third copy</subfield></datafield>
+		</record></collection>''')
+		self.assertEqual(metadata['contributors'][0]['copies'], [])
+		self.assertEqual(metadata['notes'], [
+			'Владельческая запись: А. Сапунов; экземпляр в каталоге: BY-HM0000:13//7647K(026)',
+			'Владельческая запись: А. Сапунов; экземпляр в каталоге: Another|copy; Third copy',
+		])
+		wikitext = upload_nlb.build_commons_description({'title': 'Test'}, metadata, 'record', 'file')
+		self.assertIn('экземпляр в каталоге: BY-HM0000:13//7647K(026)', wikitext)
+		self.assertIn('экземпляр в каталоге: Another{{!}}copy; Third copy', wikitext)
+
+	def test_non_author_roles_block_untyped_author_fallbacks(self) -> None:
+		"""Do not restore a former owner through responsibility statements or HTML author lists."""
+		for role, label in (
+			('390', 'Предыдущий владелец (390)'),
+			('340', 'Редактор (340)'),
+			('220', 'Составитель (220)'),
+			('650', 'Издатель (650)'),
+			('999', 'Роль UNIMARC 999'),
+			('000', 'Функция не установлена (000)'),
+		):
+			with self.subTest(role=role):
+				metadata = upload_nlb.parse_marcxml(f'''<collection><record>
+					<datafield tag="200"><subfield code="f">Из коллекции Владельца</subfield></datafield>
+					<datafield tag="702"><subfield code="a">Владелец</subfield><subfield code="4">{role}</subfield></datafield>
+				</record></collection>''')
+				wikitext = upload_nlb.build_commons_description({
+					'title': 'Test', 'fields': [{'name': 'Автор', 'value': 'Владелец'}, {'name': 'Другие авторы', 'value': 'Владелец'}],
+				}, metadata, 'record', 'file')
+				self.assertNotIn('|author=', wikitext)
+				self.assertIn(label, wikitext)
+				self.assertIn('Из коллекции Владельца', wikitext)
+				self.assertIn('Владелец', wikitext)
+
+	def test_contributor_roles_override_tags_and_keep_uncoded_secondary_names(self) -> None:
+		"""Respect explicit roles in every supported tag; infer only uncoded primary responsibility."""
+		for tag in ('700', '701', '702', '710', '711', '712'):
+			for role in ('', '070', '390', '999'):
+				with self.subTest(tag=tag, role=role):
+					role_xml = f'<subfield code="4">{role}</subfield>' if role else ''
+					metadata = upload_nlb.parse_marcxml(f'''<collection><record>
+						<datafield tag="{tag}"><subfield code="a">Name</subfield>{role_xml}</datafield>
+					</record></collection>''')
+					is_author = role == '070' or (not role and tag in {'700', '701', '710', '711'})
+					self.assertEqual(metadata['authors'], ['Name'] if is_author else [])
+					self.assertEqual(metadata['contributors'], [{
+						'name': 'Name', 'tag': tag, 'roles': [role] if role else [], 'copies': [],
+					}])
+					wikitext = upload_nlb.build_commons_description({'title': 'Test'}, metadata, 'record', 'file')
+					if not role:
+						self.assertIn(f'Роль не указана (MARC {tag})', wikitext)
+					elif role == '999':
+						self.assertIn('Роль UNIMARC 999', wikitext)
+
+	def test_contributor_roles_keep_copy_associations_and_unknown_codes(self) -> None:
+		"""Deduplicate exact entries while retaining distinct roles, copies, and escaped values."""
+		owner = '''<datafield tag="702"><subfield code="a">Owner|name</subfield>
+			<subfield code="4">390</subfield><subfield code="4">390</subfield>
+			<subfield code="5">BY-HM0000:copy|A</subfield></datafield>'''
+		metadata = upload_nlb.parse_marcxml(f'''<collection><record>
+			{owner}{owner}{owner.replace('copy|A', 'copy|B')}
+			<datafield tag="702"><subfield code="a">Writer</subfield>
+				<subfield code="4">070</subfield><subfield code="4">730</subfield>
+				<subfield code="4">999|custom</subfield><subfield code="4">070</subfield>
+			</datafield>
+			<datafield tag="702"><subfield code="a">Writer</subfield><subfield code="4">070</subfield></datafield>
+			<datafield tag="702"><subfield code="4">390</subfield></datafield>
+			<datafield tag="702"><subfield code="f">1800—1900</subfield><subfield code="4">390</subfield></datafield>
+		</record></collection>''')
+		self.assertEqual(metadata['authors'], ['Writer'])
+		self.assertEqual(len(metadata['contributors']), 4)
+		self.assertEqual(metadata['contributors'][0]['roles'], ['390'])
+		self.assertEqual(metadata['contributors'][0]['copies'], ['BY-HM0000:copy|A'])
+		self.assertEqual(metadata['contributors'][1]['copies'], ['BY-HM0000:copy|B'])
+		self.assertEqual(metadata['contributors'][2]['roles'], ['070', '730', '999|custom'])
+		wikitext = upload_nlb.build_commons_description({'title': 'Test'}, metadata, 'record', 'file')
+		self.assertIn('Owner{{!}}name — Предыдущий владелец (390)', wikitext)
+		self.assertIn('экземпляр в каталоге: BY-HM0000:copy{{!}}A', wikitext)
+		self.assertIn('экземпляр в каталоге: BY-HM0000:copy{{!}}B', wikitext)
+		self.assertIn('Роль UNIMARC 999{{!}}custom', wikitext)
+		self.assertNotIn('Owner|name', wikitext)
+		self.assertIn('|author=Writer\n', wikitext)
+
 	def test_parse_marcxml_and_description_with_contents_and_all_notes(self) -> None:
 		"""Verify MARC 327 contents note (TOC with section numbers and folio ranges) and 3xx notes are parsed."""
 		marcxml = """<?xml version="1.0" encoding="UTF-8"?>
@@ -1719,6 +1870,32 @@ class FakeCommonsUploader:
 
 class TestEndToEndPipeline(unittest.TestCase):
 	"""Level 3 end-to-end tests covering full iteration, hash deduplication, cleanup, and resume."""
+
+	def test_upload_preserves_contributor_roles_and_only_attributes_authors(self) -> None:
+		"""Carry real library roles through iteration into the submitted Commons description."""
+		fixture = Path(__file__).parent / 'tests' / 'fixtures' / 'BY-NLB-br0000060196-contributors.xml'
+		marc_meta = upload_nlb.parse_marcxml(fixture.read_text(encoding='utf-8'))
+		record_meta = {
+			'title': marc_meta['title'],
+			'fields': [{'name': 'Авторы', 'values': [entry['name'] for entry in marc_meta['contributors']]}],
+		}
+		client = FakeNlbClient()
+		uploader = FakeCommonsUploader()
+		with tempfile.TemporaryDirectory() as tmp_dir, mock.patch.object(
+			client, 'fetch_record_metadata', return_value=(record_meta, marc_meta),
+		), mock.patch(
+			'upload.check_commons_by_hash', side_effect=lambda path, **_: (upload_nlb.calculate_sha1(path), []),
+		), mock.patch('sys.stdout', io.StringIO()):
+			counts = upload_nlb.iterate_and_upload(
+				client=client, uploader=uploader,
+				state_path=Path(tmp_dir) / 'state.json', staging_dir=Path(tmp_dir) / 'staging',
+				max_uploads=1,
+			)
+		self.assertEqual(counts['uploaded'], 1)
+		wikitext = uploader.uploads[0]['wikitext']
+		self.assertIn('|author=Миллер, Всеволод Федорович (1848—1913)<br>Кнауэр, Ф. И.\n', wikitext)
+		self.assertIn('Карский, Евфимий Федорович (1861—1931) — Предыдущий владелец (390)', wikitext)
+		self.assertIn('Императорский университет святого Владимира — Выпускающая организация (475)', wikitext)
 
 	def test_http_400_continues_across_pages_and_retries_on_restart(self) -> None:
 		"""Continue past a rejection, including upload limits, and revisit it on restart."""
