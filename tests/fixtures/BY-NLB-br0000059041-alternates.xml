@@ -1,0 +1,33 @@
+<!-- Heading and variant fields extracted from https://elib.nlb.by/elib/Record/BY-NLB-br0000059041/Export?style=MARCXML -->
+<collection xmlns="http://www.loc.gov/MARC21/slim" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.loc.gov/MARC21/slim http://www.loc.gov/standards/marcxml/schema/MARC21slim.xsd">
+	<record>
+		<controlfield tag="001">BY-NLB-br0000059041</controlfield>
+		<datafield tag="200" ind1="0" ind2=" ">
+			<subfield code="a">T. 1</subfield>
+		</datafield>
+		<datafield tag="608" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar2474222</subfield>
+			<subfield code="a">ПЬЕСА</subfield>
+			<subfield code="2">BYGNR</subfield>
+		</datafield>
+		<datafield tag="608" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar14002</subfield>
+			<subfield code="a">КОМЕДИЯ</subfield>
+			<subfield code="2">BYGNR</subfield>
+		</datafield>
+		<datafield tag="908" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar2474222</subfield>
+			<subfield code="9">580</subfield>
+			<subfield code="5">w</subfield>
+			<subfield code="a">П'ЕСА</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="908" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar14002</subfield>
+			<subfield code="9">580</subfield>
+			<subfield code="5">w</subfield>
+			<subfield code="a">КАМЕДЫЯ</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+	</record>
+</collection>

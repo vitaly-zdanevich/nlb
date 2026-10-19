@@ -405,6 +405,28 @@ def extract_contents_entries(text: str) -> list[str]:
 	return parts if parts else ([stripped] if stripped else [])
 
 
+def split_marc_alternate_headings(
+	subfields: list[tuple[str, str]],
+	codes: tuple[str, ...],
+) -> list[str]:
+	"""Split NLB aliases at $9 or repeated main terms, keeping each heading's subdivisions.
+
+	NLB 908 uses $a for the main term; 926 uses $d. Administrative subfields
+	are excluded, and codes specify the display order within each heading.
+	"""
+	headings: list[str] = []
+	group: dict[str, list[str]] = {}
+	for code, value in subfields + [('9', '')]:
+		if code == '9' or (code == codes[0] and code in group):
+			parts = [part for heading_code in codes for part in group.get(heading_code, [])]
+			if parts:
+				headings.append(' — '.join(parts))
+			group = {}
+		if code in codes:
+			group.setdefault(code, []).append(value)
+	return headings
+
+
 def parse_marcxml(xml_text: str) -> dict[str, Any]:
 	"""Parse UNIMARC/BELMARC XML export into structured bibliographic fields and raw tags."""
 	result: dict[str, Any] = {
@@ -426,6 +448,8 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 		'subjects': [],
 		'genres': [],
 		'geo_places': [],
+		'alternate_genres': [],
+		'alternate_geo_places': [],
 		'shelfmarks': [],
 		'authors': [],
 		'languages': [],
@@ -459,11 +483,15 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 			result['raw_fields'].append({'tag': tag, 'value': val})
 
 	parent_title = ''
+	# Resolve aliases after all fields so $3 associations do not depend on XML order.
+	authority_headings: dict[tuple[str, str], list[str]] = {}
+	alternate_headings: dict[tuple[str, str], list[str]] = {}
 	datafields = record.findall('marc:datafield', MARC_NS) or record.findall('datafield')
 	for df in datafields:
 		tag = (df.attrib.get('tag') or '').strip()
 		subfields_nodes = df.findall('marc:subfield', MARC_NS) or df.findall('subfield')
 		submap: dict[str, list[str]] = {}
+		subfields: list[tuple[str, str]] = []
 		parts_rendered: list[str] = []
 		for sf in subfields_nodes:
 			code = (sf.attrib.get('code') or '').strip()
@@ -471,6 +499,7 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 			if not text:
 				continue
 			submap.setdefault(code, []).append(text)
+			subfields.append((code, text))
 			parts_rendered.append(f'${code} {text}')
 
 		if parts_rendered:
@@ -558,6 +587,10 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 				genre = ' — '.join(genre_parts)
 				if genre not in result['genres']:
 					result['genres'].append(genre)
+				for authority_id in submap.get('3', []):
+					headings = authority_headings.setdefault((tag, authority_id), [])
+					if genre not in headings:
+						headings.append(genre)
 		elif tag in {'600', '605', '606', '607', '690'}:
 			subj_parts = (
 				submap.get('a', [])
@@ -583,6 +616,19 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 				geo = ' — '.join(geo_parts)
 				if geo not in result['geo_places']:
 					result['geo_places'].append(geo)
+				for authority_id in submap.get('3', []):
+					headings = authority_headings.setdefault((tag, authority_id), [])
+					if geo not in headings:
+						headings.append(geo)
+		elif tag in {'908', '926'}:
+			main_tag = '608' if tag == '908' else '620'
+			codes = ('a', 'x', 'y', 'z') if tag == '908' else ('d', 'c', 'b', 'a')
+			variants = split_marc_alternate_headings(subfields, codes)
+			for authority_id in submap.get('3', ['']):
+				headings = alternate_headings.setdefault((main_tag, authority_id), [])
+				for variant in variants:
+					if variant not in headings:
+						headings.append(variant)
 		elif tag == '675':
 			for udc in submap.get('a', []):
 				if udc not in result['udc']:
@@ -601,6 +647,20 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 				name = f'{name} ({dates})'
 			if name and name not in result['authors']:
 				result['authors'].append(name)
+
+	for (main_tag, authority_id), variants in alternate_headings.items():
+		main_headings = authority_headings.get((main_tag, authority_id), [])
+		new_variants = [variant for variant in variants if variant not in main_headings]
+		if not new_variants:
+			continue
+		key = 'alternate_genres' if main_tag == '608' else 'alternate_geo_places'
+		if main_headings:
+			entries = [f"{' ; '.join(main_headings)}: {'; '.join(new_variants)}"]
+		else:
+			entries = new_variants
+		for entry in entries:
+			if entry not in result[key]:
+				result[key].append(entry)
 
 	if parent_title and parent_title not in result['title']:
 		result['title'] = f"{parent_title}. {result['title']}" if result['title'] else parent_title
@@ -745,6 +805,8 @@ def build_commons_description(
 		new_geo = [g for g in marc_meta['geo_places'] if g.strip().lower() not in places_normalized]
 		if new_geo:
 			metadata_lines.append(format_metadata_field('Место издания (MARC 620)', new_geo))
+	if marc_meta.get('alternate_geo_places'):
+		metadata_lines.append(format_metadata_field('Варианты географических названий (MARC 926)', marc_meta['alternate_geo_places']))
 	if marc_meta.get('publishers'):
 		metadata_lines.append(format_metadata_field('Издатель (MARC 210$c)', marc_meta['publishers']))
 	if marc_meta.get('edition'):
@@ -797,6 +859,8 @@ def build_commons_description(
 		]
 		if new_genres:
 			metadata_lines.append(format_metadata_field('Форма / жанр (MARC 608)', new_genres))
+	if marc_meta.get('alternate_genres'):
+		metadata_lines.append(format_metadata_field('Варианты названий формы / жанра (MARC 908)', marc_meta['alternate_genres']))
 	contents = marc_meta.get('contents') or record_meta.get('contents') or []
 	if contents:
 		metadata_lines.append(format_metadata_field('Содержание (MARC 327)', contents))

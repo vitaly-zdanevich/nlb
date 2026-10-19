@@ -459,6 +459,98 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 		self.assertIn("* '''Место издания (MARC 620):'''", wikitext_dedup)
 		self.assertIn("* '''Тематика (MARC 6xx):''' Кірыліца ― беларускія выданні", wikitext_dedup)
 
+	def test_description_preserves_library_alternate_terms_and_place_names(self) -> None:
+		"""Retain actual NLB aliases with their main headings, including qualified places."""
+		cases = {
+			'BY-NLB-br0000015701': {
+				'alternate_genres': [
+					'КАНОН (религия): КАНОН (рэлігія)',
+					'БОГОСЛУЖЕБНАЯ КНИГА: литургическая книга; БОГАСЛУЖЭБНАЯ КНІГА; богаслужбовая кніга; літургічная кніга',
+					'ПСАЛОМ: псалм; хвалебная песня',
+				],
+				'alternate_geo_places': [
+					'Гродно — Гродненский район — Гродненская область: Grodno; Городень; Городно; Гродна; Гродна — Гродзенскі раён — Гродзенская вобласць; Grodna; Гародна; Гародня; Горадзен',
+					'Комсомольское: Махновка; Камсамольскае',
+				],
+			},
+			'BY-NLB-br0000059041': {
+				'alternate_genres': ["ПЬЕСА: П'ЕСА", 'КОМЕДИЯ: КАМЕДЫЯ'],
+				'alternate_geo_places': [],
+			},
+		}
+		for record_id, expected_fields in cases.items():
+			with self.subTest(record_id=record_id):
+				fixture = Path(__file__).parent / 'tests' / 'fixtures' / f'{record_id}-alternates.xml'
+				marc_meta = upload_nlb.parse_marcxml(fixture.read_text(encoding='utf-8'))
+				wikitext = upload_nlb.build_commons_description(
+					{'title': 'Library record', 'fields': []}, marc_meta, record_id, '123',
+				)
+				for key, expected in expected_fields.items():
+					self.assertEqual(marc_meta[key], expected)
+					for entry in expected:
+						self.assertIn(entry, wikitext)
+				self.assertIn('Варианты названий формы / жанра (MARC 908)', wikitext)
+				self.assertEqual('Варианты географических названий (MARC 926)' in wikitext, bool(expected_fields['alternate_geo_places']))
+				for code in ('BY-NLB-ar', 'BYGNR', 'DVNLB', 'BY-auth'):
+					self.assertNotIn(code, wikitext)
+
+	def test_alternate_headings_handle_order_duplicates_and_missing_authorities(self) -> None:
+		"""Keep unlinked aliases and subdivisions without conflating distinct authorities."""
+		marcxml = '''<collection><record>
+			<datafield tag="926">
+				<subfield code="3">place1</subfield><subfield code="9">560</subfield>
+				<subfield code="a">Country</subfield><subfield code="b">Region</subfield>
+				<subfield code="d">Town</subfield><subfield code="d">Town alias</subfield>
+				<subfield code="9">460</subfield><subfield code="d">Town alias</subfield>
+			</datafield>
+			<datafield tag="908">
+				<subfield code="3">genre1</subfield><subfield code="a">Alias|one</subfield>
+				<subfield code="x">Subdivision</subfield><subfield code="a">Alias two</subfield>
+				<subfield code="9">480</subfield><subfield code="a">Alias two</subfield>
+				<subfield code="9">580</subfield><subfield code="a">Main|genre</subfield>
+			</datafield>
+			<datafield tag="908"><subfield code="3">genre2</subfield><subfield code="a">Alias two</subfield></datafield>
+			<datafield tag="908"><subfield code="3">unknown</subfield><subfield code="a">Unlinked genre</subfield></datafield>
+			<datafield tag="908"><subfield code="a">No authority</subfield></datafield>
+			<datafield tag="926"><subfield code="3">unknown</subfield><subfield code="d">Unlinked place</subfield></datafield>
+			<datafield tag="926"><subfield code="d">No place authority</subfield></datafield>
+			<datafield tag="908"><subfield code="9">480</subfield><subfield code="5">w</subfield><subfield code="2">vocabulary</subfield></datafield>
+			<datafield tag="926"><subfield code="3">place1</subfield><subfield code="9">460</subfield></datafield>
+			<datafield tag="608"><subfield code="3">genre1</subfield><subfield code="a">Main|genre</subfield></datafield>
+			<datafield tag="608"><subfield code="3">genre2</subfield><subfield code="a">Other genre</subfield></datafield>
+			<datafield tag="620"><subfield code="3">place1</subfield><subfield code="d">Main town</subfield></datafield>
+		</record></collection>'''
+		marc_meta = upload_nlb.parse_marcxml(marcxml)
+		self.assertEqual(marc_meta['alternate_genres'], [
+			'Main|genre: Alias|one — Subdivision; Alias two',
+			'Other genre: Alias two', 'Unlinked genre', 'No authority',
+		])
+		self.assertEqual(marc_meta['alternate_geo_places'], [
+			'Main town: Town — Region — Country; Town alias', 'Unlinked place', 'No place authority',
+		])
+		wikitext = upload_nlb.build_commons_description(
+			{'title': 'Test'}, marc_meta, 'record', 'file',
+		)
+		self.assertIn('Main{{!}}genre: Alias{{!}}one — Subdivision; Alias two', wikitext)
+		self.assertNotIn('vocabulary', wikitext)
+		self.assertNotIn('Main|genre', wikitext)
+
+	def test_alternate_headings_omit_empty_and_canonical_only_variants(self) -> None:
+		"""Omit variant sections when fields are absent, blank, or repeat the main heading."""
+		marcxml = '''<collection><record>
+			<datafield tag="608"><subfield code="3">genre</subfield><subfield code="a">Main genre</subfield></datafield>
+			<datafield tag="908"><subfield code="3">genre</subfield><subfield code="a">Main genre</subfield></datafield>
+			<datafield tag="926"><subfield code="d"> </subfield></datafield>
+		</record></collection>'''
+		for xml in ('', marcxml):
+			with self.subTest(xml=xml):
+				marc_meta = upload_nlb.parse_marcxml(xml)
+				self.assertEqual(marc_meta['alternate_genres'], [])
+				self.assertEqual(marc_meta['alternate_geo_places'], [])
+				wikitext = upload_nlb.build_commons_description({'title': 'Test'}, marc_meta, 'record', 'file')
+				self.assertNotIn('MARC 908', wikitext)
+				self.assertNotIn('MARC 926', wikitext)
+
 	def test_parse_marcxml_and_description_with_secondary_responsibility_and_accompanying_material(self) -> None:
 		"""Verify UNIMARC 200$g secondary responsibility and 215$e accompanying material are parsed and rendered."""
 		marcxml = """<?xml version="1.0" encoding="UTF-8"?>

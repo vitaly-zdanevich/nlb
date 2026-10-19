@@ -1,0 +1,139 @@
+<!-- Heading and variant fields extracted from https://elib.nlb.by/elib/Record/BY-NLB-br0000015701/Export?style=MARCXML -->
+<collection xmlns="http://www.loc.gov/MARC21/slim" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.loc.gov/MARC21/slim http://www.loc.gov/standards/marcxml/schema/MARC21slim.xsd">
+	<record>
+		<controlfield tag="001">BY-NLB-br0000015701</controlfield>
+		<datafield tag="200" ind1="1" ind2=" ">
+			<subfield code="a">Псалтирь</subfield>
+		</datafield>
+		<datafield tag="608" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar2345643</subfield>
+			<subfield code="a">КАНОН (религия)</subfield>
+			<subfield code="2">BYGNR</subfield>
+		</datafield>
+		<datafield tag="608" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar4286</subfield>
+			<subfield code="a">БОГОСЛУЖЕБНАЯ КНИГА</subfield>
+			<subfield code="2">BYGNR</subfield>
+		</datafield>
+		<datafield tag="608" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar26424</subfield>
+			<subfield code="a">ПСАЛОМ</subfield>
+			<subfield code="2">BYGNR</subfield>
+		</datafield>
+		<datafield tag="608" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar2518334</subfield>
+			<subfield code="a">Пометы</subfield>
+			<subfield code="z">19 ВЕК</subfield>
+			<subfield code="z">20 ВЕК</subfield>
+			<subfield code="2">BYGNR</subfield>
+		</datafield>
+		<datafield tag="620" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar2830212</subfield>
+			<subfield code="d">Гродно</subfield>
+			<subfield code="c">Гродненский район</subfield>
+			<subfield code="b">Гродненская область</subfield>
+			<subfield code="2">BY-auth</subfield>
+		</datafield>
+		<datafield tag="620" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar2505542</subfield>
+			<subfield code="d">Комсомольское</subfield>
+			<subfield code="2">BY-auth</subfield>
+		</datafield>
+		<datafield tag="908" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar2345643</subfield>
+			<subfield code="9">580</subfield>
+			<subfield code="5">w</subfield>
+			<subfield code="a">КАНОН (рэлігія)</subfield>
+			<subfield code="2">BYGNR</subfield>
+		</datafield>
+		<datafield tag="908" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar4286</subfield>
+			<subfield code="9">480</subfield>
+			<subfield code="a">литургическая книга</subfield>
+			<subfield code="2">BYGNR</subfield>
+		</datafield>
+		<datafield tag="908" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar4286</subfield>
+			<subfield code="9">580</subfield>
+			<subfield code="5">w</subfield>
+			<subfield code="a">БОГАСЛУЖЭБНАЯ КНІГА</subfield>
+			<subfield code="9">480</subfield>
+			<subfield code="a">богаслужбовая кніга</subfield>
+			<subfield code="a">літургічная кніга</subfield>
+			<subfield code="2">BYGNR</subfield>
+		</datafield>
+		<datafield tag="908" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar26424</subfield>
+			<subfield code="9">480</subfield>
+			<subfield code="a">псалм</subfield>
+			<subfield code="2">BYGNR</subfield>
+		</datafield>
+		<datafield tag="908" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar26424</subfield>
+			<subfield code="9">480</subfield>
+			<subfield code="a">хвалебная песня</subfield>
+			<subfield code="2">BYGNR</subfield>
+		</datafield>
+		<datafield tag="908" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar26424</subfield>
+			<subfield code="9">580</subfield>
+			<subfield code="5">w</subfield>
+			<subfield code="a">ПСАЛОМ</subfield>
+			<subfield code="9">480</subfield>
+			<subfield code="a">псалм</subfield>
+			<subfield code="a">хвалебная песня</subfield>
+			<subfield code="2">BYGNR</subfield>
+		</datafield>
+		<datafield tag="926" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar2830212</subfield>
+			<subfield code="9">460</subfield>
+			<subfield code="d">Grodno</subfield>
+			<subfield code="2">BY-auth</subfield>
+		</datafield>
+		<datafield tag="926" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar2830212</subfield>
+			<subfield code="9">460</subfield>
+			<subfield code="d">Городень</subfield>
+			<subfield code="2">BY-auth</subfield>
+		</datafield>
+		<datafield tag="926" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar2830212</subfield>
+			<subfield code="9">460</subfield>
+			<subfield code="d">Городно</subfield>
+			<subfield code="2">BY-auth</subfield>
+		</datafield>
+		<datafield tag="926" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar2830212</subfield>
+			<subfield code="9">460</subfield>
+			<subfield code="d">Гродна</subfield>
+			<subfield code="2">BY-auth</subfield>
+		</datafield>
+		<datafield tag="926" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar2830212</subfield>
+			<subfield code="9">560</subfield>
+			<subfield code="5">w</subfield>
+			<subfield code="d">Гродна</subfield>
+			<subfield code="c">Гродзенскі раён</subfield>
+			<subfield code="b">Гродзенская вобласць</subfield>
+			<subfield code="9">460</subfield>
+			<subfield code="d">Grodna</subfield>
+			<subfield code="d">Гародна</subfield>
+			<subfield code="d">Гародня</subfield>
+			<subfield code="d">Горадзен</subfield>
+			<subfield code="2">BY-auth</subfield>
+		</datafield>
+		<datafield tag="926" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar2505542</subfield>
+			<subfield code="9">460</subfield>
+			<subfield code="d">Махновка</subfield>
+			<subfield code="2">BY-auth</subfield>
+		</datafield>
+		<datafield tag="926" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar2505542</subfield>
+			<subfield code="9">560</subfield>
+			<subfield code="5">w</subfield>
+			<subfield code="d">Камсамольскае</subfield>
+			<subfield code="2">BY-auth</subfield>
+		</datafield>
+	</record>
+</collection>
