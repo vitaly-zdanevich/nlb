@@ -1,0 +1,9 @@
+<!-- Publication fields extracted from https://elib.nlb.by/elib/Record/BY-NLB-br0000067302/Export?style=MARCXML -->
+<collection xmlns="http://www.loc.gov/MARC21/slim">
+	<record>
+		<controlfield tag="001">BY-NLB-br0000067302</controlfield>
+		<datafield tag="210" ind1=" " ind2=" ">
+			<subfield code="d">1884</subfield>
+		</datafield>
+	</record>
+</collection>

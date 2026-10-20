@@ -6,8 +6,8 @@
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
-[![Production code](https://img.shields.io/badge/production%20code-1%2C804%20lines-blue)](upload.py)
-[![Test code](https://img.shields.io/badge/test%20code-2%2C383%20lines-blue)](test_upload.py)
+[![Production code](https://img.shields.io/badge/production%20code-1%2C821%20lines-blue)](upload.py)
+[![Test code](https://img.shields.io/badge/test%20code-2%2C503%20lines-blue)](test_upload.py)
 
 [`upload.py`](upload.py) iterates over open-access digitized scans from the Electronic Library of the National Library of Belarus (`https://elib.nlb.by`) and uploads them to Wikimedia Commons with full HTML and UNIMARC (`MARCXML`) metadata.
 
@@ -21,6 +21,7 @@
 - **Alternate indexing terms and place names**: Preserves NLB `908` genre variants and `926` geographic name variants, including translations, synonyms and historical names. Variants are grouped with their `608` / `620` headings using authority IDs; unlinked variants remain visible. Repeated aliases are deduplicated, and geographic subdivisions stay attached to the appropriate name.
 - **Contributor roles**: Preserves UNIMARC `700`–`702` / `710`–`712` contributors with all `$4` role codes and `$5` copy associations. Authors, translators, editors, compilers, publishers, issuing bodies and former owners of a physical copy are distinguished in the description; unknown codes remain visible. The Commons author field uses explicit author role `070`, or primary/equal responsibility (`700` / `701` / `710` / `711`) when no role is recorded. Uncoded secondary contributors remain visible with an unspecified role. HTML author lists and responsibility statements remain preserved, but only provide an author fallback when there are no structured contributors.
 - **Ownership scope**: Roles are attributed to the NLB catalog. Former-owner entries explicitly state that their association with the scanned copy has not been established. Copy references in contributor fields and MARC `3xx` notes remain attached to their respective entries; the uploader does not infer a contributor's copy from a separate note or match catalog copies to scans.
+- **Printers and manufacturing statements**: Preserves UNIMARC `210$e/$f/$g/$h` (place, address, printer/manufacturer and date) in a dedicated description section. Each field's manufacturing details remain together in source order, including repeated subfields; only identical complete statements are deduplicated. Printing dates do not replace publication dates, and printers are not inferred to be publishers.
 - **Single-file and multi-part (`METS`) support**: Resolves both direct `fileID` viewer links and multi-volume `metsID` document trees on `https://elib.nlb.by:8070`.
 - **SHA-1 deduplication**: Computes the digest with Python's `hashlib` and queries the MediaWiki `allimages` API directly. No shell helper is required. Timeouts, broken connections, invalid JSON and HTTP 500/502/503/504 receive up to five attempts with 5, 10, 20 and 40 seconds between attempts; failed or invalid lookups leave the scan pending without uploading.
 - **Resumable state**: Saves progress atomically in `state.json` after each item and page so interrupted runs continue from the exact item on restart.
@@ -85,6 +86,7 @@ python3 -m unittest -v test_upload.py
 ## Related Documentation
 
 - [Electronic Library of the National Library of Belarus (`elib.nlb.by`)](https://elib.nlb.by/)
+- [UNIMARC 210: publication and manufacturing metadata (IFLA)](https://www.ifla.org/files/assets/uca/unimarc_updates/BIBLIOGRAPHIC/u-b_210_update.pdf)
 - [VuFind Documentation](https://vufind.org/wiki/documentation)
 - [IIIF Presentation API Specification](https://iiif.io/api/presentation/2.1/)
 - [MARC 21 / UNIMARC XML Schema (Library of Congress)](https://www.loc.gov/standards/marcxml/)

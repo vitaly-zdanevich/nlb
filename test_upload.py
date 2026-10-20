@@ -309,6 +309,112 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 		self.assertEqual(marc_meta['authors'], ['Иванов, Иван Иванович (1840—1912)'])
 		self.assertEqual(upload_nlb.resolve_publication_year(record_meta, marc_meta), 1890)
 
+	def test_real_manufacturing_printers_reach_description_without_becoming_publishers(self) -> None:
+		"""Preserve both reported 210$g losses even when HTML has no printer or publisher."""
+		cases = (
+			('BY-NLB-br0000060196', 'Типография Императорской академии наук', '1891'),
+			('BY-NLB-br0000060109', 'Типография С. В. Кульженко', '1881'),
+		)
+		for record_id, printer, year in cases:
+			with self.subTest(record_id=record_id):
+				fixture = Path(__file__).parent / 'tests' / 'fixtures' / f'{record_id}-manufacturing.xml'
+				metadata = upload_nlb.parse_marcxml(fixture.read_text(encoding='utf-8'))
+				wikitext = upload_nlb.build_commons_description({'title': 'Library record'}, metadata, record_id, '123')
+				self.assertIn(printer, wikitext)
+				self.assertIn(f"* '''Изготовление (MARC 210):''' Типография / изготовитель ($g): {printer}", wikitext)
+				self.assertEqual(metadata['publishers'], [])
+				self.assertEqual(metadata['date'], year)
+				self.assertIn(f'|date={year}\n', wikitext)
+				self.assertNotIn('Издатель (MARC 210$c)', wikitext)
+				self.assertNotIn('|author=', wikitext)
+
+	def test_real_publication_only_volume_does_not_invent_manufacturing_metadata(self) -> None:
+		"""The reported Pamiętniki polskie volume supplies only 210$d, with no printer."""
+		fixture = Path(__file__).parent / 'tests' / 'fixtures' / 'BY-NLB-br0000067302-manufacturing.xml'
+		metadata = upload_nlb.parse_marcxml(fixture.read_text(encoding='utf-8'))
+		record = {'title': 'Pamiętniki polskie / zebrane przez Ksawerego Bronikowskiego. T. 2'}
+		wikitext = upload_nlb.build_commons_description(record, metadata, 'BY-NLB-br0000067302', '3466525')
+		self.assertEqual(metadata['manufacturing_statements'], [])
+		self.assertEqual(metadata['publishers'], [])
+		self.assertIn('|date=1884\n', wikitext)
+		self.assertNotIn('Изготовление (MARC 210)', wikitext)
+
+	def test_manufacturing_statements_preserve_order_repetitions_and_field_boundaries(self) -> None:
+		"""Keep manufacture places, addresses, names and dates together in source order."""
+		first_field = '''<datafield tag="210">
+			<subfield code="a">Publication city</subfield>
+			<subfield code="c">Publisher</subfield>
+			<subfield code="d">1890</subfield>
+			<subfield code="e">Print city</subfield>
+			<subfield code="f">Street | 1</subfield>
+			<subfield code="g">Printer | A</subfield>
+			<subfield code="h">[1892?]</subfield>
+			<subfield code="e">Other city</subfield>
+			<subfield code="g">Printer B</subfield>
+			<subfield code="h">1893</subfield>
+		</datafield>'''
+		marcxml = f'''<collection><record>
+			{first_field}
+			{first_field}
+			<datafield tag="210">
+				<subfield code="g">Printer | A</subfield>
+				<subfield code="h">1894</subfield>
+			</datafield>
+		</record></collection>'''
+		metadata = upload_nlb.parse_marcxml(marcxml)
+		expected = [
+			'Место изготовления ($e): Print city; Адрес изготовителя ($f): Street | 1; '
+			'Типография / изготовитель ($g): Printer | A; Дата изготовления ($h): [1892?]; '
+			'Место изготовления ($e): Other city; Типография / изготовитель ($g): Printer B; '
+			'Дата изготовления ($h): 1893',
+			'Типография / изготовитель ($g): Printer | A; Дата изготовления ($h): 1894',
+		]
+		self.assertEqual(metadata['manufacturing_statements'], expected)
+		self.assertEqual(metadata['places'], ['Publication city'])
+		self.assertEqual(metadata['publishers'], ['Publisher'])
+		self.assertEqual(metadata['date'], '1890')
+		self.assertEqual(metadata['year'], '1890')
+		wikitext = upload_nlb.build_commons_description({'title': 'Test'}, metadata, 'record', 'file')
+		for statement in expected:
+			self.assertIn('** ' + statement.replace('|', '{{!}}'), wikitext)
+		self.assertEqual(wikitext.count('Дата изготовления ($h): [1892?]'), 1)
+		self.assertNotIn('Printer | A', wikitext)
+		self.assertNotIn('Street | 1', wikitext)
+		self.assertIn('|date=1890\n', wikitext)
+
+	def test_partial_manufacturing_statements_do_not_supply_publication_dates(self) -> None:
+		"""Preserve lone manufacture subfields without requiring a printer or inferring publication."""
+		cases = (
+			('e', 'Print city', 'Место изготовления ($e)'),
+			('f', 'Street 1', 'Адрес изготовителя ($f)'),
+			('g', 'Printer', 'Типография / изготовитель ($g)'),
+			('h', '[1891?]', 'Дата изготовления ($h)'),
+		)
+		for code, value, label in cases:
+			with self.subTest(code=code):
+				metadata = upload_nlb.parse_marcxml(f'''<collection><record>
+					<datafield tag="210"><subfield code="{code}">{value}</subfield></datafield>
+				</record></collection>''')
+				wikitext = upload_nlb.build_commons_description({'title': 'Test'}, metadata, 'record', 'file')
+				self.assertIn(f'{label}: {value}', wikitext)
+				self.assertEqual(metadata['date'], '')
+				self.assertEqual(metadata['year'], '')
+				self.assertIsNone(upload_nlb.resolve_publication_year({}, metadata))
+				self.assertIn('|date=\n', wikitext)
+
+	def test_absent_manufacturing_metadata_has_no_empty_description_section(self) -> None:
+		"""Handle empty XML, publication-only records, blank subfields and older metadata dicts."""
+		for xml in ('', '<invalid', MOCK_MARCXML_111, '''<collection><record>
+			<datafield tag="210"><subfield code="g"> </subfield><subfield code="9">internal</subfield></datafield>
+		</record></collection>'''):
+			with self.subTest(xml=xml):
+				metadata = upload_nlb.parse_marcxml(xml)
+				self.assertEqual(metadata['manufacturing_statements'], [])
+				wikitext = upload_nlb.build_commons_description({'title': 'Test'}, metadata, 'record', 'file')
+				self.assertNotIn('Изготовление (MARC 210)', wikitext)
+		wikitext = upload_nlb.build_commons_description({'title': 'Test'}, {}, 'record', 'file')
+		self.assertNotIn('Изготовление (MARC 210)', wikitext)
+
 	def test_real_contributor_roles_preserve_names_without_misattributing_authorship(self) -> None:
 		"""Keep former owners and issuing bodies separate, preserving a translator's two roles."""
 		cases = {
@@ -2036,6 +2142,26 @@ class TestPywikibotUploadTokens(unittest.TestCase):
 
 class TestEndToEndPipeline(unittest.TestCase):
 	"""Level 3 end-to-end tests covering full iteration, hash deduplication, cleanup, and resume."""
+
+	def test_upload_preserves_manufacturing_printer(self) -> None:
+		"""Carry the library's printer through iteration into the submitted Commons description."""
+		fixture = Path(__file__).parent / 'tests' / 'fixtures' / 'BY-NLB-br0000060196-manufacturing.xml'
+		marc_meta = upload_nlb.parse_marcxml(fixture.read_text(encoding='utf-8'))
+		client = FakeNlbClient()
+		uploader = FakeCommonsUploader()
+		with tempfile.TemporaryDirectory() as tmp_dir, mock.patch.object(
+			client, 'fetch_record_metadata', return_value=({'title': 'Руководство к изучению санскрита'}, marc_meta),
+		), mock.patch(
+			'upload.check_commons_by_hash', side_effect=lambda path, **_: (upload_nlb.calculate_sha1(path), []),
+		), mock.patch('sys.stdout', io.StringIO()):
+			counts = upload_nlb.iterate_and_upload(
+				client=client, uploader=uploader,
+				state_path=Path(tmp_dir) / 'state.json', staging_dir=Path(tmp_dir) / 'staging',
+				max_uploads=1,
+			)
+		self.assertEqual(counts['uploaded'], 1)
+		self.assertIn('Типография Императорской академии наук', uploader.uploads[0]['wikitext'])
+		self.assertIn('|date=1891\n', uploader.uploads[0]['wikitext'])
 
 	def test_upload_preserves_contributor_roles_and_only_attributes_authors(self) -> None:
 		"""Carry real library roles through iteration into the submitted Commons description."""

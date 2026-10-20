@@ -82,6 +82,15 @@ RETRYABLE_UPLOAD_API_ERROR_PREFIXES = (
 
 MARC_NS = {'marc': 'http://www.loc.gov/MARC21/slim'}
 
+# Manufacture subfields are separate from publication places, publishers and dates.
+# https://www.ifla.org/files/assets/uca/unimarc_updates/BIBLIOGRAPHIC/u-b_210_update.pdf
+UNIMARC_MANUFACTURING_LABELS = {
+	'e': 'Место изготовления ($e)',
+	'f': 'Адрес изготовителя ($f)',
+	'g': 'Типография / изготовитель ($g)',
+	'h': 'Дата изготовления ($h)',
+}
+
 # UNIMARC Appendix B, not MARC 21 relator codes; unknown codes stay visible.
 # https://cdn.ifla.org/wp-content/uploads/files/assets/uca/unimarc_updates/BIBLIOGRAPHIC/u_b_appb_update2020_online_final.pdf
 UNIMARC_ROLE_LABELS = {
@@ -449,6 +458,8 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 
 	Explicit $4 roles determine authorship. Without a role, only primary/equal
 	responsibility fields (700/701/710/711) retain the author fallback.
+	Manufacture subfields 210$e/$f/$g/$h stay together in source order per field,
+	separate from publication metadata; only identical statements are deduplicated.
 	"""
 	result: dict[str, Any] = {
 		'control_number': '',
@@ -459,6 +470,7 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 		'edition': '',
 		'places': [],
 		'publishers': [],
+		'manufacturing_statements': [],
 		'date': '',
 		'year': '',
 		'physical_description': '',
@@ -569,6 +581,12 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 					result['publishers'].append(pub)
 			if submap.get('d') and not result['date']:
 				result['date'] = ', '.join(submap['d'])
+			statement = '; '.join(
+				f'{UNIMARC_MANUFACTURING_LABELS[code]}: {text}'
+				for code, text in subfields if code in UNIMARC_MANUFACTURING_LABELS
+			)
+			if statement and statement not in result['manufacturing_statements']:
+				result['manufacturing_statements'].append(statement)
 		elif tag == '215':
 			main_parts = submap.get('a', []) + submap.get('c', []) + submap.get('d', [])
 			acc_parts = submap.get('e', [])
@@ -873,6 +891,8 @@ def build_commons_description(
 		metadata_lines.append(format_metadata_field('Варианты географических названий (MARC 926)', marc_meta['alternate_geo_places']))
 	if marc_meta.get('publishers'):
 		metadata_lines.append(format_metadata_field('Издатель (MARC 210$c)', marc_meta['publishers']))
+	if marc_meta.get('manufacturing_statements'):
+		metadata_lines.append(format_metadata_field('Изготовление (MARC 210)', marc_meta['manufacturing_statements']))
 	if marc_meta.get('edition'):
 		metadata_lines.append(format_metadata_field('Издание (MARC 205)', [marc_meta['edition']]))
 	phys_list = marc_meta.get('physical_descriptions') or (

@@ -1,0 +1,11 @@
+<!-- Publication fields extracted from https://elib.nlb.by/elib/Record/BY-NLB-br0000060109/Export?style=MARCXML -->
+<collection xmlns="http://www.loc.gov/MARC21/slim">
+	<record>
+		<controlfield tag="001">BY-NLB-br0000060109</controlfield>
+		<datafield tag="210" ind1=" " ind2=" ">
+			<subfield code="a">Киев</subfield>
+			<subfield code="d">1881</subfield>
+			<subfield code="g">Типография С. В. Кульженко</subfield>
+		</datafield>
+	</record>
+</collection>

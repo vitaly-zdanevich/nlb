@@ -1,0 +1,11 @@
+<!-- Publication fields extracted from https://elib.nlb.by/elib/Record/BY-NLB-br0000060196/Export?style=MARCXML -->
+<collection xmlns="http://www.loc.gov/MARC21/slim">
+	<record>
+		<controlfield tag="001">BY-NLB-br0000060196</controlfield>
+		<datafield tag="210" ind1=" " ind2=" ">
+			<subfield code="a">Санктпетербург</subfield>
+			<subfield code="d">1891</subfield>
+			<subfield code="g">Типография Императорской академии наук</subfield>
+		</datafield>
+	</record>
+</collection>
