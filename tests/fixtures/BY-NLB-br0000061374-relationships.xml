@@ -1,0 +1,26 @@
+<collection xmlns="http://www.loc.gov/MARC21/slim">
+	<!-- Source excerpt: https://elib.nlb.by/elib/Record/BY-NLB-br0000061374/Export?style=MARCXML; fetched 2026-10-20. -->
+	<record>
+		<controlfield tag="001">BY-NLB-br0000061374</controlfield>
+		<datafield tag="200" ind1="1" ind2=" ">
+			<subfield code="a">Венцано ― Винона</subfield>
+		</datafield>
+		<datafield tag="210" ind1=" " ind2=" ">
+			<subfield code="d">1892</subfield>
+		</datafield>
+		<datafield tag="215" ind1=" " ind2=" ">
+			<subfield code="a">[6], II, 488, [1] с., [9] л. ил., карт.</subfield>
+			<subfield code="c">ил.</subfield>
+		</datafield>
+		<datafield tag="461" ind1=" " ind2="0">
+			<subfield code="1">001BY-NLB-br0000066456</subfield>
+			<subfield code="1">2001 </subfield>
+			<subfield code="v">Т. 6 (11)</subfield>
+		</datafield>
+		<datafield tag="961" ind1=" " ind2="0">
+			<subfield code="1">001BY-NLB-br0000066456</subfield>
+			<subfield code="1">998  </subfield>
+			<subfield code="a">Энциклопедический словарь : [в 86 т.]</subfield>
+		</datafield>
+	</record>
+</collection>

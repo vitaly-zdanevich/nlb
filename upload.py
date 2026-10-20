@@ -49,6 +49,7 @@ HASH_CHECK_RETRY_DELAY = 5
 
 ILLEGAL_COMMONS_TITLE_CHARS_RE = re.compile(r'[\x00-\x1f\x7f#<>\[\]|{}]')
 RECORD_ID_RE = re.compile(r'/elib/(?:Record|Collection)/([^/?#"\'<>\s]+)')
+NLB_RECORD_ID_RE = re.compile(r'BY-NLB-[A-Za-z0-9_-]+')
 YEAR_RE = re.compile(r'(?<!\d)(1\d{3}|20\d{2})(?!\d)')
 
 TERMINAL_STATUSES = frozenset({
@@ -81,6 +82,19 @@ RETRYABLE_UPLOAD_API_ERROR_PREFIXES = (
 )
 
 MARC_NS = {'marc': 'http://www.loc.gov/MARC21/slim'}
+
+# 461 points to a parent set; 481/482 link physically bound items, not parents.
+# https://cdn.ifla.org/wp-content/uploads/files/assets/uca/unimarc_updates/BIBLIOGRAPHIC/u-b_4-_linking_entry_block_update.pdf
+RELATED_RECORD_LABELS = {
+	'461': 'Родительская запись',
+	'481': 'Также в этом переплете',
+	'482': 'Приплетено к',
+	'961': 'Связанная запись',
+}
+PARENT_IMPRINT_FIELDS = {
+	'places': 'Место издания (MARC 210$a)',
+	'publishers': 'Издатель (MARC 210$c)',
+}
 
 # Manufacture subfields are separate from publication places, publishers and dates.
 # https://www.ifla.org/files/assets/uca/unimarc_updates/BIBLIOGRAPHIC/u-b_210_update.pdf
@@ -377,12 +391,13 @@ def extract_cell_values(cell: Any) -> list[str]:
 
 
 def parse_record_html(html: str, marc_id: str) -> dict[str, Any]:
-	"""Extract title, metadata table rows, and viewer links from a VuFind record page."""
+	"""Extract metadata and catalog links from table cells, excluding sidebar suggestions."""
 	soup = BeautifulSoup(html, 'html.parser')
 	title_node = soup.select_one('h1, h3[property="name"], h2[property="name"]')
 	title = title_node.get_text(' ', strip=True) if title_node else ''
 
 	fields: list[dict[str, Any]] = []
+	record_links: list[dict[str, str]] = []
 	for row in soup.select('table tr'):
 		header = row.find('th')
 		cell = row.find('td')
@@ -399,6 +414,22 @@ def parse_record_html(html: str, marc_id: str) -> dict[str, Any]:
 			'value': '\n'.join(values),
 			'values': values,
 		})
+		for anchor in cell.find_all('a', href=True):
+			url = urlsplit(anchor['href'])
+			if url.netloc and url.hostname != urlsplit(ELIB_BASE_URL).hostname:
+				continue
+			if url.scheme and url.scheme not in {'http', 'https'}:
+				continue
+			match = re.fullmatch(r'/(?:elib/)?Record/(BY-NLB-[A-Za-z0-9_-]+)/?', url.path)
+			if not match or match.group(1) == marc_id:
+				continue
+			link = {
+				'record_id': match.group(1),
+				'title': re.sub(r'\s+', ' ', anchor.get_text(' ', strip=True)),
+				'label': key,
+			}
+			if link not in record_links:
+				record_links.append(link)
 
 	file_ids: list[str] = []
 	mets_ids: list[str] = []
@@ -415,6 +446,7 @@ def parse_record_html(html: str, marc_id: str) -> dict[str, Any]:
 		'marc_id': marc_id,
 		'title': title,
 		'fields': fields,
+		'record_links': record_links,
 		'file_ids': file_ids,
 		'mets_ids': mets_ids,
 	}
@@ -453,6 +485,59 @@ def split_marc_alternate_headings(
 	return headings
 
 
+def parse_related_marc_field(tag: str, subfields: list[tuple[str, str]]) -> list[dict[str, Any]]:
+	"""Read embedded 001/200 links or standard $0/$t links without mistaking authors for titles.
+
+	NLB's local 961 uses embedded 998$a as a display title. It can enrich a
+	matching 461, but does not itself establish a parent relationship.
+	"""
+	links: list[dict[str, Any]] = []
+	record_id = ''
+	titles: list[str] = []
+	subtitles: list[str] = []
+	volumes: list[str] = []
+	copies: list[str] = []
+	embedded_tag = ''
+
+	def finish() -> None:
+		"""Keep one target's identifying text and copy qualifiers together."""
+		title = ' ; '.join(titles)
+		if subtitles:
+			title = ' : '.join([part for part in (title, ' : '.join(subtitles)) if part])
+		if record_id or title or volumes:
+			links.append({
+				'tag': tag, 'record_id': record_id, 'title': title,
+				'volume': ' ; '.join(volumes), 'copies': list(dict.fromkeys(copies)),
+			})
+
+	for code, value in subfields:
+		if code == '1':
+			embedded_tag = value[:3]
+			if embedded_tag != '001':
+				continue
+			if record_id:
+				finish()
+				titles, subtitles, volumes, copies = [], [], [], []
+			record_id = value[3:].strip()
+		elif code == '0' and not embedded_tag:
+			if record_id:
+				finish()
+				titles, subtitles, volumes, copies = [], [], [], []
+			record_id = value
+		elif (code == 't' and not embedded_tag) or (
+			code == 'a' and (embedded_tag in {'200', '998'} or (tag == '961' and not embedded_tag))
+		):
+			titles.append(value)
+		elif code == 'e' and embedded_tag in {'200', '998'}:
+			subtitles.append(value)
+		elif code == 'v' and embedded_tag in {'', '001', '200', '998'}:
+			volumes.append(value)
+		elif code == '5':
+			copies.append(value)
+	finish()
+	return links
+
+
 def parse_marcxml(xml_text: str) -> dict[str, Any]:
 	"""Parse UNIMARC/BELMARC metadata, retaining contributor roles and copy associations.
 
@@ -476,6 +561,8 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 		'physical_description': '',
 		'physical_descriptions': [],
 		'series': [],
+		'related_records': [],
+		'inherited_metadata': [],
 		'notes': [],
 		'contents': [],
 		'subjects': [],
@@ -516,7 +603,6 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 		if tag and val:
 			result['raw_fields'].append({'tag': tag, 'value': val})
 
-	parent_title = ''
 	# Resolve aliases after all fields so $3 associations do not depend on XML order.
 	authority_headings: dict[tuple[str, str], list[str]] = {}
 	alternate_headings: dict[tuple[str, str], list[str]] = {}
@@ -538,6 +624,8 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 
 		if parts_rendered:
 			result['raw_fields'].append({'tag': tag, 'value': ' '.join(parts_rendered)})
+		if tag in RELATED_RECORD_LABELS:
+			result['related_records'].extend(parse_related_marc_field(tag, subfields))
 
 		if tag == '100':
 			coded = ' '.join(submap.get('a', []))
@@ -597,16 +685,20 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 			if phys_entry and phys_entry not in result['physical_descriptions']:
 				result['physical_descriptions'].append(phys_entry)
 		elif tag in {'225', '461'}:
-			if tag == '461' and submap.get('a') and not parent_title:
-				parent_title = ' ; '.join(submap['a'])
+			# Standard 461$a is an author; only embedded 200$a or standard $t is a title.
 			series_parts = submap.get('a', []) + submap.get('v', [])
+			if tag == '461':
+				links = [
+					link for link in parse_related_marc_field(tag, subfields)
+					if not link['record_id'] or link['record_id'] != result['control_number']
+				]
+				series_parts = [link['title'] for link in links if link['title']] + [
+					link['volume'] for link in links if link['volume']
+				]
 			if series_parts:
 				entry = ' ; '.join(series_parts)
 				if entry not in result['series']:
 					result['series'].append(entry)
-		elif tag == '961':
-			if submap.get('a') and not parent_title:
-				parent_title = ' ; '.join(submap['a'])
 		elif tag == '327':
 			for val in submap.get('a', []):
 				for entry in extract_contents_entries(val):
@@ -702,6 +794,31 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 			is_author = '070' in roles or (not roles and tag in {'700', '701', '710', '711'})
 			if is_author and name not in result['authors']:
 				result['authors'].append(name)
+
+	for link in result['related_records']:
+		if link['tag'] == '461' and not link['title'] and link['record_id']:
+			link['title'] = ' ; '.join(dict.fromkeys(
+				other['title'] for other in result['related_records']
+				if other['tag'] == '961' and other['record_id'] == link['record_id'] and other['title']
+			))
+	related_records: list[dict[str, Any]] = []
+	for link in result['related_records']:
+		if link['record_id'] and link['record_id'] == result['control_number']:
+			continue
+		# A local display field is redundant only when it adds no title or copy detail.
+		if link['tag'] == '961' and link['record_id'] and not link['copies'] and not link['volume'] and any(
+			other['tag'] == '461' and other['record_id'] == link['record_id']
+			and (not link['title'] or other['title'] == link['title'])
+			for other in result['related_records']
+		):
+			continue
+		if link not in related_records:
+			related_records.append(link)
+	result['related_records'] = related_records
+	parent_title = next((link['title'] for link in related_records if link['tag'] == '461' and link['title']), '')
+	# Preserve the existing title fallback for NLB display fields without a record ID.
+	if not parent_title:
+		parent_title = next((link['title'] for link in related_records if link['tag'] == '961' and not link['record_id']), '')
 
 	for (main_tag, authority_id), variants in alternate_headings.items():
 		main_headings = authority_headings.get((main_tag, authority_id), [])
@@ -828,6 +945,51 @@ def format_contributor(contributor: dict[str, Any]) -> str:
 	return entry
 
 
+def escape_catalog_link_text(value: str) -> str:
+	"""Render catalog labels literally so brackets or markup cannot alter a record link."""
+	return value.translate(str.maketrans({
+		'&': '&amp;', '<': '&lt;', '>': '&gt;', '[': '&#91;', ']': '&#93;',
+		'{': '&#123;', '}': '&#125;', '|': '{{!}}',
+	}))
+
+
+def format_catalog_reference(record_id: str, title: str = '') -> str:
+	"""Link only valid NLB IDs to the canonical catalog URL; keep other IDs as text."""
+	reference = (
+		f'[{ELIB_BASE_URL}/elib/Record/{record_id} {record_id}]'
+		if NLB_RECORD_ID_RE.fullmatch(record_id) else escape_catalog_link_text(record_id)
+	)
+	if title:
+		reference += (' — ' if reference else '') + escape_catalog_link_text(title)
+	return reference
+
+
+def format_related_records(record_meta: dict[str, Any], marc_meta: dict[str, Any], marc_id: str) -> list[str]:
+	"""Render typed MARC relationships, enriching labels from matching HTML catalog links."""
+	html_links = record_meta.get('record_links', [])
+	entries: list[str] = []
+	represented_ids: set[str] = set()
+	for link in marc_meta.get('related_records', []):
+		record_id = link['record_id']
+		if record_id == marc_id:
+			continue
+		title = link['title'] or next((item['title'] for item in html_links if item['record_id'] == record_id), '')
+		entry = f"{RELATED_RECORD_LABELS[link['tag']]} (MARC {link['tag']}): {format_catalog_reference(record_id, title)}"
+		if link['volume']:
+			entry += '; часть: ' + escape_catalog_link_text(link['volume'])
+		if link['copies']:
+			entry += '; экземпляр в каталоге: ' + escape_catalog_link_text('; '.join(link['copies']))
+		if entry not in entries:
+			entries.append(entry)
+		represented_ids.add(record_id)
+	for link in html_links:
+		if link['record_id'] != marc_id and link['record_id'] not in represented_ids:
+			entry = f"{escape_catalog_link_text(link['label'])}: {format_catalog_reference(link['record_id'], link['title'])}"
+			if entry not in entries:
+				entries.append(entry)
+	return entries
+
+
 def build_commons_description(
 	record_meta: dict[str, Any],
 	marc_meta: dict[str, Any],
@@ -863,6 +1025,9 @@ def build_commons_description(
 			)
 	if part_label:
 		metadata_lines.append(format_metadata_field('Часть / Выпуск / Part', [part_label]))
+	related_entries = format_related_records(record_meta, marc_meta, marc_id)
+	if related_entries:
+		metadata_lines.append(format_metadata_field('Связанные записи по каталогу НББ', related_entries))
 
 	seen_pairs: set[tuple[str, tuple[str, ...]]] = set()
 	for field in record_meta.get('fields', []):
@@ -891,6 +1056,10 @@ def build_commons_description(
 		metadata_lines.append(format_metadata_field('Варианты географических названий (MARC 926)', marc_meta['alternate_geo_places']))
 	if marc_meta.get('publishers'):
 		metadata_lines.append(format_metadata_field('Издатель (MARC 210$c)', marc_meta['publishers']))
+	for inherited in marc_meta.get('inherited_metadata', []):
+		reference = format_catalog_reference(inherited['record_id'], inherited['title'])
+		label = PARENT_IMPRINT_FIELDS[inherited['field']] + ' — из родительской записи ' + reference
+		metadata_lines.append(format_metadata_field(label, inherited['values']))
 	if marc_meta.get('manufacturing_statements'):
 		metadata_lines.append(format_metadata_field('Изготовление (MARC 210)', marc_meta['manufacturing_statements']))
 	if marc_meta.get('edition'):
@@ -1152,6 +1321,7 @@ class NlbClient:
 		self.session.headers.setdefault('User-Agent', DEFAULT_USER_AGENT)
 		self.timeout = timeout
 		self._viewer_session_initialized = False
+		self._parent_metadata_cache: dict[str, dict[str, Any]] = {}
 		if viewer_cookies is not None:
 			self.session.cookies.update(load_viewer_cookies(viewer_cookies))
 			self._viewer_session_initialized = True
@@ -1213,7 +1383,47 @@ class NlbClient:
 									record_meta['contents'].append(entry)
 			except Exception:
 				pass
+		self.inherit_parent_imprint(marc_id, marc_meta)
 		return record_meta, marc_meta
+
+	def inherit_parent_imprint(self, marc_id: str, marc_meta: dict[str, Any]) -> None:
+		"""Attribute missing places/publishers to one direct parent, without merging child data.
+
+	Bound-with and local 961 links never trigger inheritance. Only successful,
+	ID-verified parent exports are cached; no parent-of-parent traversal occurs.
+	Failure retains the relationship and logs the unavailable enrichment.
+	"""
+		missing = [field for field in PARENT_IMPRINT_FIELDS if not marc_meta.get(field)]
+		parents = {
+			link['record_id'] for link in marc_meta.get('related_records', [])
+			if link['tag'] == '461'
+		}
+		if not missing or len(parents) != 1:
+			return
+		parent_id = next(iter(parents))
+		if parent_id == marc_id or not NLB_RECORD_ID_RE.fullmatch(parent_id):
+			return
+		try:
+			if parent_id not in self._parent_metadata_cache:
+				url = f'{ELIB_BASE_URL}/elib/Record/{parent_id}/Export?style=MARCXML'
+				log_progress(f'[{marc_id}] Fetching parent metadata: {url}')
+				response = self.session.get(url, timeout=self.timeout)
+				response.raise_for_status()
+				parent_meta = parse_marcxml(response.text)
+				if parent_meta['control_number'] != parent_id:
+					raise ValueError('parent MARCXML is missing or has a different record identifier')
+				self._parent_metadata_cache[parent_id] = parent_meta
+			parent_meta = self._parent_metadata_cache[parent_id]
+		except (requests.RequestException, ValueError) as error:
+			log_progress(f'[{marc_id}] Parent metadata unavailable for {parent_id}: {error}')
+			return
+		marc_meta['inherited_metadata'] = [
+			{
+				'field': field, 'values': list(parent_meta[field]),
+				'record_id': parent_id, 'title': parent_meta['title'],
+			}
+			for field in missing if parent_meta.get(field)
+		]
 
 	def ensure_viewer_session(self, force: bool = False) -> None:
 		"""Initialize the elib_session_id cookie on port 8070 if not already set."""

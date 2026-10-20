@@ -987,6 +987,7 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 			'Księga pamiątkowa na uczczenie setnej rocznicy urodzin Adama Mickiewicza (1798―1898) / [autorzy: Maryan Dubiecki [et al.]. T. 2',
 		)
 		self.assertIn('Księga pamiątkowa', marc_meta['title'])
+		self.assertEqual(marc_meta['related_records'][0]['volume'], 'T. 2')
 
 		filename = upload_nlb.build_commons_filename(
 			record_meta=record_meta,

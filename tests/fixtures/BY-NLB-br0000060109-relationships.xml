@@ -1,0 +1,23 @@
+<collection xmlns="http://www.loc.gov/MARC21/slim">
+	<!-- Source excerpt: https://elib.nlb.by/elib/Record/BY-NLB-br0000060109/Export?style=MARCXML; fetched 2026-10-20. -->
+	<record>
+		<controlfield tag="001">BY-NLB-br0000060109</controlfield>
+		<datafield tag="200" ind1="1" ind2=" ">
+			<subfield code="a">Переклады з Н. Гоголя</subfield>
+			<subfield code="e">(два розмаитых зразкы)</subfield>
+			<subfield code="f">Олены Пчилкы</subfield>
+		</datafield>
+		<datafield tag="210" ind1=" " ind2=" ">
+			<subfield code="a">Киев</subfield>
+			<subfield code="d">1881</subfield>
+			<subfield code="g">Типография С. В. Кульженко</subfield>
+		</datafield>
+		<datafield tag="215" ind1=" " ind2=" ">
+			<subfield code="a">[2], 32, 39 с.</subfield>
+			<subfield code="d">18 см</subfield>
+		</datafield>
+		<datafield tag="481" ind1=" " ind2="0">
+			<subfield code="1">001BY-NLB-br307362</subfield>
+		</datafield>
+	</record>
+</collection>

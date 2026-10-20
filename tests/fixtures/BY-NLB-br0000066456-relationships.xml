@@ -1,0 +1,22 @@
+<collection xmlns="http://www.loc.gov/MARC21/slim">
+	<!-- Source excerpt: https://elib.nlb.by/elib/Record/BY-NLB-br0000066456/Export?style=MARCXML; fetched 2026-10-20. -->
+	<record>
+		<controlfield tag="001">BY-NLB-br0000066456</controlfield>
+		<datafield tag="200" ind1="1" ind2=" ">
+			<subfield code="a">Энциклопедический словарь</subfield>
+			<subfield code="e">[в 86 т.]</subfield>
+		</datafield>
+		<datafield tag="210" ind1=" " ind2=" ">
+			<subfield code="a">С.-Петербург</subfield>
+			<subfield code="c">Ф. А. Брокгауз</subfield>
+			<subfield code="c">И. А. Ефрон</subfield>
+			<subfield code="d">1890―</subfield>
+		</datafield>
+		<datafield tag="215" ind1=" " ind2=" ">
+			<subfield code="d">25 см</subfield>
+		</datafield>
+		<datafield tag="961" ind1=" " ind2="0">
+			<subfield code="1">001BY-NLB-br0000066456</subfield>
+		</datafield>
+	</record>
+</collection>
