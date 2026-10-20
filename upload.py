@@ -1307,6 +1307,16 @@ def load_viewer_cookies(path: Path) -> requests.cookies.RequestsCookieJar:
 	return cookies
 
 
+class DownloadRetriesExhausted(RuntimeError):
+	"""A scan's transient download failures used up its bounded retry attempts."""
+
+	def __init__(self, last_error: requests.exceptions.RequestException, attempts: int) -> None:
+		"""Retain the original failure and attempt count for logging and resumable state."""
+		self.last_error = last_error
+		self.attempts = attempts
+		super().__init__(f'Download failed after {attempts} attempts ({type(last_error).__name__}): {last_error}')
+
+
 class NlbClient:
 	"""HTTP client for browsing elib.nlb.by metadata and downloading IIIF PDF scans."""
 
@@ -1501,7 +1511,8 @@ class NlbClient:
 		"""Retry transient download failures with backoff, discarding partial PDFs.
 
 		The viewer session POST runs once. Each GET/stream attempt starts from
-		byte zero; exhausted retries propagate so the scan remains resumable.
+		byte zero. Exhaustion raises DownloadRetriesExhausted so the batch can
+		defer this scan; session setup and permanent errors still propagate.
 		"""
 		self.ensure_viewer_session()
 		attempt = 1
@@ -1517,7 +1528,7 @@ class NlbClient:
 					raise
 				target_path.unlink(missing_ok=True)
 				if attempt >= DOWNLOAD_MAX_ATTEMPTS:
-					raise
+					raise DownloadRetriesExhausted(error, attempt) from error
 				delay = DOWNLOAD_RETRY_DELAY * 2 ** (attempt - 1)
 				log_progress(
 					f'[{marc_id}:{file_id}] Download attempt {attempt}/{DOWNLOAD_MAX_ATTEMPTS} '
@@ -1814,9 +1825,9 @@ def process_single_scan(
 	license_template: str = DEFAULT_LICENSE,
 	dry_run: bool = False,
 ) -> str:
-	"""Process a scan, deferring HTTP 400 downloads until a later run.
+	"""Process a scan, deferring rejected or exhausted downloads until a later run.
 
-	Record rejections without marking them completed. Save their earliest page
+	Record download failures without marking them completed. Save their earliest page
 	so advancing through the remaining results cannot lose pending scans.
 	"""
 	key = item_state_key(marc_id, file_id)
@@ -1853,22 +1864,31 @@ def process_single_scan(
 	try:
 		try:
 			size_bytes = client.download_pdf_scan(marc_id, file_id, temp_pdf)
-		except requests.exceptions.HTTPError as error:
-			if error.response is None or error.response.status_code != 400:
-				raise
-			log_progress(f'[{marc_id}:{file_id}] Skipping download (HTTP 400): {viewer_url}\n{error}')
+		except (requests.exceptions.HTTPError, DownloadRetriesExhausted) as error:
+			details: dict[str, Any]
+			if isinstance(error, DownloadRetriesExhausted):
+				status = 'download_failed'
+				details = {'attempts': error.attempts, 'error_type': type(error.last_error).__name__}
+				message = f'Deferring download after {error.attempts} attempts'
+			else:
+				if error.response is None or error.response.status_code != 400:
+					raise
+				status = 'download_rejected'
+				details = {'http_status': 400}
+				message = 'Skipping download (HTTP 400)'
+			log_progress(f'[{marc_id}:{file_id}] {message}: {viewer_url}\n{error}')
 			state['items'][key] = {
-				'status': 'download_rejected',
+				'status': status,
 				'marc_id': marc_id,
 				'file_id': file_id,
-				'http_status': 400,
+				**details,
 				'error': str(error),
 				'updated_at': datetime.now(timezone.utc).isoformat(),
 			}
 			page = max(1, int(state.get('current_page') or 1))
 			state['retry_from_page'] = min(page, int(state.get('retry_from_page') or page))
 			save_state(state_path, state)
-			return 'download_rejected'
+			return status
 		except ValueError as error:
 			if 'not a valid PDF' in str(error):
 				log_progress(f'[{marc_id}:{file_id}] Skipping (not a valid PDF): {viewer_url}')
@@ -1957,7 +1977,7 @@ def iterate_and_upload(
 	max_uploads: int = 0,
 	dry_run: bool = False,
 ) -> dict[str, int]:
-	"""Upload available scans, revisiting earlier HTTP 400 rejections on each run."""
+	"""Upload available scans, revisiting deferred downloads from earlier pages on each run."""
 	if search_url:
 		url_from, url_to = extract_year_bounds_from_search_url(search_url)
 		if from_year is None:
@@ -1983,6 +2003,7 @@ def iterate_and_upload(
 	counts: dict[str, int] = {
 		'uploaded': 0,
 		'download_rejected': 0,
+		'download_failed': 0,
 		'duplicate_sha1': 0,
 		'existing_title': 0,
 		'restricted': 0,
