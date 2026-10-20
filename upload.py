@@ -1430,6 +1430,47 @@ def patch_mime_multipart_from_mangling(mime_multipart_cls: Any) -> None:
 	mime_multipart_cls._no_from_mangle_patched = True
 
 
+def configure_upload_token_recovery(site: Any, request_class: type, api_error_class: type[Exception]) -> None:
+	"""Use current CSRF tokens for this site's uploads, with one refresh per request.
+
+	Pywikibot's chunk uploader retains its initial token for later chunks, polls,
+	and a precreated final request. Refresh at submission so a recovered token
+	reaches all of them. Its private request factory is adapted only for upload
+	requests; queries and cached requests keep their original classes.
+	"""
+	original_factory = site._request_class
+	if getattr(original_factory, '_nlb_upload_token_recovery', False):
+		return
+
+	class UploadRequest(request_class):
+		"""Keep chunk and polling tokens current without unbounded token recovery."""
+
+		def submit(self) -> dict[str, Any]:
+			"""Read the current wallet token immediately before submitting an upload."""
+			self._nlb_token_refreshed = False
+			self['token'] = self.site.tokens['csrf']
+			return super().submit()
+
+		def _bad_token(self, code: str) -> bool:
+			"""Allow Pywikibot to refresh once, even when successive error details differ."""
+			if code == 'badtoken':
+				if self._nlb_token_refreshed:
+					raise api_error_class('badtoken', 'Commons rejected a refreshed CSRF token; upload stopped.')
+				self._nlb_token_refreshed = True
+			return super()._bad_token(code)
+
+	def request_factory(kwargs: dict[str, Any]) -> type:
+		"""Select the guarded request class only for uncached upload API calls."""
+		base_class = original_factory(kwargs)
+		parameters = kwargs.get('parameters') or kwargs
+		if base_class is request_class and parameters.get('action') == 'upload':
+			return UploadRequest
+		return base_class
+
+	request_factory._nlb_upload_token_recovery = True
+	site._request_class = request_factory
+
+
 class CommonsUploader:
 	"""Wrapper around Pywikibot to upload files to Wikimedia Commons with retries."""
 
@@ -1445,6 +1486,7 @@ class CommonsUploader:
 		patch_mime_multipart_from_mangling(pywikibot.data.api.CTEBinaryMIMEMultipart)
 		self.pywikibot = pywikibot
 		self.site = pywikibot.Site('commons', 'commons')
+		configure_upload_token_recovery(self.site, pywikibot.data.api.Request, pywikibot.exceptions.APIError)
 
 	def title_exists(self, commons_filename: str) -> bool:
 		"""Return True if File:<commons_filename> already exists on Commons."""
@@ -1722,10 +1764,13 @@ def iterate_and_upload(
 	start_time = time.monotonic()
 
 	def _handle_sigint(signum: int, frame: Any) -> None:
+		"""Request a graceful stop once; a second interrupt aborts a stalled operation."""
 		nonlocal shutdown_requested
-		if not shutdown_requested:
-			shutdown_requested = True
-			log_progress('\nCtrl-C received: finishing current item before shutting down...')
+		if shutdown_requested:
+			log_progress('\nSecond Ctrl-C received: aborting current item...')
+			raise KeyboardInterrupt
+		shutdown_requested = True
+		log_progress('\nCtrl-C received: finishing current item before shutting down... Press Ctrl-C again to abort.')
 
 	previous_sigint_handler = signal.signal(signal.SIGINT, _handle_sigint)
 	try:

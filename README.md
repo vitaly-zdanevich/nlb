@@ -6,8 +6,8 @@
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
-[![Production code](https://img.shields.io/badge/production%20code-1%2C767%20lines-blue)](upload.py)
-[![Test code](https://img.shields.io/badge/test%20code-2%2C196%20lines-blue)](test_upload.py)
+[![Production code](https://img.shields.io/badge/production%20code-1%2C804%20lines-blue)](upload.py)
+[![Test code](https://img.shields.io/badge/test%20code-2%2C383%20lines-blue)](test_upload.py)
 
 [`upload.py`](upload.py) iterates over open-access digitized scans from the Electronic Library of the National Library of Belarus (`https://elib.nlb.by`) and uploads them to Wikimedia Commons with full HTML and UNIMARC (`MARCXML`) metadata.
 
@@ -29,7 +29,8 @@
 - **Download retries**: Retries manifest/download timeouts, connection failures and interrupted PDF transfers up to five total attempts, waiting 5, 10, 20 and 40 seconds. Each retry discards the partial PDF and starts again. If all attempts fail, the scan stays pending in `state.json` for the next run.
 - **Skip rejected downloads**: HTTP 400 during a download, including `Security alert! Some conditions are missed!`, is logged and saved as `download_rejected` with the library's response. The uploader deletes the temporary file and continues to the next scan, without retrying, hashing or uploading the rejected download. Other errors retain their existing handling.
 - **Revisit rejected scans**: Rejections are counted in the final summary and remain pending in `state.json`. The next run resumes from the earliest rejected page, skipping completed uploads. A dry run preserves these pending uploads; changing the search URL or year filters resets the page cursor for the new search.
-- **Graceful `Ctrl-C` shutdown**: On `SIGINT` (`Ctrl-C`), finishes the current item in progress, updates `state.json`, prints the uploaded file count and uploaded megabytes, and exits cleanly.
+- **CSRF token recovery**: Each Commons upload request uses the current cached token, including later chunks, status polls and final publication. An expired token is refreshed once per request; persistent `badtoken` errors stop the upload and leave the item pending for a later run.
+- **Graceful `Ctrl-C` shutdown**: The first `Ctrl-C` finishes the current item in progress, updates `state.json`, prints the uploaded file count and uploaded megabytes, and exits cleanly. A second `Ctrl-C` aborts the current operation, removes the temporary PDF and exits with code 130. Unfinished items remain pending; restarting checks Commons again before uploading.
 
 ## Duplicate Titles and SHA-1 Deduplication
 
@@ -72,7 +73,10 @@ chmod 600 ~/.config/nlb/cookies.txt
 
 ## Running Tests
 
+The upload integration tests use Pywikibot's real request and chunk-upload code with mocked HTTP responses and an isolated configuration directory. They do not use your credentials or upload files.
+
 ```bash
+python -m pip install pytest pytest-cov requests beautifulsoup4 'pywikibot>=11.6'
 pytest -v --cov=upload --cov-report=term-missing
 # or
 python3 -m unittest -v test_upload.py

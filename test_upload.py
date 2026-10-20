@@ -1868,6 +1868,172 @@ class FakeCommonsUploader:
 		return {'status': 'uploaded', 'commons_title': f'File:{commons_filename}'}
 
 
+class TestPywikibotUploadTokens(unittest.TestCase):
+	"""Exercise Pywikibot's real request and chunk-upload loops with an offline API."""
+
+	@classmethod
+	def setUpClass(cls) -> None:
+		"""Import the installed library without reading the user's configuration or cookies."""
+		config_dir = tempfile.TemporaryDirectory(prefix='nlb-pywikibot-test-')
+		cls.addClassCleanup(config_dir.cleanup)
+		with mock.patch.dict('os.environ', {
+			'PYWIKIBOT_DIR': config_dir.name, 'PYWIKIBOT_NO_USER_CONFIG': '2',
+		}):
+			import pywikibot
+			import pywikibot.data.api
+			from pywikibot.login import LoginStatus
+			from pywikibot.site import APISite
+			from pywikibot.site._upload import Uploader
+		cls.pwb = pywikibot
+		cls.api = pywikibot.data.api
+		cls.site_type = APISite
+		cls.login_status = LoginStatus.AS_USER
+		cls.driver_type = Uploader
+
+	def setUp(self) -> None:
+		"""Connect the actual request factory to fake identity, tokens and HTTP responses."""
+		self.site = mock.MagicMock()
+		self.site.userinfo = {'name': 'Test uploader'}
+		self.site.user.return_value = 'Test uploader'
+		self.site.username.return_value = 'Test uploader'
+		self.site._loginstatus = self.login_status
+		self.site._request_class = self.site_type._request_class
+		self.site._request = types.MethodType(self.site_type._request, self.site)
+		self.site.simple_request = types.MethodType(self.site_type.simple_request, self.site)
+		self.token = 'expired-test-token'
+		self.site.tokens.__getitem__.side_effect = lambda key: self.token
+		self.site.tokens.update_tokens.side_effect = self.refresh_token
+		self.sent = []
+		self.payload_handler = lambda request: {'upload': {'result': 'Success'}}
+		self.warning = mock.Mock()
+		patches = [
+			mock.patch.object(self.api.Request, '_add_defaults'),
+			mock.patch.object(self.api.Request, '_use_get', return_value=False),
+			mock.patch.object(self.api.Request, '_http_param_string', return_value=''),
+			mock.patch.object(self.api.Request, '_simulate', return_value=None),
+			mock.patch.object(self.api.Request, '_get_request_params', return_value=(False, '/w/api.php', None, {})),
+			mock.patch.object(self.api.Request, '_http_request', autospec=True, side_effect=self.http_request),
+			mock.patch.object(self.api.Request, '_userinfo_query', return_value=False),
+			mock.patch.object(self.api.Request, '_handle_warnings', return_value=False),
+			mock.patch('pywikibot.data.api._invalidate_superior_cookies'),
+			mock.patch('pywikibot.comms.http.request', side_effect=AssertionError('Unexpected network request')),
+			mock.patch.object(self.pwb, 'warning', self.warning),
+			mock.patch.object(self.pwb, 'log'),
+			mock.patch.object(self.pwb, 'debug'),
+		]
+		for patcher in patches:
+			patcher.start()
+			self.addCleanup(patcher.stop)
+		with mock.patch.object(self.pwb, 'Site', return_value=self.site):
+			self.uploader = upload_nlb.CommonsUploader()
+
+	def refresh_token(self, old_tokens: list[str]) -> list[str]:
+		"""Simulate the server replacing an expired CSRF token."""
+		self.token = 'fresh-test-token'
+		return [self.token]
+
+	def http_request(self, request: object, *args: object) -> tuple[object, bool]:
+		"""Record requests and feed JSON into the real Pywikibot response handling."""
+		self.sent.append({key: list(value) for key, value in request.items()})
+		response = upload_nlb.requests.Response()
+		response.status_code = 200
+		response._content = json.dumps(self.payload_handler(request)).encode('utf-8')
+		return response, False
+
+	def test_refreshed_token_reaches_later_chunks_polls_and_precreated_final_request(self) -> None:
+		"""One expired token must not be reused throughout a successful chunked upload."""
+		publishing = False
+
+		def server(request: object) -> dict:
+			"""Reject stale tokens, then simulate chunk assembly and publication polling."""
+			nonlocal publishing
+			if request['token'] != ['fresh-test-token']:
+				return {'error': {'code': 'badtoken', 'info': 'Invalid CSRF token.'}}
+			if request.get('stash'):
+				offset = request['offset'][0]
+				if offset < 8:
+					return {'upload': {'result': 'Continue', 'offset': offset + 4, 'filekey': 'test-stash'}}
+				return {'upload': {'result': 'Poll', 'filekey': 'test-stash'}}
+			if request.get('checkstatus'):
+				return {'upload': {'result': 'Success', 'filekey': 'test-stash', 'imageinfo': {}}}
+			self.assertFalse(publishing)
+			publishing = True
+			return {'upload': {'result': 'Poll', 'filekey': 'test-stash'}}
+
+		self.payload_handler = server
+		with tempfile.TemporaryDirectory() as tmp_dir:
+			file_path = Path(tmp_dir) / 'scan.pdf'
+			file_path.write_bytes(b'%PDF-1.4\n!')
+			file_page = mock.MagicMock()
+			file_page.title.return_value = 'Scan.pdf'
+			driver = self.driver_type(
+				self.site, file_page, source_filename=str(file_path), comment='Test', text='Test',
+				chunk_size=4, asynchronous=True, report_success=False,
+			)
+			self.assertTrue(driver.upload())
+		self.site.tokens.update_tokens.assert_called_once()
+		self.assertEqual(len(self.sent), 7)
+		self.assertEqual(self.sent[0]['token'], ['expired-test-token'])
+		self.assertTrue(all(request['token'] == ['fresh-test-token'] for request in self.sent[1:]))
+		self.assertEqual(self.warning.call_count, 1)
+		self.assertTrue(publishing)
+		file_page._load_file_revisions.assert_called_once_with([{}])
+
+	def test_persistent_badtoken_is_bounded_even_when_error_details_change(self) -> None:
+		"""Stop after one refresh instead of repeatedly retrying an unrecoverable request."""
+		def server(request: object) -> dict:
+			"""Vary error details so Pywikibot's identical-error guard cannot stop the loop."""
+			if len(self.sent) > 4:
+				raise AssertionError('Unbounded token recovery')
+			return {'error': {'code': 'badtoken', 'info': f'Invalid CSRF token, attempt {len(self.sent)}'}}
+
+		self.payload_handler = server
+		request = self.site.simple_request(action='upload', token='expired-test-token', filename='Scan.pdf')
+		with self.assertRaises(self.pwb.exceptions.APIError) as raised:
+			request.submit()
+		self.assertEqual(raised.exception.code, 'badtoken')
+		self.assertFalse(upload_nlb.is_retryable_upload_error(raised.exception))
+		self.assertEqual(len(self.sent), 2)
+		self.site.tokens.update_tokens.assert_called_once()
+
+	def test_non_upload_requests_keep_the_original_request_classes(self) -> None:
+		"""Keep queries unchanged and avoid wrapping a reused Pywikibot site twice."""
+		self.assertIs(self.site._request_class({'parameters': {'action': 'query'}}), self.api.Request)
+		self.assertIs(self.site._request_class({'parameters': {'action': 'query'}, 'expiry': 1}), self.api.CachedRequest)
+		installed_factory = self.site._request_class
+		upload_nlb.configure_upload_token_recovery(self.site, self.api.Request, self.pwb.exceptions.APIError)
+		self.assertIs(self.site._request_class, installed_factory)
+
+	def test_badtoken_failure_leaves_scan_pending_and_removes_temporary_pdf(self) -> None:
+		"""Let persistent authentication errors escape the upload retry loop without completing the item."""
+		self.payload_handler = lambda request: {'error': {'code': 'badtoken', 'info': 'Invalid CSRF token.'}}
+		file_page = mock.MagicMock()
+		file_page.exists.return_value = False
+		file_page.upload.side_effect = lambda *args, **kwargs: self.site.simple_request(
+			action='upload', token='expired-test-token', filename='Scan.pdf',
+		).submit()
+		with tempfile.TemporaryDirectory() as tmp_dir, mock.patch.object(
+			self.pwb, 'FilePage', return_value=file_page,
+		), mock.patch(
+			'upload.check_commons_by_hash', side_effect=lambda path, **_: (upload_nlb.calculate_sha1(path), []),
+		), mock.patch('upload.time.sleep') as sleep, mock.patch('sys.stdout', io.StringIO()):
+			state_path = Path(tmp_dir) / 'state.json'
+			staging_dir = Path(tmp_dir) / 'staging'
+			with self.assertRaises(self.pwb.exceptions.APIError) as raised:
+				upload_nlb.iterate_and_upload(
+					client=FakeNlbClient(), uploader=self.uploader,
+					state_path=state_path, staging_dir=staging_dir,
+				)
+			self.assertEqual(raised.exception.code, 'badtoken')
+			self.assertEqual(file_page.upload.call_count, 1)
+			self.assertEqual(len(self.sent), 2)
+			sleep.assert_not_called()
+			self.assertEqual(list(staging_dir.iterdir()), [])
+			state = upload_nlb.load_state(state_path)
+			self.assertEqual(state['current_item_key'], 'BY-NLB-rr111:1001')
+			self.assertFalse(upload_nlb.is_item_completed(state, 'BY-NLB-rr111', '1001'))
+
+
 class TestEndToEndPipeline(unittest.TestCase):
 	"""Level 3 end-to-end tests covering full iteration, hash deduplication, cleanup, and resume."""
 
@@ -2323,6 +2489,43 @@ class TestEndToEndPipeline(unittest.TestCase):
 				'Spent 1 day 1 hour 1 minute 1 second',
 			)
 			self.assertEqual(upload_nlb.format_elapsed_time(0), 'Spent 0 seconds')
+
+	def test_second_sigint_aborts_upload_and_leaves_it_pending_for_restart(self) -> None:
+		"""Escape a stuck upload on a second Ctrl-C, clean up, and resume the pending item."""
+		with tempfile.TemporaryDirectory() as tmp_dir:
+			tmp_path = Path(tmp_dir)
+			client = FakeNlbClient()
+			uploader = FakeCommonsUploader()
+			original_upload = uploader.upload
+			original_handler = signal.getsignal(signal.SIGINT)
+			state_path = tmp_path / 'state.json'
+			staging_dir = tmp_path / 'staging'
+			args = ['--state-file', str(state_path), '--staging-dir', str(staging_dir), '--max-uploads', '1']
+
+			def stuck_upload(*args: object, **kwargs: object) -> dict:
+				"""Send both interrupts while the scan is still pending."""
+				signal.raise_signal(signal.SIGINT)
+				signal.raise_signal(signal.SIGINT)
+				return original_upload(*args, **kwargs)
+
+			uploader.upload = stuck_upload
+			with mock.patch('upload.NlbClient', return_value=client), mock.patch(
+				'upload.CommonsUploader', return_value=uploader,
+			), mock.patch(
+				'upload.check_commons_by_hash', side_effect=lambda path, **_: (upload_nlb.calculate_sha1(path), []),
+			), mock.patch('sys.stdout', io.StringIO()) as output:
+				self.assertEqual(upload_nlb.main(args), 130)
+				self.assertIs(signal.getsignal(signal.SIGINT), original_handler)
+				self.assertEqual(uploader.uploads, [])
+				self.assertEqual(list(staging_dir.iterdir()), [])
+				state = upload_nlb.load_state(state_path)
+				self.assertFalse(upload_nlb.is_item_completed(state, 'BY-NLB-rr111', '1001'))
+				self.assertEqual(state['current_item_key'], 'BY-NLB-rr111:1001')
+				self.assertIn('aborting current item', output.getvalue())
+				uploader.upload = original_upload
+				self.assertEqual(upload_nlb.main(args), 0)
+				self.assertEqual(len(uploader.uploads), 1)
+				self.assertTrue(upload_nlb.is_item_completed(upload_nlb.load_state(state_path), 'BY-NLB-rr111', '1001'))
 
 	def test_commons_uploader_retries_on_uploadstash_bad_path_and_uses_async_chunked_upload(self) -> None:
 		"""Verify uploadstash-bad-path is treated as retryable and CommonsUploader passes asynchronous=True."""
