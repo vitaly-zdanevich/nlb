@@ -1386,6 +1386,7 @@ class TestComponentIntegration(unittest.TestCase):
 		uploader = upload_nlb.CommonsUploader.__new__(upload_nlb.CommonsUploader)
 		uploader.pywikibot = fake_pwb
 		uploader.site = mock.MagicMock()
+		uploader.site.is_uploaddisabled.return_value = False
 
 		file_page = mock.MagicMock()
 		file_page.exists.return_value = False
@@ -1397,7 +1398,9 @@ class TestComponentIntegration(unittest.TestCase):
 		dup_err.code = 'duplicate'
 		dup_err.message = "Uploaded file is a duplicate of ['Old_Scan.pdf']."
 
-		file_page.upload.side_effect = [transient_err, dup_err]
+		driver = mock.Mock()
+		driver.upload.side_effect = [transient_err, dup_err]
+		uploader._upload_driver_class = mock.Mock(return_value=driver)
 		fake_pwb.FilePage = mock.MagicMock(return_value=file_page)
 
 		with mock.patch('time.sleep') as sleep_mock:
@@ -2087,6 +2090,8 @@ class TestPywikibotUploadTokens(unittest.TestCase):
 		self.site.user.return_value = 'Test uploader'
 		self.site.username.return_value = 'Test uploader'
 		self.site._loginstatus = self.login_status
+		self.site.is_uploaddisabled.return_value = False
+		self.site.has_right.return_value = True
 		self.site._request_class = self.site_type._request_class
 		self.site._request = types.MethodType(self.site_type._request, self.site)
 		self.site.simple_request = types.MethodType(self.site_type.simple_request, self.site)
@@ -2186,6 +2191,136 @@ class TestPywikibotUploadTokens(unittest.TestCase):
 		self.assertEqual(len(self.sent), 2)
 		self.site.tokens.update_tokens.assert_called_once()
 
+	def run_stash_lock_upload(self, *, polling: bool = False, persistent: bool = False,
+		published_on_failure: bool = False, max_attempts: int = 3,
+		first_chunk_failure: bool = False, final_warning: str = '') -> tuple[dict, mock.Mock, mock.Mock]:
+		"""Run real chunk/publication requests against a server with a controllable stash lock."""
+		file_page = mock.MagicMock()
+		file_page.title.return_value = 'Scan.pdf'
+		file_page._pageid = 0
+		file_page.exists.side_effect = lambda: file_page._pageid > 0
+		published = False
+		publications = 0
+		stash_number = 0
+		chunk_failed = False
+		self.site.loadpageinfo.side_effect = lambda page: setattr(page, '_pageid', int(published))
+
+		def server(request: object) -> dict:
+			"""Make completed chunks reusable, and return the reported failure at publication or polling."""
+			nonlocal published, publications, stash_number, chunk_failed
+			if request.get('stash'):
+				if first_chunk_failure and not chunk_failed:
+					chunk_failed = True
+					return {'error': {'code': 'stashfailed', 'info': 'Temporary chunk storage failure.'}}
+				offset = request['offset'][0]
+				if offset == 0:
+					stash_number += 1
+				return {'upload': {
+					'result': 'Continue' if offset < 8 else 'Success',
+					'offset': min(offset + 4, 10), 'filekey': f'stash-{stash_number}',
+				}}
+			if not request.get('checkstatus'):
+				publications += 1
+				if polling and (persistent or publications == 1):
+					return {'upload': {'result': 'Poll', 'filekey': f'stash-{stash_number}'}}
+			if request.get('checkstatus') or persistent or publications == 1:
+				published = published_on_failure
+				return {'error': {
+					'code': 'stashfailed',
+					'info': 'Could not acquire lock. Somebody else is doing something to this file.',
+				}}
+			if final_warning:
+				return {'upload': {
+					'result': 'Warning', 'filekey': f'stash-{stash_number}',
+					'warnings': {final_warning: ['Existing.pdf'] if final_warning == 'duplicate' else 'Scan.pdf'},
+				}}
+			return {'upload': {'result': 'Success', 'imageinfo': {}}}
+
+		self.payload_handler = server
+		with tempfile.TemporaryDirectory() as tmp_dir, mock.patch.object(
+			self.pwb, 'FilePage', return_value=file_page,
+		), mock.patch('upload.UPLOAD_CHUNK_SIZE', 4), mock.patch(
+			'upload.UPLOAD_MAX_RETRIES', max_attempts,
+		), mock.patch('upload.time.sleep') as sleep:
+			file_path = Path(tmp_dir) / 'scan.pdf'
+			file_path.write_bytes(b'%PDF-1.4\n!')
+			result = self.uploader.upload(file_path, 'Scan.pdf', 'Preserved description', 'Test')
+		return result, file_page, sleep
+
+	def test_stash_lock_reuses_assembled_file_after_publication_or_poll_failure(self) -> None:
+		"""Recover using the original publication request without sending the chunks again."""
+		for polling in (False, True):
+			with self.subTest(polling=polling):
+				self.sent.clear()
+				result, _, sleep = self.run_stash_lock_upload(polling=polling)
+				self.assertEqual(result['status'], 'uploaded')
+				chunks = [request for request in self.sent if request.get('stash')]
+				publications = [request for request in self.sent if not request.get('stash') and not request.get('checkstatus')]
+				self.assertEqual(len(chunks), 3)
+				self.assertEqual(len(publications), 2)
+				self.assertTrue(all(request['filekey'] == ['stash-1'] for request in publications))
+				self.assertTrue(all(request['text'] == ['Preserved description'] for request in publications))
+				self.assertTrue(all(request['ignorewarnings'] == [False] for request in publications))
+				sleep.assert_called_once_with(60)
+
+	def test_persistent_stash_lock_has_one_bounded_publication_budget(self) -> None:
+		"""Exhaustion stops publication retries without multiplying full-upload attempts."""
+		with self.assertRaises(upload_nlb.UploadRetriesExhausted) as raised:
+			self.run_stash_lock_upload(polling=True, persistent=True)
+		self.assertEqual(raised.exception.attempts, 3)
+		self.assertEqual(raised.exception.last_error.code, 'stashfailed')
+		self.assertEqual(len([request for request in self.sent if request.get('stash')]), 3)
+		self.assertEqual(len([request for request in self.sent if request.get('checkstatus')]), 3)
+
+	def test_publication_failure_refreshes_missing_title_even_on_last_attempt(self) -> None:
+		"""A newly published title prevents retries and is not falsely counted as our upload."""
+		result, file_page, sleep = self.run_stash_lock_upload(
+			persistent=True, published_on_failure=True, max_attempts=1,
+		)
+		self.assertEqual(result['status'], 'existing_title')
+		self.site.loadpageinfo.assert_called_once_with(file_page)
+		sleep.assert_not_called()
+
+	def test_chunk_and_publication_failures_share_one_budget(self) -> None:
+		"""A failed chunk consumes one attempt before publication starts using the same budget."""
+		with self.assertRaises(upload_nlb.UploadRetriesExhausted) as raised:
+			self.run_stash_lock_upload(first_chunk_failure=True, persistent=True, max_attempts=3)
+		self.assertEqual(raised.exception.attempts, 3)
+		self.assertEqual(len([request for request in self.sent if request.get('stash')]), 4)
+		self.assertEqual(len([request for request in self.sent if not request.get('stash')]), 2)
+		self.assertEqual(self.site.loadpageinfo.call_count, 3)
+
+	def test_publication_retry_still_honors_exists_and_duplicate_warnings(self) -> None:
+		"""A lock retry must not overwrite a title or bypass Commons duplicate detection."""
+		for warning, status in (('exists', 'existing_title'), ('duplicate', 'duplicate_sha1')):
+			with self.subTest(warning=warning):
+				self.sent.clear()
+				result, _, _ = self.run_stash_lock_upload(final_warning=warning)
+				self.assertEqual(result['status'], status)
+				if warning == 'duplicate':
+					self.assertEqual(result['duplicates'], ['Existing.pdf'])
+				self.assertEqual(len([request for request in self.sent if request.get('stash')]), 3)
+				self.assertTrue(all(request['ignorewarnings'] == [False] for request in self.sent))
+
+	def test_upload_preconditions_and_incomplete_driver_result_remain_fatal(self) -> None:
+		"""Direct driver use must retain permissions checks and never claim a false success."""
+		for scenario in ('permission', 'disabled', 'incomplete'):
+			with self.subTest(scenario=scenario):
+				self.site.has_right.return_value = scenario != 'permission'
+				self.site.is_uploaddisabled.return_value = scenario == 'disabled'
+				file_page = mock.Mock()
+				file_page.exists.return_value = False
+				with mock.patch.object(self.pwb, 'FilePage', return_value=file_page), mock.patch.object(
+					self.uploader, '_upload_driver_class',
+				) as driver_class, mock.patch('upload.time.sleep') as sleep:
+					driver_class.return_value.upload.return_value = False
+					error_type = RuntimeError if scenario == 'incomplete' else self.pwb.exceptions.Error
+					with self.assertRaises(error_type):
+						self.uploader.upload(Path('/unused.pdf'), 'Scan.pdf', 'Description', 'Test')
+					if scenario != 'incomplete':
+						driver_class.assert_not_called()
+					sleep.assert_not_called()
+
 	def test_non_upload_requests_keep_the_original_request_classes(self) -> None:
 		"""Keep queries unchanged and avoid wrapping a reused Pywikibot site twice."""
 		self.assertIs(self.site._request_class({'parameters': {'action': 'query'}}), self.api.Request)
@@ -2199,9 +2334,7 @@ class TestPywikibotUploadTokens(unittest.TestCase):
 		self.payload_handler = lambda request: {'error': {'code': 'badtoken', 'info': 'Invalid CSRF token.'}}
 		file_page = mock.MagicMock()
 		file_page.exists.return_value = False
-		file_page.upload.side_effect = lambda *args, **kwargs: self.site.simple_request(
-			action='upload', token='expired-test-token', filename='Scan.pdf',
-		).submit()
+		file_page.title.return_value = 'Scan.pdf'
 		with tempfile.TemporaryDirectory() as tmp_dir, mock.patch.object(
 			self.pwb, 'FilePage', return_value=file_page,
 		), mock.patch(
@@ -2215,7 +2348,6 @@ class TestPywikibotUploadTokens(unittest.TestCase):
 					state_path=state_path, staging_dir=staging_dir,
 				)
 			self.assertEqual(raised.exception.code, 'badtoken')
-			self.assertEqual(file_page.upload.call_count, 1)
 			self.assertEqual(len(self.sent), 2)
 			sleep.assert_not_called()
 			self.assertEqual(list(staging_dir.iterdir()), [])
@@ -2798,17 +2930,18 @@ class TestEndToEndPipeline(unittest.TestCase):
 
 		uploader = upload_nlb.CommonsUploader.__new__(upload_nlb.CommonsUploader)
 		fake_site = mock.MagicMock()
+		fake_site.is_uploaddisabled.return_value = False
 		upload_calls: list[dict[str, Any]] = []
 
-		def fake_upload_call(path_str: str, **kwargs: Any) -> bool:
-			upload_calls.append({'path': path_str, **kwargs})
-			if len(upload_calls) == 1:
-				raise bad_path_error
-			return True
+		def fake_upload_driver(site: Any, file_page: Any, **kwargs: Any) -> Any:
+			"""Capture transfer options and fail the first upload before recovering."""
+			upload_calls.append(kwargs)
+			driver = mock.Mock(already_exists=False)
+			driver.upload.side_effect = [bad_path_error if len(upload_calls) == 1 else True]
+			return driver
 
 		fake_file_page = mock.MagicMock()
 		fake_file_page.exists.return_value = False
-		fake_file_page.upload.side_effect = fake_upload_call
 
 		fake_pywikibot = mock.MagicMock()
 		fake_pywikibot.FilePage.return_value = fake_file_page
@@ -2816,6 +2949,7 @@ class TestEndToEndPipeline(unittest.TestCase):
 
 		uploader.pywikibot = fake_pywikibot
 		uploader.site = fake_site
+		uploader._upload_driver_class = fake_upload_driver
 
 		with mock.patch('upload.time.sleep') as sleep_mock:
 			result = uploader.upload(

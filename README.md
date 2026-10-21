@@ -6,8 +6,8 @@
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
-[![Production code](https://img.shields.io/badge/production%20code-2%2C144%20lines-blue)](upload.py)
-[![Test code](https://img.shields.io/badge/test%20code-3%2C303%20lines-blue)](#running-tests)
+[![Production code](https://img.shields.io/badge/production%20code-2%2C214%20lines-blue)](upload.py)
+[![Test code](https://img.shields.io/badge/test%20code-3%2C624%20lines-blue)](#running-tests)
 
 [`upload.py`](upload.py) iterates over open-access digitized scans from the Electronic Library of the National Library of Belarus (`https://elib.nlb.by`) and uploads them to Wikimedia Commons with full HTML and UNIMARC (`MARCXML`) metadata.
 
@@ -32,7 +32,8 @@
 - **Download size in progress output**: Shows the server's advertised size before streaming, such as `Downloading scan (54.4 MB):`, using decimal MB with one decimal place. If the size is unavailable or invalid, it is omitted. The subsequent SHA-1 check message does not repeat the size.
 - **Download retries**: Retries manifest, viewer-event and PDF-transfer timeouts, connection failures and interrupted transfers up to five total attempts, waiting 5, 10, 20 and 40 seconds. Each retry discards the partial PDF and starts again. After exhaustion, saves the error type, message and attempt count as `download_failed`, leaves the scan pending in `state.json`, and continues with later scans without hashing or uploading the failed download. Session setup failures, certificate errors, local I/O errors and interrupts still propagate.
 - **Skip rejected downloads**: HTTP 400 during a download, including `Security alert! Some conditions are missed!`, is logged and saved as `download_rejected` with the library's response. The uploader deletes the temporary file and continues to the next scan, without retrying, hashing or uploading the rejected download. Other errors retain their existing handling.
-- **Revisit deferred scans**: Rejected downloads (`download_rejected`) and exhausted downloads (`download_failed`) are counted separately in the final summary and remain pending in `state.json`. The next run resumes from the earliest deferred page, skipping completed uploads. A dry run preserves these pending uploads; changing the search URL or year filters resets the page cursor for the new search.
+- **Upload retries**: When Commons reports `stashfailed: Could not acquire lock` while publishing an assembled PDF, retries publication using the same stored file instead of uploading all chunks again. This also handles failures returned by asynchronous status polls. Chunk and publication failures share a limit of ten failed attempts, with 60 seconds between retries. Before retrying or deferring, refreshes title existence to detect uploads that completed despite an error. Persistent transient failures are saved as `upload_failed` with the error, attempt count, title, SHA-1 and size; the temporary PDF is deleted and processing continues. Authentication, permissions and local I/O errors still stop the run.
+- **Revisit deferred scans**: Rejected downloads (`download_rejected`), exhausted downloads (`download_failed`) and exhausted uploads (`upload_failed`) are counted separately in the final summary and remain pending in `state.json`. The next run resumes from the earliest deferred page, skipping completed uploads and checking Commons again before retrying. A dry run preserves these pending uploads; changing the search URL or year filters resets the page cursor for the new search.
 - **CSRF token recovery**: Each Commons upload request uses the current cached token, including later chunks, status polls and final publication. An expired token is refreshed once per request; persistent `badtoken` errors stop the upload and leave the item pending for a later run.
 - **Graceful `Ctrl-C` shutdown**: The first `Ctrl-C` finishes the current item in progress, updates `state.json`, prints the uploaded file count and uploaded megabytes, and exits cleanly. A second `Ctrl-C` aborts the current operation, removes the temporary PDF and exits with code 130. Unfinished items remain pending; restarting checks Commons again before uploading.
 
@@ -99,5 +100,6 @@ python3 -m unittest discover -v
 - [UNIMARC related personal-name headings (IFLA)](https://www.ifla.org/wp-content/uploads/files/assets/uca/unimarc_updates/AUTHORITIES/u_a_500_update2019_online_final.pdf)
 - [Python cookie handling and Netscape cookie files](https://docs.python.org/3/library/http.cookiejar.html#http.cookiejar.MozillaCookieJar)
 - [MediaWiki API: `allimages` (SHA-1 lookup)](https://www.mediawiki.org/wiki/API:Allimages)
+- [MediaWiki API: chunked uploads and publishing stored files](https://www.mediawiki.org/wiki/API:Upload#Example_3:_Upload_file_in_chunks)
 - [Pywikibot Documentation](https://doc.wikimedia.org/pywikibot/stable/)
 - [Wikimedia Commons Licensing Policy](https://commons.wikimedia.org/wiki/Commons:Licensing)

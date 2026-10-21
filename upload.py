@@ -1840,6 +1840,54 @@ def configure_upload_token_recovery(site: Any, request_class: type, api_error_cl
 	site._request_class = request_factory
 
 
+class UploadRetriesExhausted(RuntimeError):
+	"""A transient Commons failure exhausted the scan's shared upload retry budget."""
+
+	def __init__(self, last_error: Exception, attempts: int) -> None:
+		"""Retain diagnostics for a pending upload that can be retried on a later run."""
+		self.last_error = last_error
+		self.attempts = attempts
+		super().__init__(f'Upload failed after {attempts} attempts ({type(last_error).__name__}): {last_error}')
+
+
+def make_stash_retrying_uploader(uploader_class: type, api_error_class: type[Exception]) -> type:
+	"""Adapt Pywikibot's publication phase to retry locks using the assembled stash.
+
+	A failed asynchronous status poll can repeat a stored failure indefinitely.
+	Retry the original publication request instead, keeping its file key, text,
+	summary and warning policy. Chunk transfers retain Pywikibot's own handling.
+	https://www.mediawiki.org/wiki/API:Upload#Example_3:_Upload_file_in_chunks
+	"""
+	class StashRetryingUploader(uploader_class):
+		"""Reuse one completed stash with the caller's shared bounded retry policy."""
+
+		def __init__(self, *args: Any, retry: Any, **kwargs: Any) -> None:
+			"""Keep retry accounting in the outer uploader, shared with chunk failures."""
+			super().__init__(*args, **kwargs)
+			self.retry = retry
+			self.already_exists = False
+
+		def submit(self, request: Any, result: Any, data_result: Any, ignore_warnings: Any,
+			ignore_all_warnings: bool, report_success: Any, file_key: str | None) -> bool:
+			"""Restart publication after a lock error, including errors from status polls."""
+			while True:
+				try:
+					return super().submit(request, result, data_result, ignore_warnings,
+						ignore_all_warnings, report_success, file_key)
+				except api_error_class as error:
+					message = getattr(error, 'info', '') or str(error)
+					if not file_key or getattr(error, 'code', '') != 'stashfailed' or (
+						'could not acquire lock' not in message.lower()
+					):
+						raise
+					if not self.retry(error, 'Commons publication'):
+						self.already_exists = True
+						return True
+					result = None
+
+	return StashRetryingUploader
+
+
 class CommonsUploader:
 	"""Wrapper around Pywikibot to upload files to Wikimedia Commons with retries."""
 
@@ -1849,11 +1897,13 @@ class CommonsUploader:
 		import pywikibot
 		from pywikibot import config as pwb_config
 		import pywikibot.data.api
+		from pywikibot.site._upload import Uploader
 
 		pwb_config.socket_timeout = 200
 		pwb_config.put_throttle = 0
 		patch_mime_multipart_from_mangling(pywikibot.data.api.CTEBinaryMIMEMultipart)
 		self.pywikibot = pywikibot
+		self._upload_driver_class = make_stash_retrying_uploader(Uploader, pywikibot.exceptions.APIError)
 		self.site = pywikibot.Site('commons', 'commons')
 		configure_upload_token_recovery(self.site, pywikibot.data.api.Request, pywikibot.exceptions.APIError)
 
@@ -1863,53 +1913,63 @@ class CommonsUploader:
 		return bool(file_page.exists())
 
 	def upload(self, file_path: Path, commons_filename: str, wikitext: str, summary: str) -> dict[str, Any]:
-		"""Upload file_path to Commons as File:<commons_filename> with chunked retries."""
+		"""Upload with one retry budget, reusing the stash when publication is locked."""
 		self.site.login()
+		if not self.site.has_right('upload'):
+			raise self.pywikibot.exceptions.Error('The Commons account does not have upload permission.')
+		if self.site.is_uploaddisabled():
+			raise self.pywikibot.exceptions.Error('Commons uploads are currently disabled.')
 		file_page = self.pywikibot.FilePage(self.site, f'File:{commons_filename}')
 		if file_page.exists():
 			return {'status': 'existing_title', 'commons_title': f'File:{commons_filename}'}
 
-		file_page.text = wikitext
-		for attempt in range(1, UPLOAD_MAX_RETRIES + 1):
-			if attempt > 1 and file_page.exists():
-				return {'status': 'uploaded', 'commons_title': f'File:{commons_filename}'}
+		failures = 0
+
+		def retry(error: Exception, phase: str) -> bool:
+			"""Refresh title existence before another attempt or final deferral."""
+			nonlocal failures
+			failures += 1
+			if failures < UPLOAD_MAX_RETRIES:
+				err_label = getattr(error, 'code', None) or type(error).__name__
+				log_progress(f'{phase} attempt {failures}/{UPLOAD_MAX_RETRIES} failed with {err_label}. Retrying in 60s...')
+				time.sleep(60)
+			# exists() alone reuses a cached negative result. This refresh keeps text intact.
+			self.site.loadpageinfo(file_page)
+			if file_page.exists():
+				return False
+			if failures >= UPLOAD_MAX_RETRIES:
+				raise UploadRetriesExhausted(error, failures) from error
+			return True
+
+		while True:
 			try:
-				file_page.upload(
-					str(file_path),
+				driver = self._upload_driver_class(
+					self.site, file_page, source_filename=str(file_path), text=wikitext,
 					chunk_size=UPLOAD_CHUNK_SIZE,
 					asynchronous=True,
 					comment=summary,
 					ignore_warnings=False,
+					retry=retry,
 				)
-				return {'status': 'uploaded', 'commons_title': f'File:{commons_filename}'}
-			except self.pywikibot.exceptions.UploadError as error:
+				if not driver.upload():
+					raise RuntimeError('Commons upload did not complete.')
+				status = 'existing_title' if driver.already_exists else 'uploaded'
+				return {'status': status, 'commons_title': f'File:{commons_filename}'}
+			except Exception as error:
 				error_code = getattr(error, 'code', None)
-				if error_code == 'exists':
+				if isinstance(error, self.pywikibot.exceptions.UploadError) and error_code == 'exists':
 					return {'status': 'existing_title', 'commons_title': f'File:{commons_filename}'}
-				if error_code == 'duplicate':
+				if isinstance(error, self.pywikibot.exceptions.UploadError) and error_code == 'duplicate':
 					duplicates = extract_duplicate_filenames(error)
 					return {
 						'status': 'duplicate_sha1',
 						'commons_title': f'File:{commons_filename}',
 						'duplicates': duplicates,
 					}
-				if attempt >= UPLOAD_MAX_RETRIES or not is_retryable_upload_error(error):
+				if not is_retryable_upload_error(error):
 					raise
-				err_label = error_code or type(error).__name__
-				log_progress(
-					f'Attempt {attempt}/{UPLOAD_MAX_RETRIES} failed with {err_label}. Retrying in 60s...'
-				)
-				time.sleep(60)
-			except Exception as error:
-				if attempt >= UPLOAD_MAX_RETRIES or not is_retryable_upload_error(error):
-					raise
-				err_label = getattr(error, 'code', None) or type(error).__name__
-				log_progress(
-					f'Attempt {attempt}/{UPLOAD_MAX_RETRIES} failed with {err_label}. Retrying in 60s...'
-				)
-				time.sleep(60)
-
-		raise RuntimeError(f'Upload failed after {UPLOAD_MAX_RETRIES} attempts: {commons_filename}')
+				if not retry(error, 'Commons upload'):
+					return {'status': 'existing_title', 'commons_title': f'File:{commons_filename}'}
 
 
 def log_progress(message: str) -> None:
@@ -1953,9 +2013,9 @@ def process_single_scan(
 	license_template: str = DEFAULT_LICENSE,
 	dry_run: bool = False,
 ) -> str:
-	"""Process a scan, deferring rejected or exhausted downloads until a later run.
+	"""Process a scan, deferring rejected downloads and exhausted transfers until a later run.
 
-	Record download failures without marking them completed. Save their earliest page
+	Record deferred failures without marking them completed. Save their earliest page
 	so advancing through the remaining results cannot lose pending scans.
 	"""
 	key = item_state_key(marc_id, file_id)
@@ -2067,7 +2127,27 @@ def process_single_scan(
 
 		log_progress(f'[{marc_id}:{file_id}] Uploading to Wikimedia Commons:\nFile:{commons_filename}')
 		summary = f'From {ELIB_BASE_URL}/elib/Record/{marc_id} (fileID {file_id})'
-		upload_result = uploader.upload(temp_pdf, commons_filename, wikitext, summary)
+		try:
+			upload_result = uploader.upload(temp_pdf, commons_filename, wikitext, summary)
+		except UploadRetriesExhausted as error:
+			log_progress(f'[{marc_id}:{file_id}] Deferring upload after {error.attempts} attempts: File:{commons_filename}\n{error}')
+			state['items'][key] = {
+				'status': 'upload_failed',
+				'marc_id': marc_id,
+				'file_id': file_id,
+				'sha1': sha1,
+				'size_bytes': size_bytes,
+				'commons_title': f'File:{commons_filename}',
+				'attempts': error.attempts,
+				'error_type': type(error.last_error).__name__,
+				'error_code': getattr(error.last_error, 'code', None),
+				'error': str(error),
+				'updated_at': datetime.now(timezone.utc).isoformat(),
+			}
+			page = max(1, int(state.get('current_page') or 1))
+			state['retry_from_page'] = min(page, int(state.get('retry_from_page') or page))
+			save_state(state_path, state)
+			return 'upload_failed'
 		status = upload_result['status']
 		commons_title = upload_result.get('commons_title', f'File:{commons_filename}')
 		commons_slug = commons_title.replace(' ', '_')
@@ -2105,7 +2185,7 @@ def iterate_and_upload(
 	max_uploads: int = 0,
 	dry_run: bool = False,
 ) -> dict[str, int]:
-	"""Upload available scans, revisiting deferred downloads from earlier pages on each run."""
+	"""Upload available scans, revisiting deferred transfers from earlier pages on each run."""
 	if search_url:
 		url_from, url_to = extract_year_bounds_from_search_url(search_url)
 		if from_year is None:
@@ -2132,6 +2212,7 @@ def iterate_and_upload(
 		'uploaded': 0,
 		'download_rejected': 0,
 		'download_failed': 0,
+		'upload_failed': 0,
 		'duplicate_sha1': 0,
 		'existing_title': 0,
 		'restricted': 0,
