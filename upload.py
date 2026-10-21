@@ -91,6 +91,12 @@ PERSONAL_NAME_REFERENCE_LABELS = {
 	'420': 'Вариант родового имени',
 	'520': 'Связанная запись родового имени',
 }
+SUBJECT_REFERENCE_LABELS = {
+	'450': 'Вариант предметного термина',
+	'550': 'Связанный предметный термин',
+	'430': 'Вариант заглавия',
+	'530': 'Связанное заглавие',
+}
 
 # 461 points to a parent set; 481/482 link physically bound items, not parents.
 # https://cdn.ifla.org/wp-content/uploads/files/assets/uca/unimarc_updates/BIBLIOGRAPHIC/u-b_4-_linking_entry_block_update.pdf
@@ -567,6 +573,54 @@ def parse_personal_name_variants(tag: str, subfields: list[tuple[str, str]]) -> 
 	return entries
 
 
+def parse_subject_variants(subfields: list[tuple[str, str]]) -> list[dict[str, Any]]:
+	"""Unpack local 906 references, retaining related headings and their own variants.
+
+	$9 and repeated $a delimit headings; $3 identifies the source 606 authority.
+	$2 describes the field's vocabulary, while $5 belongs to one heading.
+	Keep other subfields explicitly, including $k on embedded title references.
+	"""
+	authority_id = next((value for code, value in subfields if code == '3'), '')
+	schemes = list(dict.fromkeys(value for code, value in subfields if code == '2'))
+	reference_type, context = '', ''
+	group: list[tuple[str, str]] = []
+	entries: list[dict[str, Any]] = []
+
+	def finish() -> None:
+		"""Save a heading with its subdivisions and scoped relationship codes."""
+		nonlocal context
+		if any(code == 'a' for code, _ in group):
+			term = ' — '.join(value for key in ('a', 'j', 'x', 'y', 'z') for code, value in group if code == key)
+			for code, value in group:
+				if code not in {'a', 'j', 'x', 'y', 'z', '5'}:
+					term += f'; ${code}={value}'
+			entries.append({
+				'authority_id': authority_id, 'type': reference_type, 'term': term,
+				'codes': list(dict.fromkeys(value for code, value in group if code == '5')),
+				'schemes': schemes, 'context': context if reference_type.startswith('4') else '',
+			})
+			if reference_type.startswith('5'):
+				context = term
+		group.clear()
+
+	for code, value in subfields:
+		if code == '3':
+			if value != authority_id:
+				finish()
+				authority_id, reference_type, context = value, '', ''
+		elif code == '9':
+			finish()
+			reference_type = value
+			if not value.startswith('4'):
+				context = ''
+		elif code != '2':
+			if code == 'a' and any(key == 'a' for key, _ in group):
+				finish()
+			group.append((code, value))
+	finish()
+	return entries
+
+
 def parse_related_marc_field(tag: str, subfields: list[tuple[str, str]]) -> list[dict[str, Any]]:
 	"""Read embedded 001/200 links or standard $0/$t links without mistaking authors for titles.
 
@@ -648,6 +702,7 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 		'notes': [],
 		'contents': [],
 		'subjects': [],
+		'subject_variants': [],
 		'genres': [],
 		'geo_places': [],
 		'alternate_genres': [],
@@ -711,6 +766,8 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 			result['related_records'].extend(parse_related_marc_field(tag, subfields))
 		if tag in PERSONAL_NAME_VARIANT_TAGS:
 			result['personal_name_variants'].extend(parse_personal_name_variants(tag, subfields))
+		if tag == '906':
+			result['subject_variants'].extend(parse_subject_variants(subfields))
 		personal_name = format_personal_name(submap) if tag in {'600', '700', '701', '702'} else ''
 		if personal_name:
 			for authority_id in submap.get('3', []):
@@ -829,6 +886,7 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 				+ submap.get('b', [])
 				+ submap.get('d', [])
 				+ submap.get('f', [])
+				+ (submap.get('j', []) if tag == '606' else [])
 				+ submap.get('x', [])
 				+ submap.get('y', [])
 				+ submap.get('z', [])
@@ -837,6 +895,11 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 				subj = ' — '.join(subj_parts)
 				if subj not in result['subjects']:
 					result['subjects'].append(subj)
+				if tag == '606':
+					for authority_id in submap.get('3', []):
+						headings = authority_headings.setdefault((tag, authority_id), [])
+						if subj not in headings:
+							headings.append(subj)
 		elif tag == '620':
 			geo_parts = (
 				submap.get('d', [])
@@ -901,6 +964,13 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 		if variant not in personal_variants:
 			personal_variants.append(variant)
 	result['personal_name_variants'] = personal_variants
+
+	subject_variants: list[dict[str, Any]] = []
+	for variant in result['subject_variants']:
+		variant['main_subjects'] = authority_headings.get(('606', variant['authority_id']), [])
+		if variant not in subject_variants:
+			subject_variants.append(variant)
+	result['subject_variants'] = subject_variants
 
 	for link in result['related_records']:
 		if link['tag'] == '461' and not link['title'] and link['record_id']:
@@ -1076,6 +1146,24 @@ def escape_catalog_link_text(value: str) -> str:
 	}))
 
 
+def format_subject_variant(variant: dict[str, Any]) -> str:
+	"""Render catalog references literally without adding related terms as book subjects."""
+	main = '; '.join(variant['main_subjects']) or 'основной предметный термин не установлен'
+	entry = f'MARC 906; {main}'
+	if variant['authority_id']:
+		entry += f"; ID: {variant['authority_id']}"
+	label = SUBJECT_REFERENCE_LABELS.get(variant['type'], 'Термин из каталога')
+	type_label = '$9=' + variant['type'] if variant['type'] else 'тип не указан'
+	entry += f" — {label} ({type_label}): {variant['term']}"
+	if variant['context']:
+		entry += f"; относится к связанной записи: {variant['context']}"
+	for code in variant['codes']:
+		entry += f'; подполе $5={code}'
+	for scheme in variant['schemes']:
+		entry += f'; система $2={scheme}'
+	return escape_catalog_link_text(entry).replace("'", '&#39;')
+
+
 def format_catalog_reference(record_id: str, title: str = '') -> str:
 	"""Link only valid NLB IDs to the canonical catalog URL; keep other IDs as text."""
 	reference = (
@@ -1227,6 +1315,11 @@ def build_commons_description(
 		]
 		if new_subjects:
 			metadata_lines.append(format_metadata_field('Тематика (MARC 6xx)', new_subjects))
+	if marc_meta.get('subject_variants'):
+		metadata_lines.append(format_metadata_field(
+			'Предметные термины и варианты по каталогу НББ (MARC 906)',
+			[format_subject_variant(variant) for variant in marc_meta['subject_variants']],
+		))
 	if marc_meta.get('genres'):
 		existing_genres = {
 			val.strip().lower().replace(' - ', ' — ')

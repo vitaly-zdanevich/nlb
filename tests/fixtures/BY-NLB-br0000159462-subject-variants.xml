@@ -1,0 +1,103 @@
+<!-- Subject fields extracted on 2026-10-21 from https://elib.nlb.by/elib/Record/BY-NLB-br0000159462/Export?style=MARCXML -->
+<collection xmlns="http://www.loc.gov/MARC21/slim">
+	<record>
+		<controlfield tag="001">BY-NLB-br0000159462</controlfield>
+		<datafield tag="200" ind1="1" ind2=" ">
+			<subfield code="a">Powstanie narodu polskiego w roku 1830 i 1831</subfield>
+		</datafield>
+		<datafield tag="606" ind1="0" ind2=" ">
+			<subfield code="3">BY-NLB-ar2648373</subfield>
+			<subfield code="a">ГІСТОРЫЯ</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="606" ind1="0" ind2=" ">
+			<subfield code="3">BY-NLB-ar24643</subfield>
+			<subfield code="a">ПОЛЬСКІЯ ПАЎСТАННІ</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="606" ind1="0" ind2=" ">
+			<subfield code="3">BY-NLB-ar2282379</subfield>
+			<subfield code="a">ПОЛЬСКАЕ ПАЎСТАННЕ 1830—1831</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="606" ind1="0" ind2=" ">
+			<subfield code="3">BY-NLB-ar733</subfield>
+			<subfield code="a">19 СТАГОДДЗЕ ПЕРШАЯ ПАЛОВА</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="906" ind1="0" ind2=" ">
+			<subfield code="3">BY-NLB-ar2648373</subfield>
+			<subfield code="9">550</subfield>
+			<subfield code="5">c</subfield>
+			<subfield code="a">ГІСТОРЫЯ (навука)</subfield>
+			<subfield code="9">450</subfield>
+			<subfield code="a">гістарычная навука</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="906" ind1="0" ind2=" ">
+			<subfield code="3">BY-NLB-ar2648373</subfield>
+			<subfield code="9">550</subfield>
+			<subfield code="5">w</subfield>
+			<subfield code="a">ИСТОРИЯ</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="906" ind1="0" ind2=" ">
+			<subfield code="3">BY-NLB-ar24643</subfield>
+			<subfield code="9">550</subfield>
+			<subfield code="5">w</subfield>
+			<subfield code="a">ПОЛЬСКИЕ ВОССТАНИЯ</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="906" ind1="0" ind2=" ">
+			<subfield code="3">BY-NLB-ar2282379</subfield>
+			<subfield code="9">450</subfield>
+			<subfield code="a">Лістападаўскае паўстанне 1830—1831</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="906" ind1="0" ind2=" ">
+			<subfield code="3">BY-NLB-ar2282379</subfield>
+			<subfield code="9">450</subfield>
+			<subfield code="a">Руска-польская вайна 1830—1831</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="906" ind1="0" ind2=" ">
+			<subfield code="3">BY-NLB-ar2282379</subfield>
+			<subfield code="9">450</subfield>
+			<subfield code="a">паўстанне 1830—1831</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="906" ind1="0" ind2=" ">
+			<subfield code="3">BY-NLB-ar2282379</subfield>
+			<subfield code="9">550</subfield>
+			<subfield code="5">w</subfield>
+			<subfield code="a">ПОЛЬСКОЕ ВОССТАНИЕ 1830—1831</subfield>
+			<subfield code="9">450</subfield>
+			<subfield code="a">Ноябрьское восстание 1830—1831</subfield>
+			<subfield code="a">Русско-польская война 1830—1831</subfield>
+			<subfield code="a">восстание 1830—1831</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="906" ind1="0" ind2=" ">
+			<subfield code="3">BY-NLB-ar733</subfield>
+			<subfield code="9">450</subfield>
+			<subfield code="a">19ст 1-я пал</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="906" ind1="0" ind2=" ">
+			<subfield code="3">BY-NLB-ar733</subfield>
+			<subfield code="9">450</subfield>
+			<subfield code="a">першая палавіна 19 стагоддзя</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="906" ind1="0" ind2=" ">
+			<subfield code="3">BY-NLB-ar733</subfield>
+			<subfield code="9">550</subfield>
+			<subfield code="5">w</subfield>
+			<subfield code="a">19 ВЕК ПЕРВАЯ ПОЛОВИНА</subfield>
+			<subfield code="9">450</subfield>
+			<subfield code="a">19в 1-я пол</subfield>
+			<subfield code="a">первая половина 19 века</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+	</record>
+</collection>
