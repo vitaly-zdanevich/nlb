@@ -83,6 +83,15 @@ RETRYABLE_UPLOAD_API_ERROR_PREFIXES = (
 
 MARC_NS = {'marc': 'http://www.loc.gov/MARC21/slim'}
 
+# NLB expands authority references into local fields matching these source tags.
+PERSONAL_NAME_VARIANT_TAGS = {'900': '600', '990': '700', '991': '701', '992': '702'}
+PERSONAL_NAME_REFERENCE_LABELS = {
+	'400': 'Вариант имени',
+	'500': 'Связанная запись имени',
+	'420': 'Вариант родового имени',
+	'520': 'Связанная запись родового имени',
+}
+
 # 461 points to a parent set; 481/482 link physically bound items, not parents.
 # https://cdn.ifla.org/wp-content/uploads/files/assets/uca/unimarc_updates/BIBLIOGRAPHIC/u-b_4-_linking_entry_block_update.pdf
 RELATED_RECORD_LABELS = {
@@ -485,6 +494,79 @@ def split_marc_alternate_headings(
 	return headings
 
 
+def format_personal_name(submap: dict[str, list[str]]) -> str:
+	"""Keep initials, expanded forenames, numerals, qualifiers and dates together.
+
+	UNIMARC 600/700–702 use $b for the forename and $g for its expansion;
+	$c is repeatable and $d contains numerals. Corporate names use other rules.
+	https://cdn.ifla.org/wp-content/uploads/files/assets/uca/unimarc_updates/BIBLIOGRAPHIC/u-b_700_update.pdf
+	"""
+	name = ' '.join(submap.get('a', []))
+	if not name:
+		return ''
+	if submap.get('d'):
+		name += ' ' + ' '.join(submap['d'])
+	given = ' '.join(submap.get('b', []))
+	expansion = ' '.join(submap.get('g', []))
+	if given:
+		name += f', {given}'
+	if expansion and expansion != given:
+		name += f' ({expansion})' if given else f', {expansion}'
+	if submap.get('c'):
+		name += ', ' + ', '.join(submap['c'])
+	if submap.get('f'):
+		name += ' (' + ' '.join(submap['f']) + ')'
+	return name
+
+
+def parse_personal_name_variants(tag: str, subfields: list[tuple[str, str]]) -> list[dict[str, Any]]:
+	"""Unpack NLB name references without promoting related people to aliases.
+
+	A $9 changes the reference type; repeated $a starts another heading of
+	that type. Variants after a 5xx heading belong to that related heading.
+	Local $5 codes are scoped to one heading, not interpreted as book copies.
+	A single $3 applies throughout the field; changes between multiple IDs
+	reset the reference type and context. Main headings are resolved later.
+	"""
+	authority_ids = list(dict.fromkeys(value for code, value in subfields if code == '3'))
+	authority_id = authority_ids[0] if authority_ids else ''
+	reference_type = ''
+	context = ''
+	group: dict[str, list[str]] = {}
+	entries: list[dict[str, Any]] = []
+
+	def finish() -> None:
+		"""Save one heading with its own qualifiers and the preceding related heading."""
+		nonlocal context
+		name = format_personal_name(group)
+		if name:
+			entries.append({
+				'tag': tag, 'authority_id': authority_id, 'type': reference_type,
+				'name': name, 'codes': list(dict.fromkeys(group.get('5', []))),
+				'context': context if reference_type.startswith('4') else '',
+			})
+			if reference_type.startswith('5'):
+				context = name
+		group.clear()
+
+	for code, value in subfields:
+		if code == '3':
+			if value != authority_id:
+				finish()
+				authority_id, reference_type, context = value, '', ''
+		elif code == '9':
+			finish()
+			reference_type = value
+			if not value.startswith('4'):
+				context = ''
+		elif code in {'a', 'b', 'c', 'd', 'f', 'g', '5'}:
+			if code == 'a' and group.get('a'):
+				finish()
+			group.setdefault(code, []).append(value)
+	finish()
+	return entries
+
+
 def parse_related_marc_field(tag: str, subfields: list[tuple[str, str]]) -> list[dict[str, Any]]:
 	"""Read embedded 001/200 links or standard $0/$t links without mistaking authors for titles.
 
@@ -570,6 +652,7 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 		'geo_places': [],
 		'alternate_genres': [],
 		'alternate_geo_places': [],
+		'personal_name_variants': [],
 		'shelfmarks': [],
 		'authors': [],
 		'contributors': [],
@@ -626,6 +709,14 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 			result['raw_fields'].append({'tag': tag, 'value': ' '.join(parts_rendered)})
 		if tag in RELATED_RECORD_LABELS:
 			result['related_records'].extend(parse_related_marc_field(tag, subfields))
+		if tag in PERSONAL_NAME_VARIANT_TAGS:
+			result['personal_name_variants'].extend(parse_personal_name_variants(tag, subfields))
+		personal_name = format_personal_name(submap) if tag in {'600', '700', '701', '702'} else ''
+		if personal_name:
+			for authority_id in submap.get('3', []):
+				headings = authority_headings.setdefault((tag, authority_id), [])
+				if personal_name not in headings:
+					headings.append(personal_name)
 
 		if tag == '100':
 			coded = ' '.join(submap.get('a', []))
@@ -726,7 +817,13 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 					headings = authority_headings.setdefault((tag, authority_id), [])
 					if genre not in headings:
 						headings.append(genre)
-		elif tag in {'600', '605', '606', '607', '690'}:
+		elif tag == '600':
+			if personal_name:
+				subdivisions = [value for code in ('j', 'x', 'y', 'z') for value in submap.get(code, [])]
+				subject = ' — '.join([personal_name, *subdivisions])
+				if subject not in result['subjects']:
+					result['subjects'].append(subject)
+		elif tag in {'605', '606', '607', '690'}:
 			subj_parts = (
 				submap.get('a', [])
 				+ submap.get('b', [])
@@ -774,14 +871,16 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 				if clean_shelfmark and clean_shelfmark not in result['shelfmarks']:
 					result['shelfmarks'].append(clean_shelfmark)
 		elif tag in {'700', '701', '702', '710', '711', '712'}:
-			surname = ' '.join(submap.get('a', []))
-			given = ' '.join(submap.get('g', []) or submap.get('b', []))
-			dates = ' '.join(submap.get('f', []))
-			name = f'{surname}, {given}'.strip(', ') if given else surname
+			name = personal_name
+			if tag in {'710', '711', '712'}:
+				surname = ' '.join(submap.get('a', []))
+				given = ' '.join(submap.get('g', []) or submap.get('b', []))
+				dates = ' '.join(submap.get('f', []))
+				name = f'{surname}, {given}'.strip(', ') if given else surname
+				if name and dates:
+					name = f'{name} ({dates})'
 			if not name:
 				continue
-			if dates:
-				name = f'{name} ({dates})'
 			roles = list(dict.fromkeys(submap.get('4', [])))
 			contributor = {
 				'name': name,
@@ -794,6 +893,14 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 			is_author = '070' in roles or (not roles and tag in {'700', '701', '710', '711'})
 			if is_author and name not in result['authors']:
 				result['authors'].append(name)
+
+	personal_variants: list[dict[str, Any]] = []
+	for variant in result['personal_name_variants']:
+		main_tag = PERSONAL_NAME_VARIANT_TAGS[variant['tag']]
+		variant['main_names'] = authority_headings.get((main_tag, variant['authority_id']), [])
+		if variant not in personal_variants:
+			personal_variants.append(variant)
+	result['personal_name_variants'] = personal_variants
 
 	for link in result['related_records']:
 		if link['tag'] == '461' and not link['title'] and link['record_id']:
@@ -945,6 +1052,22 @@ def format_contributor(contributor: dict[str, Any]) -> str:
 	return entry
 
 
+def format_personal_name_variant(variant: dict[str, Any]) -> str:
+	"""Attribute each local name and escape its text while retaining reference codes."""
+	main = '; '.join(variant['main_names']) or 'основное имя не установлено'
+	entry = f"MARC {variant['tag']}; {main}"
+	if variant['authority_id']:
+		entry += f"; ID: {variant['authority_id']}"
+	label = PERSONAL_NAME_REFERENCE_LABELS.get(variant['type'], 'Имя из каталога')
+	type_label = '$9=' + variant['type'] if variant['type'] else 'тип не указан'
+	entry += f" — {label} ({type_label}): {variant['name']}"
+	if variant['context']:
+		entry += f"; относится к связанной записи: {variant['context']}"
+	for code in variant['codes']:
+		entry += f'; подполе $5={code}'
+	return escape_catalog_link_text(entry).replace("'", '&#39;')
+
+
 def escape_catalog_link_text(value: str) -> str:
 	"""Render catalog labels literally so brackets or markup cannot alter a record link."""
 	return value.translate(str.maketrans({
@@ -1023,6 +1146,11 @@ def build_commons_description(
 				"''Сведения о прежних владельцах приведены по каталогу НББ; "
 				"их связь с отсканированным экземпляром не установлена.''"
 			)
+	if marc_meta.get('personal_name_variants'):
+		metadata_lines.append(format_metadata_field(
+			'Имена и варианты по каталогу НББ (MARC 900/990–992)',
+			[format_personal_name_variant(variant) for variant in marc_meta['personal_name_variants']],
+		))
 	if part_label:
 		metadata_lines.append(format_metadata_field('Часть / Выпуск / Part', [part_label]))
 	related_entries = format_related_records(record_meta, marc_meta, marc_id)

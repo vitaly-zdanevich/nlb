@@ -1,0 +1,139 @@
+<!-- Personal-name fields extracted from https://elib.nlb.by/elib/Record/BY-NLB-br0000060196/Export?style=MARCXML -->
+<collection xmlns="http://www.loc.gov/MARC21/slim">
+	<record>
+		<controlfield tag="001">BY-NLB-br0000060196</controlfield>
+		<datafield tag="200" ind1="1" ind2=" ">
+			<subfield code="a">Руководство к изучению санскрита</subfield>
+			<subfield code="e">(грамматика, тексты и словарь)</subfield>
+			<subfield code="f">составленное В. Ф. Миллером и Ф. И. Кнауэром</subfield>
+			<subfield code="g">издание Императорских университетов Московского и Киевского Св. Владимира</subfield>
+		</datafield>
+		<datafield tag="700" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar132295</subfield>
+			<subfield code="a">Миллер</subfield>
+			<subfield code="b">В. Ф.</subfield>
+			<subfield code="g">Всеволод Федорович</subfield>
+			<subfield code="c">фольклорист</subfield>
+			<subfield code="c">языковед</subfield>
+			<subfield code="f">1848—1913</subfield>
+			<subfield code="4">070</subfield>
+		</datafield>
+		<datafield tag="701" ind1=" " ind2="1">
+			<subfield code="a">Кнауэр</subfield>
+			<subfield code="b">Ф. И.</subfield>
+			<subfield code="4">070</subfield>
+		</datafield>
+		<datafield tag="702" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar98340</subfield>
+			<subfield code="a">Карский</subfield>
+			<subfield code="b">Е. Ф.</subfield>
+			<subfield code="g">Евфимий Федорович</subfield>
+			<subfield code="c">славист</subfield>
+			<subfield code="f">1861—1931</subfield>
+			<subfield code="4">390</subfield>
+		</datafield>
+		<datafield tag="702" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar2248524</subfield>
+			<subfield code="a">Янчук</subfield>
+			<subfield code="b">Н. А.</subfield>
+			<subfield code="g">Николай Андреевич</subfield>
+			<subfield code="c">славист</subfield>
+			<subfield code="f">1859—1921</subfield>
+			<subfield code="4">390</subfield>
+		</datafield>
+		<datafield tag="992" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar98340</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Карський</subfield>
+			<subfield code="b">Ю. Ф.</subfield>
+			<subfield code="g">Юхим Федорович</subfield>
+			<subfield code="f">1861—1931</subfield>
+			<subfield code="4">390</subfield>
+		</datafield>
+		<datafield tag="992" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar98340</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Карский</subfield>
+			<subfield code="b">Е. Ф.</subfield>
+			<subfield code="g">Ефим Федорович</subfield>
+			<subfield code="c">1861—1931</subfield>
+			<subfield code="4">390</subfield>
+		</datafield>
+		<datafield tag="992" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar98340</subfield>
+			<subfield code="9">500</subfield>
+			<subfield code="5">w</subfield>
+			<subfield code="a">Карскі</subfield>
+			<subfield code="b">Я. Ф.</subfield>
+			<subfield code="g">Яўхім Фёдаравіч</subfield>
+			<subfield code="c">славіст</subfield>
+			<subfield code="f">1861—1931</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Карський</subfield>
+			<subfield code="b">Ю. Ф.</subfield>
+			<subfield code="g">Юхим Федорович</subfield>
+			<subfield code="c">славіст</subfield>
+			<subfield code="f">1861—1931</subfield>
+			<subfield code="4">390</subfield>
+		</datafield>
+		<datafield tag="992" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar2248524</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Н. Я.</subfield>
+			<subfield code="f">1859—1921</subfield>
+			<subfield code="4">390</subfield>
+		</datafield>
+		<datafield tag="992" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar2248524</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Я.</subfield>
+			<subfield code="f">1859—1921</subfield>
+			<subfield code="4">390</subfield>
+		</datafield>
+		<datafield tag="992" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar2248524</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Я. Н.</subfield>
+			<subfield code="f">1859—1921</subfield>
+			<subfield code="4">390</subfield>
+		</datafield>
+		<datafield tag="992" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar2248524</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Корницкий</subfield>
+			<subfield code="b">Н.</subfield>
+			<subfield code="f">1859—1921</subfield>
+			<subfield code="4">390</subfield>
+		</datafield>
+		<datafield tag="992" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar2248524</subfield>
+			<subfield code="9">500</subfield>
+			<subfield code="5">w</subfield>
+			<subfield code="a">Янчук</subfield>
+			<subfield code="b">М. А.</subfield>
+			<subfield code="g">Мікалай Андрэевіч</subfield>
+			<subfield code="c">славіст</subfield>
+			<subfield code="f">1859—1921</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Janczuk</subfield>
+			<subfield code="b">M.</subfield>
+			<subfield code="g">Mikolaj</subfield>
+			<subfield code="f">1859—1921</subfield>
+			<subfield code="a">Bіalorusіn</subfield>
+			<subfield code="f">1859—1921</subfield>
+			<subfield code="a">Bіałorusіn</subfield>
+			<subfield code="f">1859—1921</subfield>
+			<subfield code="a">R.</subfield>
+			<subfield code="f">1859—1921</subfield>
+			<subfield code="a">Ânčuk </subfield>
+			<subfield code="b">M.</subfield>
+			<subfield code="g">Mikalaj</subfield>
+			<subfield code="f">1859—1921</subfield>
+			<subfield code="a">Ânčuk </subfield>
+			<subfield code="b">M. A.</subfield>
+			<subfield code="g">Mikola Andrìjovič</subfield>
+			<subfield code="f">1859—1921</subfield>
+			<subfield code="4">390</subfield>
+		</datafield>
+	</record>
+</collection>

@@ -1,0 +1,91 @@
+<!-- Personal-name fields extracted from https://elib.nlb.by/elib/Record/BY-NLB-br0000116057/Export?style=MARCXML -->
+<collection xmlns="http://www.loc.gov/MARC21/slim">
+	<record>
+		<controlfield tag="001">BY-NLB-br0000116057</controlfield>
+		<datafield tag="200" ind1="1" ind2=" ">
+			<subfield code="a">Памяти графа Михаила Николаевича Муравьева</subfield>
+			<subfield code="e">к истории Виленского учебного округа за 1863-1868 гг.</subfield>
+			<subfield code="f">И. П. Корнилов</subfield>
+		</datafield>
+		<datafield tag="600" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar114107</subfield>
+			<subfield code="a">Муравьев</subfield>
+			<subfield code="b">М. Н.</subfield>
+			<subfield code="g">Михаил Николаевич</subfield>
+			<subfield code="c">государственный деятель</subfield>
+			<subfield code="f">1796—1866</subfield>
+			<subfield code="2">BY-auth</subfield>
+		</datafield>
+		<datafield tag="700" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar117144</subfield>
+			<subfield code="a">Корнилов</subfield>
+			<subfield code="b">И. П.</subfield>
+			<subfield code="g">Иван Петрович</subfield>
+			<subfield code="c">просветитель</subfield>
+			<subfield code="f">1811—1901</subfield>
+			<subfield code="4">070</subfield>
+		</datafield>
+		<datafield tag="702" ind1=" " ind2="1">
+			<subfield code="a">Brensztejn</subfield>
+			<subfield code="b">M.</subfield>
+			<subfield code="g">Michaelis</subfield>
+			<subfield code="4">390</subfield>
+		</datafield>
+		<datafield tag="900" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar114107</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Муравьев-Виленский</subfield>
+			<subfield code="b">М. Н.</subfield>
+			<subfield code="g">Михаил Николаевич</subfield>
+			<subfield code="f">1796—1866</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="900" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar114107</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Муравьёв</subfield>
+			<subfield code="b">М. Н.</subfield>
+			<subfield code="g">Михаил Николаевич</subfield>
+			<subfield code="f">1796—1866</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="900" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar114107</subfield>
+			<subfield code="9">520</subfield>
+			<subfield code="a">Муравьевы (род)</subfield>
+			<subfield code="9">420</subfield>
+			<subfield code="a">Муравьевы-Амурские (род)</subfield>
+			<subfield code="a">Муравьевы-Апостолы (род)</subfield>
+			<subfield code="a">Муравьевы-Апостолы-Коробьины (род)</subfield>
+			<subfield code="a">Муравьёвы (род)</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="900" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar114107</subfield>
+			<subfield code="9">500</subfield>
+			<subfield code="5">w</subfield>
+			<subfield code="a">Мураўёў</subfield>
+			<subfield code="b">М. М.</subfield>
+			<subfield code="g">Міхаіл Мікалаевіч</subfield>
+			<subfield code="c">дзяржаўны дзеяч</subfield>
+			<subfield code="f">1796—1866</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Мураўёў-Віленскі</subfield>
+			<subfield code="b">М. М.</subfield>
+			<subfield code="g">Міхаіл Мікалаевіч</subfield>
+			<subfield code="f">1796—1866</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="990" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar117144</subfield>
+			<subfield code="9">500</subfield>
+			<subfield code="5">w</subfield>
+			<subfield code="a">Карнілаў</subfield>
+			<subfield code="b">І. П.</subfield>
+			<subfield code="g">Іван Пятровіч</subfield>
+			<subfield code="c">асветнік</subfield>
+			<subfield code="f">1811—1901</subfield>
+			<subfield code="4">070</subfield>
+		</datafield>
+	</record>
+</collection>

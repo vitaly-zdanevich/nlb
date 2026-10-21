@@ -1,0 +1,105 @@
+<!-- Personal-name fields extracted from https://elib.nlb.by/elib/Record/BY-NLB-br0000118156/Export?style=MARCXML -->
+<collection xmlns="http://www.loc.gov/MARC21/slim">
+	<record>
+		<controlfield tag="001">BY-NLB-br0000118156</controlfield>
+		<datafield tag="200" ind1="1" ind2=" ">
+			<subfield code="a">Мир с Б[о]гом ч[е]л[о]веку, или Покаяние с[вя]тое, примиряющее Б[о]гови ч[е]л[о]века</subfield>
+			<subfield code="e">учением о[т] Писания С[вя]т[а]го и о[т] Уч[и]т[е]лей Ц[е]рковных, собранным</subfield>
+			<subfield code="f">Бл[а]г[осло]вением и Испра[в]лением Прече[ст]на[го] о Х[рист]е О[т]ца Иннокентиа Гизиеля м[и]л[ос]тию Б[о]жиею архимандриты Тояжде С[вя]тыя Лавры. Ставропигии С[вя]тейша[го] Вселе[нскаго] Патриа[р]хи Ко[н]ста[н]тинопо[л]скаго</subfield>
+			<subfield code="g">[граверы: П., Илия]</subfield>
+		</datafield>
+		<datafield tag="700" ind1=" " ind2="0">
+			<subfield code="3">BY-NLB-ar2753468</subfield>
+			<subfield code="a">Иннокентий</subfield>
+			<subfield code="c">Гизель</subfield>
+			<subfield code="c">архимандрит Киево-Печерской лавры</subfield>
+			<subfield code="f">1600—1683</subfield>
+			<subfield code="4">070</subfield>
+			<subfield code="4">450</subfield>
+		</datafield>
+		<datafield tag="702" ind1=" " ind2="1">
+			<subfield code="a">Рыбченка</subfield>
+			<subfield code="b">М.</subfield>
+			<subfield code="g">Максим</subfield>
+			<subfield code="4">390</subfield>
+		</datafield>
+		<datafield tag="702" ind1=" " ind2="0">
+			<subfield code="a">Илия</subfield>
+			<subfield code="4">760</subfield>
+		</datafield>
+		<datafield tag="990" ind1=" " ind2="0">
+			<subfield code="3">BY-NLB-ar2753468</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Гизель</subfield>
+			<subfield code="f">1600—1683</subfield>
+			<subfield code="4">070</subfield>
+			<subfield code="4">450</subfield>
+		</datafield>
+		<datafield tag="990" ind1=" " ind2="0">
+			<subfield code="3">BY-NLB-ar2753468</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Гизиел</subfield>
+			<subfield code="f">1600—1683</subfield>
+			<subfield code="4">070</subfield>
+			<subfield code="4">450</subfield>
+		</datafield>
+		<datafield tag="990" ind1=" " ind2="0">
+			<subfield code="3">BY-NLB-ar2753468</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Кгизель</subfield>
+			<subfield code="f">1600—1683</subfield>
+			<subfield code="4">070</subfield>
+			<subfield code="4">450</subfield>
+		</datafield>
+		<datafield tag="990" ind1=" " ind2="0">
+			<subfield code="3">BY-NLB-ar2753468</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Гизель</subfield>
+			<subfield code="b">И.</subfield>
+			<subfield code="g">Иннокентий</subfield>
+			<subfield code="f">1600—1683</subfield>
+			<subfield code="4">070</subfield>
+			<subfield code="4">450</subfield>
+		</datafield>
+		<datafield tag="990" ind1=" " ind2="0">
+			<subfield code="3">BY-NLB-ar2753468</subfield>
+			<subfield code="9">500</subfield>
+			<subfield code="5">w</subfield>
+			<subfield code="a">Інакенцій</subfield>
+			<subfield code="c">Гізель</subfield>
+			<subfield code="c">архімандрыт Кіева-Пячэрскай лаўры</subfield>
+			<subfield code="f">каля 1600—1683</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Інакенцій</subfield>
+			<subfield code="c">Гізель</subfield>
+			<subfield code="c">архіепіскап</subfield>
+			<subfield code="f">каля 1600—1683</subfield>
+			<subfield code="a">Гізель</subfield>
+			<subfield code="f">1600—1683</subfield>
+			<subfield code="a">Гізель</subfield>
+			<subfield code="b">І.</subfield>
+			<subfield code="g">Інакенцій</subfield>
+			<subfield code="f">1600—1683</subfield>
+			<subfield code="4">070</subfield>
+			<subfield code="4">450</subfield>
+		</datafield>
+		<datafield tag="990" ind1=" " ind2="0">
+			<subfield code="3">BY-NLB-ar2753468</subfield>
+			<subfield code="9">500</subfield>
+			<subfield code="5">w</subfield>
+			<subfield code="a">Інокентій</subfield>
+			<subfield code="c">Гізель</subfield>
+			<subfield code="c">архімандрыт Кіева-Пячэрскай лаўры</subfield>
+			<subfield code="f">каля 1600—1683</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Гізель</subfield>
+			<subfield code="f">1600—1683</subfield>
+			<subfield code="a">Гізель</subfield>
+			<subfield code="b">І.</subfield>
+			<subfield code="g">Інокентій</subfield>
+			<subfield code="f">1600—1683</subfield>
+			<subfield code="4">070</subfield>
+			<subfield code="4">450</subfield>
+		</datafield>
+	</record>
+</collection>

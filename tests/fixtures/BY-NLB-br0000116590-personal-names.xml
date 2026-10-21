@@ -1,0 +1,159 @@
+<!-- Personal-name fields extracted from https://elib.nlb.by/elib/Record/BY-NLB-br0000116590/Export?style=MARCXML -->
+<collection xmlns="http://www.loc.gov/MARC21/slim">
+	<record>
+		<controlfield tag="001">BY-NLB-br0000116590</controlfield>
+		<datafield tag="200" ind1="1" ind2=" ">
+			<subfield code="a">Ciekawyś? Przeczytaj!</subfield>
+			<subfield code="e">trzy powiastki i wierszyk ulotny</subfield>
+			<subfield code="f">przez Wincentego Dunin Marcinkiewicza</subfield>
+		</datafield>
+		<datafield tag="700" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar97500</subfield>
+			<subfield code="a">Дунін-Марцінкевіч</subfield>
+			<subfield code="b">В.</subfield>
+			<subfield code="g">Вінцэнт</subfield>
+			<subfield code="c">пісьменнік</subfield>
+			<subfield code="f">1808—1884</subfield>
+			<subfield code="4">070</subfield>
+		</datafield>
+		<datafield tag="702" ind1=" " ind2="1">
+			<subfield code="a">Turkowski</subfield>
+			<subfield code="b">T.</subfield>
+			<subfield code="g">Tadeusz</subfield>
+			<subfield code="4">390</subfield>
+			<subfield code="5">BY-HM0000:096/18695</subfield>
+		</datafield>
+		<datafield tag="990" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar97500</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Dunin-Marcinkiewicz</subfield>
+			<subfield code="b">W.</subfield>
+			<subfield code="g">Wincuk</subfield>
+			<subfield code="f">1807—1884</subfield>
+			<subfield code="4">070</subfield>
+		</datafield>
+		<datafield tag="990" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar97500</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Войт Навум</subfield>
+			<subfield code="f">1808—1884</subfield>
+			<subfield code="4">070</subfield>
+		</datafield>
+		<datafield tag="990" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar97500</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Навум Прыгаворка</subfield>
+			<subfield code="f">1808—1884</subfield>
+			<subfield code="4">070</subfield>
+		</datafield>
+		<datafield tag="990" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar97500</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Прыгаворка</subfield>
+			<subfield code="b">Н.</subfield>
+			<subfield code="g">Навум</subfield>
+			<subfield code="f">1808—1884</subfield>
+			<subfield code="4">070</subfield>
+		</datafield>
+		<datafield tag="990" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar97500</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Дунін-Марцынкевіч</subfield>
+			<subfield code="b">В. І.</subfield>
+			<subfield code="g">Вікенцій Іванавіч</subfield>
+			<subfield code="f">1808—1884</subfield>
+			<subfield code="4">070</subfield>
+		</datafield>
+		<datafield tag="990" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar97500</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Дунін-Марцінкевіч</subfield>
+			<subfield code="b">В.</subfield>
+			<subfield code="g">Вінцук</subfield>
+			<subfield code="f">1808—1884</subfield>
+			<subfield code="4">070</subfield>
+		</datafield>
+		<datafield tag="990" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar97500</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Дунін-Марцінкевіч</subfield>
+			<subfield code="b">В. І.</subfield>
+			<subfield code="g">Вікенцій Іванавіч</subfield>
+			<subfield code="f">1808—1884</subfield>
+			<subfield code="4">070</subfield>
+		</datafield>
+		<datafield tag="990" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar97500</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Дунін-Марцінкевіч</subfield>
+			<subfield code="b">В. Я.</subfield>
+			<subfield code="g">Вінцэнт Якуб</subfield>
+			<subfield code="f">1808—1884</subfield>
+			<subfield code="4">070</subfield>
+		</datafield>
+		<datafield tag="990" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar97500</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Dunin Marcynkiewicz</subfield>
+			<subfield code="b">W.</subfield>
+			<subfield code="g">Wincenty</subfield>
+			<subfield code="4">070</subfield>
+		</datafield>
+		<datafield tag="990" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar97500</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Dunin-Marcinkiewicz</subfield>
+			<subfield code="b">W.</subfield>
+			<subfield code="g">Wincenty</subfield>
+			<subfield code="f">1807—1884</subfield>
+			<subfield code="4">070</subfield>
+		</datafield>
+		<datafield tag="990" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar97500</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Marcinkiewicz</subfield>
+			<subfield code="b">W.</subfield>
+			<subfield code="g">Wincuk</subfield>
+			<subfield code="f">1807—1884</subfield>
+			<subfield code="4">070</subfield>
+		</datafield>
+		<datafield tag="990" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar97500</subfield>
+			<subfield code="9">500</subfield>
+			<subfield code="a">Марцінкевічы (род)</subfield>
+			<subfield code="9">420</subfield>
+			<subfield code="a">Марцинкевичи (род)</subfield>
+			<subfield code="4">070</subfield>
+		</datafield>
+		<datafield tag="990" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar97500</subfield>
+			<subfield code="9">500</subfield>
+			<subfield code="5">w</subfield>
+			<subfield code="a">Дунин-Марцинкевич</subfield>
+			<subfield code="b">В.</subfield>
+			<subfield code="g">Винцент</subfield>
+			<subfield code="c">писатель</subfield>
+			<subfield code="f">1807—1884</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Наум Приговорка</subfield>
+			<subfield code="f">1807—1884</subfield>
+			<subfield code="a">Приговорка</subfield>
+			<subfield code="b">Н.</subfield>
+			<subfield code="g">Наум</subfield>
+			<subfield code="f">1807—1884</subfield>
+			<subfield code="a">Дунин-Марцинкевич</subfield>
+			<subfield code="b">В.</subfield>
+			<subfield code="g">Винцук</subfield>
+			<subfield code="f">1807—1884</subfield>
+			<subfield code="a">Дунин-Марцинкевич</subfield>
+			<subfield code="b">В. И.</subfield>
+			<subfield code="g">Викентий Иванович</subfield>
+			<subfield code="f">1807—1884</subfield>
+			<subfield code="a">Дунин-Марцинкевич</subfield>
+			<subfield code="b">В. Я.</subfield>
+			<subfield code="g">Винцент Якуб</subfield>
+			<subfield code="f">1807—1884</subfield>
+			<subfield code="4">070</subfield>
+		</datafield>
+	</record>
+</collection>

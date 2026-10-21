@@ -419,17 +419,17 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 		"""Keep former owners and issuing bodies separate, preserving a translator's two roles."""
 		cases = {
 			'BY-NLB-br0000060196': {
-				'authors': ['Миллер, Всеволод Федорович (1848—1913)', 'Кнауэр, Ф. И.'],
+				'authors': ['Миллер, В. Ф. (Всеволод Федорович), фольклорист, языковед (1848—1913)', 'Кнауэр, Ф. И.'],
 				'roles': [['070'], ['070'], ['390'], ['390'], ['475'], ['475']],
 				'labels': ['Автор (070)', 'Предыдущий владелец (390)', 'Выпускающая организация (475)'],
 			},
 			'BY-NLB-br0000058446': {
 				'authors': [],
 				'roles': [['390']],
-				'labels': ['Сапунов, Алексей Парфенович (1851—1924) — Предыдущий владелец (390)'],
+				'labels': ['Сапунов, А. П. (Алексей Парфенович), историк (1851—1924) — Предыдущий владелец (390)'],
 			},
 			'BY-NLB-br0000060109': {
-				'authors': ['Гоголь, Микола Васильович (1809—1852)'],
+				'authors': ['Гоголь, М. В. (Микола Васильович), пісьменнік (1809—1852)'],
 				'roles': [[], ['730', '080']],
 				'labels': ['Переводчик (730)', 'Автор вступления, примечаний и т. п. (080)'],
 			},
@@ -2269,8 +2269,8 @@ class TestEndToEndPipeline(unittest.TestCase):
 			)
 		self.assertEqual(counts['uploaded'], 1)
 		wikitext = uploader.uploads[0]['wikitext']
-		self.assertIn('|author=Миллер, Всеволод Федорович (1848—1913)<br>Кнауэр, Ф. И.\n', wikitext)
-		self.assertIn('Карский, Евфимий Федорович (1861—1931) — Предыдущий владелец (390)', wikitext)
+		self.assertIn('|author=Миллер, В. Ф. (Всеволод Федорович), фольклорист, языковед (1848—1913)<br>Кнауэр, Ф. И.\n', wikitext)
+		self.assertIn('Карский, Е. Ф. (Евфимий Федорович), славист (1861—1931) — Предыдущий владелец (390)', wikitext)
 		self.assertIn('Императорский университет святого Владимира — Выпускающая организация (475)', wikitext)
 
 	def test_deferred_downloads_continue_across_pages_and_retry_on_restart(self) -> None:

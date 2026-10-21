@@ -1,0 +1,138 @@
+<!-- Personal-name fields extracted from https://elib.nlb.by/elib/Record/BY-NLB-br0000060109/Export?style=MARCXML -->
+<collection xmlns="http://www.loc.gov/MARC21/slim">
+	<record>
+		<controlfield tag="001">BY-NLB-br0000060109</controlfield>
+		<datafield tag="200" ind1="1" ind2=" ">
+			<subfield code="a">Переклады з Н. Гоголя</subfield>
+			<subfield code="e">(два розмаитых зразкы)</subfield>
+			<subfield code="f">Олены Пчилкы</subfield>
+		</datafield>
+		<datafield tag="700" ind1=" " ind2="1">
+			<subfield code="3">BY-SEK-ar4636604</subfield>
+			<subfield code="a">Гоголь</subfield>
+			<subfield code="b">М. В.</subfield>
+			<subfield code="g">Микола Васильович</subfield>
+			<subfield code="c">пісьменнік</subfield>
+			<subfield code="f">1809—1852</subfield>
+		</datafield>
+		<datafield tag="701" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar2273191</subfield>
+			<subfield code="a">Пчилка</subfield>
+			<subfield code="b">О.</subfield>
+			<subfield code="g">Олена</subfield>
+			<subfield code="c">писательница</subfield>
+			<subfield code="f">1849–1930</subfield>
+			<subfield code="4">730</subfield>
+			<subfield code="4">080</subfield>
+		</datafield>
+		<datafield tag="990" ind1=" " ind2="1">
+			<subfield code="3">BY-SEK-ar4636604</subfield>
+			<subfield code="9">500</subfield>
+			<subfield code="5">w</subfield>
+			<subfield code="a">Гогаль</subfield>
+			<subfield code="b">М. В.</subfield>
+			<subfield code="g">Мікалай Васільевіч</subfield>
+			<subfield code="c">пісьменнік</subfield>
+			<subfield code="f">1809—1852</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Gogol</subfield>
+			<subfield code="b">M.</subfield>
+			<subfield code="g">Mikolaj</subfield>
+			<subfield code="f">1809—1852</subfield>
+			<subfield code="a">Гоголь</subfield>
+			<subfield code="b">М. В.</subfield>
+			<subfield code="g">Микола Васильович</subfield>
+			<subfield code="f">1809—1852</subfield>
+			<subfield code="a">Gogolis</subfield>
+			<subfield code="b">N. V.</subfield>
+			<subfield code="g">Nikolajus Vasiljevičius</subfield>
+			<subfield code="f">1809—1852</subfield>
+		</datafield>
+		<datafield tag="990" ind1=" " ind2="1">
+			<subfield code="3">BY-SEK-ar4636604</subfield>
+			<subfield code="9">500</subfield>
+			<subfield code="5">w</subfield>
+			<subfield code="a">Гоголь</subfield>
+			<subfield code="b">Н. В.</subfield>
+			<subfield code="g">Николай Васильевич</subfield>
+			<subfield code="c">писатель</subfield>
+			<subfield code="f">1809—1852</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Gogol</subfield>
+			<subfield code="b">M.</subfield>
+			<subfield code="g">Mikolaj</subfield>
+			<subfield code="f">1809—1852</subfield>
+			<subfield code="a">Алов</subfield>
+			<subfield code="b">В.</subfield>
+			<subfield code="f">1809—1852</subfield>
+		</datafield>
+		<datafield tag="991" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar2273191</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Косач-Драгоманова</subfield>
+			<subfield code="b">О. П.</subfield>
+			<subfield code="g">Ольга Петровна</subfield>
+			<subfield code="c">писательница</subfield>
+			<subfield code="f">1849—1930</subfield>
+			<subfield code="4">730</subfield>
+			<subfield code="4">080</subfield>
+		</datafield>
+		<datafield tag="991" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar2273191</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Косач</subfield>
+			<subfield code="b">О. П.</subfield>
+			<subfield code="g">Ольга Петровна</subfield>
+			<subfield code="c">писательница</subfield>
+			<subfield code="f">1849—1930</subfield>
+			<subfield code="4">730</subfield>
+			<subfield code="4">080</subfield>
+		</datafield>
+		<datafield tag="991" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar2273191</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Драгоманова</subfield>
+			<subfield code="b">О. П.</subfield>
+			<subfield code="g">Ольга Петровна</subfield>
+			<subfield code="4">730</subfield>
+			<subfield code="4">080</subfield>
+		</datafield>
+		<datafield tag="991" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar2273191</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Косачева</subfield>
+			<subfield code="b">О. П.</subfield>
+			<subfield code="g">Ольга П.</subfield>
+			<subfield code="4">730</subfield>
+			<subfield code="4">080</subfield>
+		</datafield>
+		<datafield tag="991" ind1=" " ind2="1">
+			<subfield code="3">BY-NLB-ar2273191</subfield>
+			<subfield code="9">500</subfield>
+			<subfield code="5">w</subfield>
+			<subfield code="a">Пчілка</subfield>
+			<subfield code="b">О.</subfield>
+			<subfield code="g">Олена</subfield>
+			<subfield code="c">пісьменніца</subfield>
+			<subfield code="f">1849—1930</subfield>
+			<subfield code="9">400</subfield>
+			<subfield code="a">Косач-Драгоманова</subfield>
+			<subfield code="b">О. П.</subfield>
+			<subfield code="g">Ольга Петрівна</subfield>
+			<subfield code="c">пісьменніца</subfield>
+			<subfield code="f">1849—1930</subfield>
+			<subfield code="a">Косач</subfield>
+			<subfield code="b">О. П.</subfield>
+			<subfield code="g">Ольга Петрівна</subfield>
+			<subfield code="c">пісьменніца</subfield>
+			<subfield code="f">1849—1930</subfield>
+			<subfield code="a">Драгоманова</subfield>
+			<subfield code="b">О. П.</subfield>
+			<subfield code="g">Ольга Петрівна</subfield>
+			<subfield code="c">пісьменніца</subfield>
+			<subfield code="f">1849—1930</subfield>
+			<subfield code="4">730</subfield>
+			<subfield code="4">080</subfield>
+		</datafield>
+	</record>
+</collection>
