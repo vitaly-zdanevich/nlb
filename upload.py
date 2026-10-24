@@ -1049,7 +1049,12 @@ def resolve_publication_year(record_meta: dict[str, Any], marc_meta: dict[str, A
 
 
 def sanitize_commons_filename(filename: str) -> str:
-	"""Sanitize a filename so it conforms to Wikimedia Commons naming rules."""
+	"""Sanitize title characters and query-like punctuation rejected by Commons.
+
+	For titles matching ``.*[?&]+[^=]+=[^&]+.*``, replace equals signs with
+	hyphens without increasing the UTF-8 byte length. Other titles keep their
+	ampersands, question marks and equals signs; source metadata is unchanged.
+	"""
 	sanitized = filename.replace('[', '(').replace(']', ')')
 	sanitized = ILLEGAL_COMMONS_TITLE_CHARS_RE.sub('_', sanitized)
 	sanitized = sanitized.replace("'", 'Ꞌ')
@@ -1058,6 +1063,8 @@ def sanitize_commons_filename(filename: str) -> str:
 	sanitized = sanitized.replace(':', ' -')
 	sanitized = re.sub(r'[_\s]+([.,])', r'\1', sanitized)
 	sanitized = re.sub(r'\s+', ' ', sanitized).strip()
+	if re.search(r'[?&]+[^=]+=[^&]+', sanitized):
+		sanitized = sanitized.replace('=', '-')
 	return sanitized
 
 

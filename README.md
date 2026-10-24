@@ -46,6 +46,7 @@
    <Title> (<Year>) -- <marcID> -- <fileID>.pdf
    ```
    Because both the NLB record ID (`marcID`) and file ID (`fileID`) are appended, two distinct NLB records or volumes that share the same book title will not collide on Wikimedia Commons.
+   Filenames matching Commons' query-like title blacklist rule (`.*[?&]+[^=]+=[^&]+.*`) have `=` replaced with `-` before checking title existence or downloading. For example, `Piano & Violon = Ноты` becomes `Piano & Violon - Ноты`. The original title remains in the file description; filenames that do not match this rule retain `&`, `?`, and `=`.
 2. **When the target Commons `File:` title already exists (`existing_title`)**:
    Before downloading the PDF scan, [`process_single_scan`](upload.py) calls `uploader.title_exists(commons_filename)`. If `File:<commons_filename>` already exists on Wikimedia Commons, the script logs `Skipping (title exists on Commons): File:<commons_filename>`, records `"status": "existing_title"` in `state.json`, and skips the item without downloading or overwriting it. If the title is created concurrently right before upload, `CommonsUploader.upload` also catches Pywikibot's `exists` status and skips the item.
 3. **When the same PDF was already uploaded under a different title (`duplicate_sha1`)**:

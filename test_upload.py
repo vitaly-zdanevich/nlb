@@ -951,6 +951,60 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 			'Сборник постановлений по Министерству народного просвещения - (в 17 т.). Алфавитный указатель',
 		)
 
+	def test_filename_sanitization_handles_query_like_title_blacklist(self) -> None:
+		"""Normalize blacklisted punctuation combinations while preserving other titles."""
+		for original, expected in (
+			('Piano & Violon = Ноты.pdf', 'Piano & Violon - Ноты.pdf'),
+			('Pourquoi? Titre = Traduction.pdf', 'Pourquoi? Titre - Traduction.pdf'),
+			('A && B = C = D.pdf', 'A && B - C - D.pdf'),
+			('A & B = C & D = E.pdf', 'A & B - C & D - E.pdf'),
+			('Piano & Violon.pdf', 'Piano & Violon.pdf'),
+			('Titre = Traduction.pdf', 'Titre = Traduction.pdf'),
+			('Pourquoi?.pdf', 'Pourquoi?.pdf'),
+			('Titre = Piano & Violon.pdf', 'Titre = Piano & Violon.pdf'),
+		):
+			with self.subTest(filename=original):
+				filename = upload_nlb.sanitize_commons_filename(original)
+				self.assertEqual(filename, expected)
+				self.assertNotRegex(filename, r'.*[?&]+[^=]+=[^&]+.*')
+				self.assertEqual(upload_nlb.sanitize_commons_filename(filename), filename)
+
+	def test_reported_potpourris_filename_avoids_title_blacklist(self) -> None:
+		"""Keep the rejected scan's title and identifiers with only its separator corrected."""
+		original = (
+			'Potpourris (Ноты) - pour Piano & Violon - № 1―10 par H. Cramer, '
+			'№ 11 et les suivans par G. Wichtl. № 38 - Flotow. Rübezahl - par G. Wichtl '
+			'(5. Balfe «Zigeunerin = Bohemian(1850) -- BY-NLB-br0000354027 -- 6517951.pdf'
+		)
+		self.assertRegex(original, r'.*[?&]+[^=]+=[^&]+.*')
+		self.assertEqual(upload_nlb.sanitize_commons_filename(original), original.replace(' = ', ' - '))
+		filename = upload_nlb.build_commons_filename(
+			record_meta={'title': original.split('(1850)')[0] + ' Girl») ' + 'Ноты ' * 20},
+			marc_meta={'year': '1850'},
+			marc_id='BY-NLB-br0000354027', file_id='6517951',
+		)
+		self.assertIn('Piano & Violon', filename)
+		self.assertIn('Zigeunerin - Bohemian', filename)
+		self.assertTrue(filename.endswith('(1850) -- BY-NLB-br0000354027 -- 6517951.pdf'))
+		self.assertLessEqual(len(filename.encode('utf-8')), 240)
+		self.assertNotRegex(filename, r'.*[?&]+[^=]+=[^&]+.*')
+
+	def test_filename_blacklist_sanitization_includes_combined_metadata(self) -> None:
+		"""Handle matches across title, subtitle, part label and the appended ID suffix."""
+		for title, subtitle, part_label in (
+			('Piano & Violon', 'Zigeunerin = Bohemian Girl', ''),
+			('Piano & Violon', '', 'Zigeunerin = Bohemian Girl'),
+			('Piano & Violon =', '', ''),
+		):
+			with self.subTest(title=title, subtitle=subtitle, part_label=part_label):
+				filename = upload_nlb.build_commons_filename(
+					record_meta={'title': title}, marc_meta={'subtitle': subtitle},
+					marc_id='BY-NLB-rr111', file_id='1001', part_label=part_label,
+				)
+				self.assertNotRegex(filename, r'.*[?&]+[^=]+=[^&]+.*')
+				self.assertIn('Piano & Violon', filename)
+				self.assertTrue(filename.endswith('-- BY-NLB-rr111 -- 1001.pdf'))
+
 	def test_volume_record_uses_full_original_title_instead_of_volume_number(self) -> None:
 		"""Verify records like BY-NLB-br0000002570 use the full original title instead of bare 'T. 2'."""
 		html = """<!DOCTYPE html>
@@ -2358,6 +2412,30 @@ class TestPywikibotUploadTokens(unittest.TestCase):
 
 class TestEndToEndPipeline(unittest.TestCase):
 	"""Level 3 end-to-end tests covering full iteration, hash deduplication, cleanup, and resume."""
+
+	def test_blacklisted_filename_is_corrected_before_lookup_and_upload(self) -> None:
+		"""Use the corrected filename throughout the pipeline and retain the original metadata."""
+		original_title = 'Potpourris - Piano & Violon = Ноты'
+		expected_filename = 'Potpourris - Piano & Violon - Ноты(1850) -- BY-NLB-rr111 -- 1001.pdf'
+		client = FakeNlbClient()
+		uploader = FakeCommonsUploader()
+		with tempfile.TemporaryDirectory() as tmp_dir, mock.patch.object(
+			client, 'fetch_record_metadata', return_value=({'title': original_title}, {'year': '1850'}),
+		), mock.patch.object(uploader, 'title_exists', return_value=False) as title_exists, mock.patch(
+			'upload.check_commons_by_hash', side_effect=lambda path, **_: (upload_nlb.calculate_sha1(path), []),
+		), mock.patch('sys.stdout', io.StringIO()):
+			root = Path(tmp_dir)
+			counts = upload_nlb.iterate_and_upload(
+				client=client, uploader=uploader,
+				state_path=root / 'state.json', staging_dir=root / 'staging', max_uploads=1,
+			)
+			self.assertEqual(counts['uploaded'], 1)
+			title_exists.assert_called_once_with(expected_filename)
+			self.assertEqual(uploader.uploads[0]['commons_filename'], expected_filename)
+			self.assertIn(original_title, uploader.uploads[0]['wikitext'])
+			state = upload_nlb.load_state(root / 'state.json')
+			self.assertEqual(state['items']['BY-NLB-rr111:1001']['commons_title'], f'File:{expected_filename}')
+			self.assertEqual(list((root / 'staging').iterdir()), [])
 
 	def test_upload_preserves_manufacturing_printer(self) -> None:
 		"""Carry the library's printer through iteration into the submitted Commons description."""
