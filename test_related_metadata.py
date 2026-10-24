@@ -27,6 +27,7 @@ def response(body: str, status: int = 200) -> upload_nlb.requests.Response:
 	result = upload_nlb.requests.Response()
 	result.status_code = status
 	result._content = body.encode('utf-8')
+	result._content_consumed = True
 	result.encoding = 'utf-8'
 	return result
 
@@ -353,7 +354,7 @@ class TestRelatedMetadata(unittest.TestCase):
 					VOLUME_ID: fixture(VOLUME_ID),
 					PARENT_ID: fixture(PARENT_ID),
 				}, parent_result=parent_result)
-				with mock.patch.object(upload_nlb, 'log_progress') as log:
+				with mock.patch.object(upload_nlb, 'log_progress') as log, mock.patch('catalog_requests.time.sleep'):
 					_, metadata = client.fetch_record_metadata(VOLUME_ID)
 				self.assertFalse(metadata.get('inherited_metadata'))
 				self.assertEqual(metadata.get('related_records', [{}])[0].get('record_id'), PARENT_ID)

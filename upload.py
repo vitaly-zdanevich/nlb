@@ -28,6 +28,8 @@ import warnings
 from bs4 import BeautifulSoup, Comment
 import requests
 
+from catalog_requests import CatalogRetriesExhausted, get_catalog_response
+
 
 ELIB_BASE_URL = 'https://elib.nlb.by'
 VIEWER_BASE_URL = 'https://elib.nlb.by:8070'
@@ -1599,6 +1601,15 @@ class NlbClient:
 			self.session.cookies.update(load_viewer_cookies(viewer_cookies))
 			self._viewer_session_initialized = True
 
+	def _get_catalog(self, url: str, *, optional: bool = False, **kwargs: Any) -> requests.Response:
+		"""Retry catalog GETs independently; only optional missing resources allow HTTP 404."""
+		try:
+			return get_catalog_response(self.session, url, timeout=self.timeout, log=log_progress, **kwargs)
+		except requests.HTTPError as error:
+			if optional and error.response is not None and error.response.status_code == 404:
+				return error.response
+			raise
+
 	def fetch_search_page(
 		self,
 		page: int,
@@ -1628,34 +1639,29 @@ class NlbClient:
 			to_year=to_year,
 			search_url=search_url,
 		)
-		response = self.session.get(url, timeout=self.timeout)
-		response.raise_for_status()
+		response = self._get_catalog(url)
 		return parse_search_results_html(response.text)
 
 	def fetch_record_metadata(self, marc_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
 		"""Fetch both the HTML record table and MARCXML export for a given marc_id."""
 		record_url = f'{ELIB_BASE_URL}/elib/Record/{marc_id}'
-		record_resp = self.session.get(record_url, timeout=self.timeout)
-		record_resp.raise_for_status()
+		record_resp = self._get_catalog(record_url)
 		record_meta = parse_record_html(record_resp.text, marc_id)
 
 		marcxml_url = f'{ELIB_BASE_URL}/elib/Record/{marc_id}/Export?style=MARCXML'
-		marc_resp = self.session.get(marcxml_url, timeout=self.timeout)
+		marc_resp = self._get_catalog(marcxml_url, optional=True)
 		marc_meta = parse_marcxml(marc_resp.text) if marc_resp.status_code == 200 else parse_marcxml('')
 		if not marc_meta.get('contents'):
 			toc_url = f'{ELIB_BASE_URL}/elib/Record/{marc_id}/TOC'
-			try:
-				toc_resp = self.session.get(toc_url, timeout=self.timeout)
-				if toc_resp.status_code == 200:
-					toc_soup = BeautifulSoup(toc_resp.text, 'html.parser')
-					for li in toc_soup.select('.tab-pane.toc-tab li, ul.toc li'):
-						txt = re.sub(r'\s+', ' ', li.get_text(' ', strip=True)).strip()
-						if txt:
-							for entry in extract_contents_entries(txt):
-								if entry not in record_meta.setdefault('contents', []):
-									record_meta['contents'].append(entry)
-			except Exception:
-				pass
+			toc_resp = self._get_catalog(toc_url, optional=True)
+			if toc_resp.status_code == 200:
+				toc_soup = BeautifulSoup(toc_resp.text, 'html.parser')
+				for li in toc_soup.select('.tab-pane.toc-tab li, ul.toc li'):
+					txt = re.sub(r'\s+', ' ', li.get_text(' ', strip=True)).strip()
+					if txt:
+						for entry in extract_contents_entries(txt):
+							if entry not in record_meta.setdefault('contents', []):
+								record_meta['contents'].append(entry)
 		self.inherit_parent_imprint(marc_id, marc_meta)
 		return record_meta, marc_meta
 
@@ -1680,14 +1686,13 @@ class NlbClient:
 			if parent_id not in self._parent_metadata_cache:
 				url = f'{ELIB_BASE_URL}/elib/Record/{parent_id}/Export?style=MARCXML'
 				log_progress(f'[{marc_id}] Fetching parent metadata: {url}')
-				response = self.session.get(url, timeout=self.timeout)
-				response.raise_for_status()
+				response = self._get_catalog(url)
 				parent_meta = parse_marcxml(response.text)
 				if parent_meta['control_number'] != parent_id:
 					raise ValueError('parent MARCXML is missing or has a different record identifier')
 				self._parent_metadata_cache[parent_id] = parent_meta
 			parent_meta = self._parent_metadata_cache[parent_id]
-		except (requests.RequestException, ValueError) as error:
+		except (requests.RequestException, CatalogRetriesExhausted, ValueError) as error:
 			log_progress(f'[{marc_id}] Parent metadata unavailable for {parent_id}: {error}')
 			return
 		marc_meta['inherited_metadata'] = [
@@ -1724,24 +1729,20 @@ class NlbClient:
 	def fetch_mets_files(self, mets_id: str) -> list[dict[str, str]]:
 		"""Fetch the METS structure for a multi-part record and return its file entries."""
 		self.ensure_viewer_session()
-		resp = self.session.get(
+		resp = self._get_catalog(
 			f'{VIEWER_BASE_URL}/mets//structure/state?id={mets_id}',
 			headers={'Authorization': VIEWER_BASIC_AUTH},
-			timeout=self.timeout,
 		)
-		resp.raise_for_status()
 		return extract_files_from_mets_structure(resp.json())
 
 	def check_doc_access(self, marc_id: str) -> dict[str, Any]:
 		"""Query /iiif/access to determine whether a record is open-access."""
 		self.ensure_viewer_session()
-		resp = self.session.get(
+		resp = self._get_catalog(
 			f'{VIEWER_BASE_URL}/iiif/access',
 			params={'marcID': marc_id},
 			headers={'Authorization': VIEWER_BASIC_AUTH},
-			timeout=self.timeout,
 		)
-		resp.raise_for_status()
 		return resp.json()
 
 	def resolve_record_files(
@@ -2348,6 +2349,8 @@ def iterate_and_upload(
 		'download_rejected': 0,
 		'download_failed': 0,
 		'upload_failed': 0,
+		'metadata_failed': 0,
+		'search_failed': 0,
 		'duplicate_sha1': 0,
 		'existing_title': 0,
 		'restricted': 0,
@@ -2357,6 +2360,11 @@ def iterate_and_upload(
 	uploaded_bytes = 0
 	shutdown_requested = False
 	start_time = time.monotonic()
+
+	def clear_record_failure(marc_id: str) -> None:
+		"""Remove resolved catalog diagnostics while keeping dry runs nonterminal."""
+		if not dry_run and state.get('record_failures', {}).pop(marc_id, None) is not None:
+			save_state(state_path, state)
 
 	def _handle_sigint(signum: int, frame: Any) -> None:
 		"""Request a graceful stop once; a second interrupt aborts a stalled operation."""
@@ -2377,12 +2385,19 @@ def iterate_and_upload(
 				search_url=search_url,
 			)
 			log_progress(f'[page {page}] Fetching search results: {page_url}')
-			search_page = client.fetch_search_page(
-				page=page,
-				from_year=from_year,
-				to_year=until_year,
-				search_url=search_url,
-			)
+			state['current_page'] = page
+			save_state(state_path, state)
+			try:
+				search_page = client.fetch_search_page(
+					page=page,
+					from_year=from_year,
+					to_year=until_year,
+					search_url=search_url,
+				)
+			except CatalogRetriesExhausted as error:
+				log_progress(f'[page {page}] Deferring search until the next run: {error}')
+				counts['search_failed'] += 1
+				break
 			records = search_page['records']
 			if not records:
 				break
@@ -2401,41 +2416,62 @@ def iterate_and_upload(
 				if direct_files and not direct_mets and all(
 					is_item_completed(state, marc_id, fid) for fid in direct_files
 				):
+					clear_record_failure(marc_id)
 					continue
 
-				log_progress(f'[{marc_id}] Checking access: {record_url}')
-				access = client.check_doc_access(marc_id)
-				if not access.get('publicAccess'):
-					log_progress(f'[{marc_id}] Skipping (restricted access): {record_url}')
-					for fid in direct_files or ['0']:
-						key = item_state_key(marc_id, fid)
-						state['items'][key] = {
-							'status': 'restricted',
-							'marc_id': marc_id,
-							'file_id': fid,
-							'updated_at': datetime.now(timezone.utc).isoformat(),
-						}
+				state['current_record_id'] = marc_id
+				save_state(state_path, state)
+				try:
+					log_progress(f'[{marc_id}] Checking access: {record_url}')
+					access = client.check_doc_access(marc_id)
+					if not access.get('publicAccess'):
+						log_progress(f'[{marc_id}] Skipping (restricted access): {record_url}')
+						for fid in direct_files or ['0']:
+							key = item_state_key(marc_id, fid)
+							state['items'][key] = {
+								'status': 'restricted',
+								'marc_id': marc_id,
+								'file_id': fid,
+								'updated_at': datetime.now(timezone.utc).isoformat(),
+							}
+						save_state(state_path, state)
+						counts['restricted'] += 1
+						clear_record_failure(marc_id)
+						continue
+
+					log_progress(f'[{marc_id}] Fetching metadata: {record_url}')
+					record_meta, marc_meta = client.fetch_record_metadata(marc_id)
+					pub_year = resolve_publication_year(record_meta, marc_meta)
+					if from_year is not None and pub_year is not None and pub_year < from_year:
+						clear_record_failure(marc_id)
+						log_progress(f'[{marc_id}] Skipping (year {pub_year} < {from_year}): {record_url}')
+						continue
+					if until_year is not None and pub_year is not None and pub_year > until_year:
+						clear_record_failure(marc_id)
+						log_progress(f'[{marc_id}] Skipping (year {pub_year} > {until_year}): {record_url}')
+						continue
+
+					mets_ids = [*direct_mets, *record_meta.get('mets_ids', [])]
+					if mets_ids:
+						log_progress(
+							f'[{marc_id}] Resolving multi-part METS files: '
+							f'{VIEWER_BASE_URL}/viewer/html?metsID={mets_ids[0]}&markID={marc_id}'
+						)
+					file_entries = client.resolve_record_files(search_entry, record_meta)
+				except CatalogRetriesExhausted as error:
+					last_response = getattr(error.last_error, 'response', None)
+					state.setdefault('record_failures', {})[marc_id] = {
+						'status': 'metadata_failed', 'attempts': error.attempts,
+						'error_type': type(error.last_error).__name__, 'error': str(error),
+						'http_status': last_response.status_code if last_response is not None else None,
+						'updated_at': datetime.now(timezone.utc).isoformat(),
+					}
+					state['retry_from_page'] = min(page, int(state.get('retry_from_page') or page))
 					save_state(state_path, state)
-					counts['restricted'] += 1
+					counts['metadata_failed'] += 1
+					log_progress(f'[{marc_id}] Deferring record until the next run: {error}')
 					continue
-
-				log_progress(f'[{marc_id}] Fetching metadata: {record_url}')
-				record_meta, marc_meta = client.fetch_record_metadata(marc_id)
-				pub_year = resolve_publication_year(record_meta, marc_meta)
-				if from_year is not None and pub_year is not None and pub_year < from_year:
-					log_progress(f'[{marc_id}] Skipping (year {pub_year} < {from_year}): {record_url}')
-					continue
-				if until_year is not None and pub_year is not None and pub_year > until_year:
-					log_progress(f'[{marc_id}] Skipping (year {pub_year} > {until_year}): {record_url}')
-					continue
-
-				mets_ids = [*direct_mets, *record_meta.get('mets_ids', [])]
-				if mets_ids:
-					log_progress(
-						f'[{marc_id}] Resolving multi-part METS files: '
-						f'{VIEWER_BASE_URL}/viewer/html?metsID={mets_ids[0]}&markID={marc_id}'
-					)
-				file_entries = client.resolve_record_files(search_entry, record_meta)
+				clear_record_failure(marc_id)
 				for file_entry in file_entries:
 					file_id = file_entry['file_id']
 					if is_item_completed(state, marc_id, file_id):
