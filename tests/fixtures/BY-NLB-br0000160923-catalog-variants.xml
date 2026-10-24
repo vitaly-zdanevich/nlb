@@ -1,0 +1,29 @@
+<!-- Extracted from https://elib.nlb.by/elib/Record/BY-NLB-br0000160923/Export?style=MARCXML -->
+<collection xmlns="http://www.loc.gov/MARC21/slim">
+	<record>
+		<controlfield tag="001">BY-NLB-br0000160923</controlfield>
+		<datafield tag="200" ind1="1" ind2=" ">
+			<subfield code="a">Lexykon geograficzny</subfield>
+			<subfield code="e">dla gruntownego  poięcia gazet i historyi</subfield>
+			<subfield code="f">z roznych awtorow zebrany, przetłumaczony i napisany przez x. Hilaryona Karpinskiego, Z. S. Bazylego w prowincyi litewskiey kapłana i teologa</subfield>
+		</datafield>
+		<datafield tag="712" ind1="0" ind2="2">
+			<subfield code="3">BY-NLB-ar2701439</subfield>
+			<subfield code="a">Drukarnia Bazylianόw</subfield>
+			<subfield code="c">Вільня</subfield>
+			<subfield code="4">475</subfield>
+		</datafield>
+		<datafield tag="912" ind1="0" ind2="2">
+			<subfield code="3">BY-NLB-ar2701439</subfield>
+			<subfield code="9">410</subfield>
+			<subfield code="a">Друкарня базыльян</subfield>
+			<subfield code="4">475</subfield>
+		</datafield>
+		<datafield tag="912" ind1="0" ind2="2">
+			<subfield code="3">BY-NLB-ar2701439</subfield>
+			<subfield code="9">410</subfield>
+			<subfield code="a">Типография базилиан</subfield>
+			<subfield code="4">475</subfield>
+		</datafield>
+	</record>
+</collection>

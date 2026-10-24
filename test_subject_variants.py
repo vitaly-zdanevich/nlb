@@ -27,7 +27,7 @@ class TestSubjectVariants(unittest.TestCase):
 		variants = metadata['subject_variants']
 		by_term = {entry['term']: entry for entry in variants}
 		main = 'ПОЛЬСКАЕ ПАЎСТАННЕ 1830—1831'
-		self.assertEqual(by_term['Лістападаўскае паўстанне 1830—1831']['main_subjects'], [main])
+		self.assertEqual(by_term['Лістападаўскае паўстанне 1830—1831']['main_headings'], [main])
 		self.assertEqual(by_term['Лістападаўскае паўстанне 1830—1831']['context'], '')
 		for term in ('Ноябрьское восстание 1830—1831', 'Русско-польская война 1830—1831'):
 			self.assertEqual(by_term[term]['context'], 'ПОЛЬСКОЕ ВОССТАНИЕ 1830—1831')
@@ -50,9 +50,9 @@ class TestSubjectVariants(unittest.TestCase):
 			for fields in (headings + aliases, aliases + headings):
 				with self.subTest(namespace=namespace, aliases_first=fields[0] in aliases):
 					metadata, text = render(*fields, namespace=namespace)
-					self.assertEqual(metadata['subject_variants'][0]['main_subjects'], ['Main'])
-					self.assertEqual(metadata['subject_variants'][1]['main_subjects'], [])
-					self.assertEqual(metadata['subject_variants'][2]['main_subjects'], [])
+					self.assertEqual(metadata['subject_variants'][0]['main_headings'], ['Main'])
+					self.assertEqual(metadata['subject_variants'][1]['main_headings'], [])
+					self.assertEqual(metadata['subject_variants'][2]['main_headings'], [])
 					self.assertIn('777', text)
 					self.assertIn('No ID', text)
 
@@ -65,7 +65,7 @@ class TestSubjectVariants(unittest.TestCase):
 				('9', '450'), ('a', 'Study'), ('x', 'Education'), ('a', 'Learning'), ('2', 'DVNLB')),
 		)
 		entries = metadata['subject_variants']
-		self.assertEqual(entries[0]['main_subjects'], ['History — Handbooks — Poland'])
+		self.assertEqual(entries[0]['main_headings'], ['History — Handbooks — Poland'])
 		self.assertEqual(entries[0]['term'], 'Science — Handbooks — Teaching — Poland — 1800')
 		self.assertEqual(entries[1]['context'], entries[0]['term'])
 		self.assertEqual(entries[1]['term'], 'Study — Education')

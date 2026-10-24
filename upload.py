@@ -91,11 +91,27 @@ PERSONAL_NAME_REFERENCE_LABELS = {
 	'420': 'Вариант родового имени',
 	'520': 'Связанная запись родового имени',
 }
-SUBJECT_REFERENCE_LABELS = {
+CATALOG_VARIANT_TAGS = {
+	'906': ('606', 'subject_variants'),
+	'907': ('607', 'geographic_subject_variants'),
+	'910': ('710', 'organization_variants'),
+	'911': ('711', 'organization_variants'),
+	'912': ('712', 'organization_variants'),
+}
+CATALOG_REFERENCE_LABELS = {
 	'450': 'Вариант предметного термина',
 	'550': 'Связанный предметный термин',
 	'430': 'Вариант заглавия',
 	'530': 'Связанное заглавие',
+	'415': 'Вариант географического названия',
+	'515': 'Связанное географическое название',
+	'410': 'Вариант названия организации',
+	'510': 'Связанная организация',
+}
+CATALOG_VARIANT_SECTIONS = {
+	'subject_variants': 'Предметные термины и варианты по каталогу НББ (MARC 906)',
+	'geographic_subject_variants': 'Географические предметные названия и варианты по каталогу НББ (MARC 907)',
+	'organization_variants': 'Названия организаций и связанные записи по каталогу НББ (MARC 910–912)',
 }
 
 # 461 points to a parent set; 481/482 link physically bound items, not parents.
@@ -573,10 +589,10 @@ def parse_personal_name_variants(tag: str, subfields: list[tuple[str, str]]) -> 
 	return entries
 
 
-def parse_subject_variants(subfields: list[tuple[str, str]]) -> list[dict[str, Any]]:
-	"""Unpack local 906 references, retaining related headings and their own variants.
+def parse_catalog_variants(tag: str, subfields: list[tuple[str, str]]) -> list[dict[str, Any]]:
+	"""Unpack local subject/organization references with related headings and variants.
 
-	$9 and repeated $a delimit headings; $3 identifies the source 606 authority.
+	$9 and repeated $a delimit headings; $3 identifies the corresponding authority.
 	$2 describes the field's vocabulary, while $5 belongs to one heading.
 	Keep other subfields explicitly, including $k on embedded title references.
 	"""
@@ -585,17 +601,18 @@ def parse_subject_variants(subfields: list[tuple[str, str]]) -> list[dict[str, A
 	reference_type, context = '', ''
 	group: list[tuple[str, str]] = []
 	entries: list[dict[str, Any]] = []
+	heading_codes = ('a', 'b', 'g', 'c', 'd', 'e', 'f') if tag in {'910', '911', '912'} else ('a', 'j', 'x', 'y', 'z')
 
 	def finish() -> None:
 		"""Save a heading with its subdivisions and scoped relationship codes."""
 		nonlocal context
 		if any(code == 'a' for code, _ in group):
-			term = ' — '.join(value for key in ('a', 'j', 'x', 'y', 'z') for code, value in group if code == key)
+			term = ' — '.join(value for key in heading_codes for code, value in group if code == key)
 			for code, value in group:
-				if code not in {'a', 'j', 'x', 'y', 'z', '5'}:
+				if code not in (*heading_codes, '5'):
 					term += f'; ${code}={value}'
 			entries.append({
-				'authority_id': authority_id, 'type': reference_type, 'term': term,
+				'tag': tag, 'authority_id': authority_id, 'type': reference_type, 'term': term,
 				'codes': list(dict.fromkeys(value for code, value in group if code == '5')),
 				'schemes': schemes, 'context': context if reference_type.startswith('4') else '',
 			})
@@ -689,6 +706,7 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 		'responsibility': '',
 		'responsibilities': [],
 		'edition': '',
+		'publication_terms': [],
 		'places': [],
 		'publishers': [],
 		'manufacturing_statements': [],
@@ -703,6 +721,8 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 		'contents': [],
 		'subjects': [],
 		'subject_variants': [],
+		'geographic_subject_variants': [],
+		'organization_variants': [],
 		'genres': [],
 		'geo_places': [],
 		'alternate_genres': [],
@@ -766,8 +786,8 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 			result['related_records'].extend(parse_related_marc_field(tag, subfields))
 		if tag in PERSONAL_NAME_VARIANT_TAGS:
 			result['personal_name_variants'].extend(parse_personal_name_variants(tag, subfields))
-		if tag == '906':
-			result['subject_variants'].extend(parse_subject_variants(subfields))
+		if tag in CATALOG_VARIANT_TAGS:
+			result[CATALOG_VARIANT_TAGS[tag][1]].extend(parse_catalog_variants(tag, subfields))
 		personal_name = format_personal_name(submap) if tag in {'600', '700', '701', '702'} else ''
 		if personal_name:
 			for authority_id in submap.get('3', []):
@@ -775,7 +795,12 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 				if personal_name not in headings:
 					headings.append(personal_name)
 
-		if tag == '100':
+		if tag == '010' and (submap.get('b') or submap.get('d')):
+			labels = {'a': 'ISBN', 'b': 'Уточнение / переплет', 'd': 'Условия приобретения / цена', 'z': 'Ошибочный ISBN'}
+			statement = '; '.join(f'{labels.get(code, "$" + code)}: {value}' for code, value in subfields)
+			if statement not in result['publication_terms']:
+				result['publication_terms'].append(statement)
+		elif tag == '100':
 			coded = ' '.join(submap.get('a', []))
 			if len(coded) >= 13:
 				year_candidate = coded[9:13]
@@ -886,7 +911,7 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 				+ submap.get('b', [])
 				+ submap.get('d', [])
 				+ submap.get('f', [])
-				+ (submap.get('j', []) if tag == '606' else [])
+				+ (submap.get('j', []) if tag in {'606', '607'} else [])
 				+ submap.get('x', [])
 				+ submap.get('y', [])
 				+ submap.get('z', [])
@@ -895,7 +920,7 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 				subj = ' — '.join(subj_parts)
 				if subj not in result['subjects']:
 					result['subjects'].append(subj)
-				if tag == '606':
+				if tag in {'606', '607'}:
 					for authority_id in submap.get('3', []):
 						headings = authority_headings.setdefault((tag, authority_id), [])
 						if subj not in headings:
@@ -944,6 +969,11 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 					name = f'{name} ({dates})'
 			if not name:
 				continue
+			if tag in {'710', '711', '712'}:
+				for authority_id in submap.get('3', []):
+					headings = authority_headings.setdefault((tag, authority_id), [])
+					if name not in headings:
+						headings.append(name)
 			roles = list(dict.fromkeys(submap.get('4', [])))
 			contributor = {
 				'name': name,
@@ -965,12 +995,14 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 			personal_variants.append(variant)
 	result['personal_name_variants'] = personal_variants
 
-	subject_variants: list[dict[str, Any]] = []
-	for variant in result['subject_variants']:
-		variant['main_subjects'] = authority_headings.get(('606', variant['authority_id']), [])
-		if variant not in subject_variants:
-			subject_variants.append(variant)
-	result['subject_variants'] = subject_variants
+	for key in CATALOG_VARIANT_SECTIONS:
+		variants: list[dict[str, Any]] = []
+		for variant in result[key]:
+			main_tag = CATALOG_VARIANT_TAGS[variant['tag']][0]
+			variant['main_headings'] = authority_headings.get((main_tag, variant['authority_id']), [])
+			if variant not in variants:
+				variants.append(variant)
+		result[key] = variants
 
 	for link in result['related_records']:
 		if link['tag'] == '461' and not link['title'] and link['record_id']:
@@ -1153,13 +1185,13 @@ def escape_catalog_link_text(value: str) -> str:
 	}))
 
 
-def format_subject_variant(variant: dict[str, Any]) -> str:
+def format_catalog_variant(variant: dict[str, Any]) -> str:
 	"""Render catalog references literally without adding related terms as book subjects."""
-	main = '; '.join(variant['main_subjects']) or 'основной предметный термин не установлен'
-	entry = f'MARC 906; {main}'
+	main = '; '.join(variant['main_headings']) or 'основная запись не установлена'
+	entry = f"MARC {variant['tag']}; {main}"
 	if variant['authority_id']:
 		entry += f"; ID: {variant['authority_id']}"
-	label = SUBJECT_REFERENCE_LABELS.get(variant['type'], 'Термин из каталога')
+	label = CATALOG_REFERENCE_LABELS.get(variant['type'], 'Запись из каталога')
 	type_label = '$9=' + variant['type'] if variant['type'] else 'тип не указан'
 	entry += f" — {label} ({type_label}): {variant['term']}"
 	if variant['context']:
@@ -1287,6 +1319,11 @@ def build_commons_description(
 		metadata_lines.append(format_metadata_field('Изготовление (MARC 210)', marc_meta['manufacturing_statements']))
 	if marc_meta.get('edition'):
 		metadata_lines.append(format_metadata_field('Издание (MARC 205)', [marc_meta['edition']]))
+	if marc_meta.get('publication_terms'):
+		metadata_lines.append(format_metadata_field(
+			'Условия приобретения и переплет издания по каталогу НББ (MARC 010)',
+			[escape_catalog_link_text(value).replace("'", '&#39;') for value in marc_meta['publication_terms']],
+		))
 	phys_list = marc_meta.get('physical_descriptions') or (
 		[marc_meta['physical_description']] if marc_meta.get('physical_description') else []
 	)
@@ -1322,11 +1359,9 @@ def build_commons_description(
 		]
 		if new_subjects:
 			metadata_lines.append(format_metadata_field('Тематика (MARC 6xx)', new_subjects))
-	if marc_meta.get('subject_variants'):
-		metadata_lines.append(format_metadata_field(
-			'Предметные термины и варианты по каталогу НББ (MARC 906)',
-			[format_subject_variant(variant) for variant in marc_meta['subject_variants']],
-		))
+	for key, label in CATALOG_VARIANT_SECTIONS.items():
+		if marc_meta.get(key):
+			metadata_lines.append(format_metadata_field(label, [format_catalog_variant(variant) for variant in marc_meta[key]]))
 	if marc_meta.get('genres'):
 		existing_genres = {
 			val.strip().lower().replace(' - ', ' — ')

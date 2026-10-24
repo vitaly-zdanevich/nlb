@@ -1,0 +1,237 @@
+<!-- Extracted from https://elib.nlb.by/elib/Record/BY-NLB-br0000160345/Export?style=MARCXML -->
+<collection xmlns="http://www.loc.gov/MARC21/slim">
+	<record>
+		<controlfield tag="001">BY-NLB-br0000160345</controlfield>
+		<datafield tag="200" ind1="1" ind2=" ">
+			<subfield code="a">Девятый археологический съезд в Вильне</subfield>
+			<subfield code="f">составил А. П. Смородский</subfield>
+		</datafield>
+		<datafield tag="607" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar5418</subfield>
+			<subfield code="a">Вильнюс, город (Литва)</subfield>
+			<subfield code="2">BY-auth</subfield>
+		</datafield>
+		<datafield tag="607" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar18464</subfield>
+			<subfield code="a">Минская губерния</subfield>
+			<subfield code="2">BY-auth</subfield>
+		</datafield>
+		<datafield tag="607" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar42134</subfield>
+			<subfield code="a">Беларусь</subfield>
+			<subfield code="2">BY-auth</subfield>
+		</datafield>
+		<datafield tag="907" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar5418</subfield>
+			<subfield code="9">415</subfield>
+			<subfield code="a">Vilnius, город</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="907" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar5418</subfield>
+			<subfield code="9">415</subfield>
+			<subfield code="a">Вильна, город</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="907" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar5418</subfield>
+			<subfield code="9">415</subfield>
+			<subfield code="a">Вильно, город</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="907" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar5418</subfield>
+			<subfield code="9">415</subfield>
+			<subfield code="a">Вильня, город</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="907" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar5418</subfield>
+			<subfield code="9">515</subfield>
+			<subfield code="5">w</subfield>
+			<subfield code="a">Вільнюс, горад (Літва)</subfield>
+			<subfield code="9">415</subfield>
+			<subfield code="a">Vilnius, горад</subfield>
+			<subfield code="a">Вільна, горад</subfield>
+			<subfield code="a">Вільня, горад</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="907" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar18464</subfield>
+			<subfield code="9">515</subfield>
+			<subfield code="5">a</subfield>
+			<subfield code="a">Минская область</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="907" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar18464</subfield>
+			<subfield code="9">515</subfield>
+			<subfield code="5">w</subfield>
+			<subfield code="a">Мінская губерня</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="907" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar18464</subfield>
+			<subfield code="9">515</subfield>
+			<subfield code="5">a</subfield>
+			<subfield code="a">Минский округ</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="907" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar18464</subfield>
+			<subfield code="9">515</subfield>
+			<subfield code="5">b</subfield>
+			<subfield code="a">Минское воеводство</subfield>
+			<subfield code="9">415</subfield>
+			<subfield code="a">Менское воеводство</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="907" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar18464</subfield>
+			<subfield code="9">515</subfield>
+			<subfield code="a">Минское наместничество</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="907" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar42134</subfield>
+			<subfield code="9">415</subfield>
+			<subfield code="a">Белоруссия</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="907" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar42134</subfield>
+			<subfield code="9">515</subfield>
+			<subfield code="a">Полоцкое княжество</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="907" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar42134</subfield>
+			<subfield code="9">515</subfield>
+			<subfield code="a">Социалистическая Советская Республика Белоруссии</subfield>
+			<subfield code="9">415</subfield>
+			<subfield code="a">ССРБ</subfield>
+			<subfield code="a">Белорусская Советская Независимая Республика</subfield>
+			<subfield code="a">Белорусская Социалистическая Советская Республика</subfield>
+			<subfield code="a">ССР Белоруссии</subfield>
+			<subfield code="a">Советская Белорусская Республика</subfield>
+			<subfield code="a">Советская Социалистическая Республика Белоруссии</subfield>
+			<subfield code="a">Социалистическая Республика Белоруссия</subfield>
+			<subfield code="a">Социалистическая Советская Трудовая Республика Белоруссия</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="907" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar42134</subfield>
+			<subfield code="9">515</subfield>
+			<subfield code="a">Северо-Западный край</subfield>
+			<subfield code="9">415</subfield>
+			<subfield code="a">Северо-Западная область</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="907" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar42134</subfield>
+			<subfield code="9">515</subfield>
+			<subfield code="a">Западная коммуна</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="907" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar42134</subfield>
+			<subfield code="9">515</subfield>
+			<subfield code="a">Белорусская Народная Республика</subfield>
+			<subfield code="9">415</subfield>
+			<subfield code="a">БНР</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="907" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar42134</subfield>
+			<subfield code="9">515</subfield>
+			<subfield code="5">w</subfield>
+			<subfield code="a">Беларусь</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="907" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar42134</subfield>
+			<subfield code="9">515</subfield>
+			<subfield code="a">Литовско-Белорусская Советская Социалистическая Республика</subfield>
+			<subfield code="9">415</subfield>
+			<subfield code="a">Литовско-Белорусская ССР</subfield>
+			<subfield code="a">Литбел</subfield>
+			<subfield code="a">Советская Социалистическая Республика Литвы и Белоруссии</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="907" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar42134</subfield>
+			<subfield code="9">515</subfield>
+			<subfield code="a">Белорусская Советская Социалистическая Республика</subfield>
+			<subfield code="9">415</subfield>
+			<subfield code="a">БССР</subfield>
+			<subfield code="a">Белорусская ССР</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="907" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar42134</subfield>
+			<subfield code="9">515</subfield>
+			<subfield code="a">Смоленское княжество</subfield>
+			<subfield code="9">415</subfield>
+			<subfield code="a">Великое княжество Смоленское</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="907" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar42134</subfield>
+			<subfield code="9">515</subfield>
+			<subfield code="a">Туровское княжество</subfield>
+			<subfield code="9">415</subfield>
+			<subfield code="a">Турово-Пинская земля</subfield>
+			<subfield code="a">Турово-Пинское княжество</subfield>
+			<subfield code="a">Туровская волость</subfield>
+			<subfield code="a">Туровская земля</subfield>
+			<subfield code="a">Туровская область</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="907" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar42134</subfield>
+			<subfield code="9">515</subfield>
+			<subfield code="a">Великое княжество Литовское</subfield>
+			<subfield code="9">415</subfield>
+			<subfield code="a">Белорусско-Литовское государство</subfield>
+			<subfield code="a">ВКЛ</subfield>
+			<subfield code="a">Великое княжество Литовское, Русское и Жемайтское</subfield>
+			<subfield code="a">Великое княжество Литовское, Русское и Жмудское</subfield>
+			<subfield code="a">Великое княжество Литовское, Русское и Жомойтское</subfield>
+			<subfield code="a">Литовско-Белорусское государство</subfield>
+			<subfield code="a">Литовско-Русское государство</subfield>
+			<subfield code="a">Lietuvos Didžioji Kunigaikštystė</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="907" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar42134</subfield>
+			<subfield code="9">515</subfield>
+			<subfield code="a">Западная область (1917—1918)</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="907" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar42134</subfield>
+			<subfield code="9">515</subfield>
+			<subfield code="a">Белая Русь</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="907" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar42134</subfield>
+			<subfield code="9">515</subfield>
+			<subfield code="a">Беларусь, Республика</subfield>
+			<subfield code="9">415</subfield>
+			<subfield code="a">Repablik Belarus</subfield>
+			<subfield code="a">Republic of Belarus</subfield>
+			<subfield code="a">РБ</subfield>
+			<subfield code="a">Беларусь (1991—) </subfield>
+			<subfield code="a">Республика Беларусь</subfield>
+			<subfield code="a">Республика Белоруссия</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+		<datafield tag="907" ind1=" " ind2=" ">
+			<subfield code="3">BY-NLB-ar42134</subfield>
+			<subfield code="9">515</subfield>
+			<subfield code="a">Западная Белоруссия</subfield>
+			<subfield code="2">DVNLB</subfield>
+		</datafield>
+	</record>
+</collection>
