@@ -2148,6 +2148,7 @@ def process_single_scan(
 	category: str = DEFAULT_CATEGORY,
 	license_template: str = DEFAULT_LICENSE,
 	dry_run: bool = False,
+	progress_label: str = '',
 ) -> str:
 	"""Process a scan, deferring rejected downloads and exhausted transfers until a later run.
 
@@ -2155,6 +2156,7 @@ def process_single_scan(
 	so advancing through the remaining results cannot lose pending scans.
 	"""
 	key = item_state_key(marc_id, file_id)
+	progress_prefix = f'{progress_label} ' if progress_label else ''
 	state['current_record_id'] = marc_id
 	state['current_item_key'] = key
 	save_state(state_path, state)
@@ -2170,9 +2172,9 @@ def process_single_scan(
 	)
 
 	if not dry_run:
-		log_progress(f'[{marc_id}:{file_id}] Checking title on Commons:\nFile:{commons_filename}')
+		log_progress(f'{progress_prefix}[{marc_id}:{file_id}] Checking title on Commons:\nFile:{commons_filename}')
 		if uploader.title_exists(commons_filename):
-			log_progress(f'[{marc_id}:{file_id}] Skipping (title exists on Commons): File:{commons_filename}')
+			log_progress(f'{progress_prefix}[{marc_id}:{file_id}] Skipping (title exists on Commons): File:{commons_filename}')
 			state['items'][key] = {
 				'status': 'existing_title',
 				'marc_id': marc_id,
@@ -2200,7 +2202,7 @@ def process_single_scan(
 				status = 'download_rejected'
 				details = {'http_status': 400}
 				message = 'Skipping download (HTTP 400)'
-			log_progress(f'[{marc_id}:{file_id}] {message}: {viewer_url}\n{error}')
+			log_progress(f'{progress_prefix}[{marc_id}:{file_id}] {message}: {viewer_url}\n{error}')
 			state['items'][key] = {
 				'status': status,
 				'marc_id': marc_id,
@@ -2215,7 +2217,7 @@ def process_single_scan(
 			return status
 		except ValueError as error:
 			if 'not a valid PDF' in str(error):
-				log_progress(f'[{marc_id}:{file_id}] Skipping (not a valid PDF): {viewer_url}')
+				log_progress(f'{progress_prefix}[{marc_id}:{file_id}] Skipping (not a valid PDF): {viewer_url}')
 				state['items'][key] = {
 					'status': 'not_pdf',
 					'marc_id': marc_id,
@@ -2228,13 +2230,13 @@ def process_single_scan(
 			raise
 
 		size_mib = size_bytes / (1024 * 1024)
-		log_progress(f'[{marc_id}:{file_id}] Checking SHA-1 hash on Commons: {viewer_url}')
+		log_progress(f'{progress_prefix}[{marc_id}:{file_id}] Checking SHA-1 hash on Commons: {viewer_url}')
 		sha1, existing_titles = check_commons_by_hash(
 			temp_pdf,
 			session=client.session,
 		)
 		if existing_titles:
-			log_progress(f'[{marc_id}:{file_id}] Skipping (duplicate SHA-1 on Commons: {existing_titles}): {viewer_url}')
+			log_progress(f'{progress_prefix}[{marc_id}:{file_id}] Skipping (duplicate SHA-1 on Commons: {existing_titles}): {viewer_url}')
 			state['items'][key] = {
 				'status': 'duplicate_sha1',
 				'marc_id': marc_id,
@@ -2258,15 +2260,15 @@ def process_single_scan(
 		)
 
 		if dry_run:
-			log_progress(f'[{marc_id}:{file_id}] Dry-run ready ({size_mib:.2f} MiB, SHA-1 {sha1}): File:{commons_filename}')
+			log_progress(f'{progress_prefix}[{marc_id}:{file_id}] Dry-run ready ({size_mib:.2f} MiB, SHA-1 {sha1}): File:{commons_filename}')
 			return 'dry_run_ready'
 
-		log_progress(f'[{marc_id}:{file_id}] Uploading to Wikimedia Commons:\nFile:{commons_filename}')
+		log_progress(f'{progress_prefix}[{marc_id}:{file_id}] Uploading to Wikimedia Commons:\nFile:{commons_filename}')
 		summary = f'From {ELIB_BASE_URL}/elib/Record/{marc_id} (fileID {file_id})'
 		try:
 			upload_result = uploader.upload(temp_pdf, commons_filename, wikitext, summary)
 		except UploadRetriesExhausted as error:
-			log_progress(f'[{marc_id}:{file_id}] Deferring upload after {error.attempts} attempts: File:{commons_filename}\n{error}')
+			log_progress(f'{progress_prefix}[{marc_id}:{file_id}] Deferring upload after {error.attempts} attempts: File:{commons_filename}\n{error}')
 			state['items'][key] = {
 				'status': 'upload_failed',
 				'marc_id': marc_id,
@@ -2289,9 +2291,9 @@ def process_single_scan(
 		commons_slug = commons_title.replace(' ', '_')
 		commons_url = f'https://commons.wikimedia.org/wiki/{commons_slug}'
 		if status == 'uploaded':
-			log_progress(f'[{marc_id}:{file_id}] Uploaded:\n{commons_url}\n')
+			log_progress(f'{progress_prefix}[{marc_id}:{file_id}] Uploaded:\n{commons_url}\n')
 		else:
-			log_progress(f'[{marc_id}:{file_id}] Skipping ({status}): {commons_url}\n')
+			log_progress(f'{progress_prefix}[{marc_id}:{file_id}] Skipping ({status}): {commons_url}\n')
 		state['items'][key] = {
 			'status': status,
 			'marc_id': marc_id,
@@ -2405,11 +2407,17 @@ def iterate_and_upload(
 			state['current_page'] = page
 			save_state(state_path, state)
 
-			for search_entry in records:
+			total_records = int(search_page.get('total_results') or 0)
+			total_pages = (total_records + SEARCH_PAGE_SIZE - 1) // SEARCH_PAGE_SIZE
+			for record_index, search_entry in enumerate(records, 1):
 				if shutdown_requested:
 					break
 
 				marc_id = search_entry['marc_id']
+				position = (page - 1) * SEARCH_PAGE_SIZE + record_index
+				record_counter = f'{position}/{total_records}' if total_records else str(position)
+				page_counter = f'{page}/{total_pages}' if total_pages else str(page)
+				progress_label = f'[record {record_counter}; page {page_counter}]'
 				record_url = f'{ELIB_BASE_URL}/elib/Record/{marc_id}'
 				direct_files = search_entry.get('file_ids') or []
 				direct_mets = search_entry.get('mets_ids') or []
@@ -2417,15 +2425,16 @@ def iterate_and_upload(
 					is_item_completed(state, marc_id, fid) for fid in direct_files
 				):
 					clear_record_failure(marc_id)
+					log_progress(f'{progress_label} [{marc_id}] Skipping (completed): {record_url}')
 					continue
 
 				state['current_record_id'] = marc_id
 				save_state(state_path, state)
 				try:
-					log_progress(f'[{marc_id}] Checking access: {record_url}')
+					log_progress(f'{progress_label} [{marc_id}] Checking access: {record_url}')
 					access = client.check_doc_access(marc_id)
 					if not access.get('publicAccess'):
-						log_progress(f'[{marc_id}] Skipping (restricted access): {record_url}')
+						log_progress(f'{progress_label} [{marc_id}] Skipping (restricted access): {record_url}')
 						for fid in direct_files or ['0']:
 							key = item_state_key(marc_id, fid)
 							state['items'][key] = {
@@ -2439,22 +2448,22 @@ def iterate_and_upload(
 						clear_record_failure(marc_id)
 						continue
 
-					log_progress(f'[{marc_id}] Fetching metadata: {record_url}')
+					log_progress(f'{progress_label} [{marc_id}] Fetching metadata: {record_url}')
 					record_meta, marc_meta = client.fetch_record_metadata(marc_id)
 					pub_year = resolve_publication_year(record_meta, marc_meta)
 					if from_year is not None and pub_year is not None and pub_year < from_year:
 						clear_record_failure(marc_id)
-						log_progress(f'[{marc_id}] Skipping (year {pub_year} < {from_year}): {record_url}')
+						log_progress(f'{progress_label} [{marc_id}] Skipping (year {pub_year} < {from_year}): {record_url}')
 						continue
 					if until_year is not None and pub_year is not None and pub_year > until_year:
 						clear_record_failure(marc_id)
-						log_progress(f'[{marc_id}] Skipping (year {pub_year} > {until_year}): {record_url}')
+						log_progress(f'{progress_label} [{marc_id}] Skipping (year {pub_year} > {until_year}): {record_url}')
 						continue
 
 					mets_ids = [*direct_mets, *record_meta.get('mets_ids', [])]
 					if mets_ids:
 						log_progress(
-							f'[{marc_id}] Resolving multi-part METS files: '
+							f'{progress_label} [{marc_id}] Resolving multi-part METS files: '
 							f'{VIEWER_BASE_URL}/viewer/html?metsID={mets_ids[0]}&markID={marc_id}'
 						)
 					file_entries = client.resolve_record_files(search_entry, record_meta)
@@ -2469,7 +2478,7 @@ def iterate_and_upload(
 					state['retry_from_page'] = min(page, int(state.get('retry_from_page') or page))
 					save_state(state_path, state)
 					counts['metadata_failed'] += 1
-					log_progress(f'[{marc_id}] Deferring record until the next run: {error}')
+					log_progress(f'{progress_label} [{marc_id}] Deferring record until the next run: {error}')
 					continue
 				clear_record_failure(marc_id)
 				for file_entry in file_entries:
@@ -2493,6 +2502,7 @@ def iterate_and_upload(
 						category=category,
 						license_template=license_template,
 						dry_run=dry_run,
+						progress_label=progress_label,
 					)
 					counts[status] = counts.get(status, 0) + 1
 					if status == 'uploaded':

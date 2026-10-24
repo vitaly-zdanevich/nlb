@@ -6,8 +6,8 @@
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
-[![Production code](https://img.shields.io/badge/production%20code-2%2C455%20lines-blue)](upload.py)
-[![Test code](https://img.shields.io/badge/test%20code-4%2C521%20lines-blue)](#running-tests)
+[![Production code](https://img.shields.io/badge/production%20code-2%2C465%20lines-blue)](upload.py)
+[![Test code](https://img.shields.io/badge/test%20code-4%2C575%20lines-blue)](#running-tests)
 
 [`upload.py`](upload.py) iterates over open-access digitized scans from the Electronic Library of the National Library of Belarus (`https://elib.nlb.by`) and uploads them to Wikimedia Commons with full HTML and UNIMARC (`MARCXML`) metadata.
 
@@ -32,6 +32,7 @@
 - **Single-file and multi-part (`METS`) support**: Resolves both direct `fileID` viewer links and multi-volume `metsID` document trees on `https://elib.nlb.by:8070`.
 - **SHA-1 deduplication**: Computes the digest with Python's `hashlib` and queries the MediaWiki `allimages` API directly. No shell helper is required. Timeouts, broken connections, invalid JSON and HTTP 500/502/503/504 receive up to five attempts with 5, 10, 20 and 40 seconds between attempts; failed or invalid lookups leave the scan pending without uploading.
 - **Resumable state**: Saves progress atomically in `state.json` after each item and page so interrupted runs continue from the exact item on restart.
+- **Record and page counters**: Progress includes `[record 345/9743; page 4/98]`. Counters show the record's position in the selected catalog results and the search-page position, including completed or skipped records. Multiple PDFs from one record share its counter. Resuming or revisiting deferred pages uses the corresponding search position; unavailable totals are omitted.
 - **Catalog request retries**: HTML records, MARCXML, contents, search results, access checks and METS reads retry timeouts, connection failures and HTTP 500/502/503/504 up to five attempts, waiting 5, 10, 20 and 40 seconds. Exhausted record reads are saved under `record_failures` as `metadata_failed`, remain pending, and allow later records to continue. Required child metadata is not silently discarded after transient errors; optional missing MARCXML/contents endpoints still permit HTTP 404. Exhausted search-page reads stop with a `search_failed` summary and preserve that page for the next run. Certificate errors, permanent HTTP failures and interrupts keep their existing exception behavior. Viewer session POSTs and PDF/Commons requests retain their separate retry policies.
 - **Automatic cleanup**: Deletes each temporary PDF scan locally immediately after uploading or skipping.
 - **Download size in progress output**: Shows the server's advertised size before streaming, such as `Downloading scan (54.4 MB):`, using decimal MB with one decimal place. If the size is unavailable or invalid, it is omitted. The subsequent SHA-1 check message does not repeat the size.
