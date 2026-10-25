@@ -1748,6 +1748,143 @@ class TestNlbDownloadRetries(unittest.TestCase):
 		"""Return the manifest, statistics and stream responses for one attempt."""
 		return [self.manifest, self.ok_response, self.ok_response, stream]
 
+	def http_error_response(self, status: int) -> upload_nlb.requests.Response:
+		"""Build a real HTTP failure with a consumed body and observable cleanup."""
+		response = upload_nlb.requests.Response()
+		response.status_code = status
+		response.url = f'{upload_nlb.VIEWER_BASE_URL}/iiif/file/7837809/bytes?attachmentName=ch_2'
+		response._content = b'Temporary library error'
+		response._content_consumed = True
+		response.close = mock.Mock(wraps=response.close)
+		return response
+
+	def test_transient_http_errors_retry_at_each_download_stage(self) -> None:
+		"""Retry temporary manifest, event and PDF errors through the complete download path."""
+		self.manifest.json.return_value = {'rendering': [{'id': '/iiif/file/7837809/bytes?attachmentName=ch_2'}]}
+		for status in (500, 502, 503, 504):
+			for stage in range(4):
+				with self.subTest(status=status, stage=stage), tempfile.TemporaryDirectory() as tmp_dir:
+					self.session.reset_mock()
+					self.client._viewer_session_initialized = False
+					failed = self.http_error_response(status)
+					success = self.download_responses(self.stream_response(self.payload))
+					self.session.get.side_effect = [*success[:stage], failed, *success]
+					target = Path(tmp_dir) / 'scan.pdf'
+					target.write_bytes(b'Partial previous scan')
+					with mock.patch('upload.time.sleep') as sleep, mock.patch('sys.stdout', io.StringIO()) as output:
+						sleep.side_effect = lambda _: self.assertFalse(target.exists())
+						written = self.client.download_pdf_scan('BY-NLB-br0000370146', '7837809', target)
+					self.assertEqual(written, len(self.payload))
+					self.assertEqual(target.read_bytes(), self.payload)
+					self.assertEqual(self.session.get.call_count, stage + 5)
+					self.assertEqual(self.session.get.call_args.args[0], failed.url)
+					self.session.post.assert_called_once()
+					failed.close.assert_called()
+					sleep.assert_called_once_with(5)
+					self.assertIn('Download attempt 1/5 failed (HTTPError:', output.getvalue())
+					self.assertIn(str(status), output.getvalue())
+
+	def test_http_and_network_errors_share_one_download_retry_budget(self) -> None:
+		"""Switching between network and HTTP failures must not reset the five-attempt limit."""
+		http_errors = []
+		for status in (500, 503, 504):
+			try:
+				self.http_error_response(status).raise_for_status()
+			except upload_nlb.requests.HTTPError as error:
+				http_errors.append(error)
+		errors = [
+			upload_nlb.requests.ReadTimeout('manifest timeout'), http_errors[0],
+			upload_nlb.requests.exceptions.ChunkedEncodingError('incomplete transfer'), *http_errors[1:],
+		]
+		with tempfile.TemporaryDirectory() as tmp_dir, mock.patch.object(
+			self.client, '_download_pdf_scan_once', side_effect=errors,
+		) as attempt, mock.patch('upload.time.sleep') as sleep, mock.patch('sys.stdout', io.StringIO()):
+			with self.assertRaises(upload_nlb.DownloadRetriesExhausted) as raised:
+				self.client.download_pdf_scan('record', 'file', Path(tmp_dir) / 'scan.pdf')
+		self.assertEqual(attempt.call_count, 5)
+		self.assertEqual(raised.exception.attempts, 5)
+		self.assertIs(raised.exception.last_error, errors[-1])
+		self.assertIs(raised.exception.__cause__, errors[-1])
+		self.assertEqual(sleep.call_args_list, [mock.call(delay) for delay in (5, 10, 20, 40)])
+		for error in http_errors:
+			error.response.close.assert_called_once_with()
+
+	def test_http_500_exhaustion_continues_batch_and_retries_only_pending_scan(self) -> None:
+		"""Use the real downloader to defer a persistent HTTP 500 and preserve completed PDFs."""
+		client = FakeNlbClient()
+		client.download_pdf_scan = mock.Mock(wraps=self.client.download_pdf_scan)
+		uploader = FakeCommonsUploader()
+		responses = self.download_responses(self.stream_response(self.payload))
+		failures = [self.http_error_response(500) for _ in range(5)]
+		for failure in failures:
+			responses.extend(self.download_responses(failure))
+		responses.extend(self.download_responses(self.stream_response(self.payload)))
+		self.session.get.side_effect = responses
+		with tempfile.TemporaryDirectory() as tmp_dir, mock.patch('upload.time.sleep') as sleep, mock.patch(
+			'upload.check_commons_by_hash', side_effect=lambda path, **_: (upload_nlb.calculate_sha1(path), []),
+		) as hash_check, mock.patch('sys.stdout', io.StringIO()):
+			root = Path(tmp_dir)
+			kwargs = {'client': client, 'uploader': uploader, 'state_path': root / 'state.json', 'staging_dir': root / 'staging'}
+			counts = upload_nlb.iterate_and_upload(**kwargs)
+			self.assertEqual(counts['uploaded'], 2)
+			self.assertEqual(counts['download_failed'], 1)
+			self.assertEqual(hash_check.call_count, 2)
+			self.assertEqual(self.session.get.call_count, 28)
+			self.assertEqual(sleep.call_args_list, [mock.call(delay) for delay in (5, 10, 20, 40)])
+			state = upload_nlb.load_state(kwargs['state_path'])
+			entry = state['items']['BY-NLB-rr222:2001']
+			self.assertEqual(entry['status'], 'download_failed')
+			self.assertEqual(entry['attempts'], 5)
+			self.assertEqual(entry['error_type'], 'HTTPError')
+			self.assertIn('500', entry['error'])
+			self.assertIn('Temporary library error', entry['error'])
+			self.assertEqual(state['retry_from_page'], 1)
+			self.assertFalse(upload_nlb.is_item_completed(state, 'BY-NLB-rr222', '2001'))
+			self.assertEqual(list(kwargs['staging_dir'].iterdir()), [])
+			for failure in failures:
+				failure.close.assert_called()
+
+			self.session.get.reset_mock()
+			client.download_pdf_scan.reset_mock()
+			self.session.get.side_effect = self.download_responses(self.stream_response(self.payload))
+			counts = upload_nlb.iterate_and_upload(**kwargs)
+			self.assertEqual(counts['uploaded'], 1)
+			self.assertEqual(counts['download_failed'], 0)
+			client.download_pdf_scan.assert_called_once()
+			self.assertEqual(client.download_pdf_scan.call_args.args[:2], ('BY-NLB-rr222', '2001'))
+			self.assertEqual(self.session.get.call_count, 4)
+			self.assertEqual(len(uploader.uploads), 3)
+			state = upload_nlb.load_state(kwargs['state_path'])
+			self.assertTrue(upload_nlb.is_item_completed(state, 'BY-NLB-rr222', '2001'))
+			self.assertNotIn('retry_from_page', state)
+			self.assertEqual(list(kwargs['staging_dir'].iterdir()), [])
+
+	def test_permanent_http_download_errors_are_not_retried(self) -> None:
+		"""Keep rejections and unclassified server errors outside the transient retry policy."""
+		for status in (400, 401, 403, 404, 429, 501, 505):
+			with self.subTest(status=status), tempfile.TemporaryDirectory() as tmp_dir:
+				self.session.get.reset_mock()
+				response = self.http_error_response(status)
+				self.session.get.side_effect = self.download_responses(response)
+				with mock.patch('upload.time.sleep') as sleep:
+					with self.assertRaises(upload_nlb.requests.HTTPError) as raised:
+						self.client.download_pdf_scan('record', 'file', Path(tmp_dir) / 'scan.pdf')
+				self.assertIs(raised.exception.response, response)
+				self.assertEqual(self.session.get.call_count, 4)
+				sleep.assert_not_called()
+
+	def test_session_setup_http_error_is_not_retried(self) -> None:
+		"""A session-creation POST failure remains outside the per-scan GET retry budget."""
+		response = self.http_error_response(500)
+		self.session.post.return_value = response
+		with tempfile.TemporaryDirectory() as tmp_dir, mock.patch('upload.time.sleep') as sleep:
+			with self.assertRaises(upload_nlb.requests.HTTPError) as raised:
+				self.client.download_pdf_scan('record', 'file', Path(tmp_dir) / 'scan.pdf')
+		self.assertIs(raised.exception.response, response)
+		self.session.post.assert_called_once()
+		self.session.get.assert_not_called()
+		sleep.assert_not_called()
+
 	def test_manifest_timeout_then_success(self) -> None:
 		"""Retry the reported manifest ReadTimeout and write the complete PDF."""
 		self.session.get.side_effect = [

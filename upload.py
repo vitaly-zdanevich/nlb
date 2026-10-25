@@ -46,6 +46,7 @@ UPLOAD_CHUNK_SIZE = 4 * 1024 * 1024
 UPLOAD_MAX_RETRIES = 10
 DOWNLOAD_MAX_ATTEMPTS = 5
 DOWNLOAD_RETRY_DELAY = 5
+DOWNLOAD_TRANSIENT_STATUSES = frozenset({500, 502, 503, 504})
 HASH_CHECK_MAX_ATTEMPTS = 5
 HASH_CHECK_RETRY_DELAY = 5
 
@@ -1775,7 +1776,8 @@ class NlbClient:
 		"""Retry transient download failures with backoff, discarding partial PDFs.
 
 		The viewer session POST runs once. Each GET/stream attempt starts from
-		byte zero. Exhaustion raises DownloadRetriesExhausted so the batch can
+		byte zero. HTTP 500/502/503/504 and network failures share one retry
+		budget. Exhaustion raises DownloadRetriesExhausted so the batch can
 		defer this scan; session setup and permanent errors still propagate.
 		"""
 		self.ensure_viewer_session()
@@ -1787,9 +1789,14 @@ class NlbClient:
 				requests.exceptions.Timeout,
 				requests.exceptions.ConnectionError,
 				requests.exceptions.ChunkedEncodingError,
+				requests.exceptions.HTTPError,
 			) as error:
 				if isinstance(error, requests.exceptions.SSLError):
 					raise
+				if isinstance(error, requests.exceptions.HTTPError):
+					if error.response is None or error.response.status_code not in DOWNLOAD_TRANSIENT_STATUSES:
+						raise
+					error.response.close()
 				target_path.unlink(missing_ok=True)
 				if attempt >= DOWNLOAD_MAX_ATTEMPTS:
 					raise DownloadRetriesExhausted(error, attempt) from error
