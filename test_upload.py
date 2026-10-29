@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Multi-level unit, component, and end-to-end tests for upload.py."""
+'''Multi-level unit, component, and end-to-end tests for upload.py.'''
 
 import hashlib
 import io
@@ -14,6 +14,7 @@ from unittest import mock
 import warnings
 
 import upload as upload_nlb
+from test_pdf_validation import pdf_bytes
 
 
 MOCK_SEARCH_HTML_PAGE_1 = """<!DOCTYPE html>
@@ -220,7 +221,7 @@ MOCK_METS_STRUCTURE_555 = {
 
 
 class TestUnitParsingAndFormatting(unittest.TestCase):
-	"""Level 1 unit tests for URL/HTML/MARCXML/METS parsing, naming, and state helpers."""
+	'''Level 1 unit tests for URL/HTML/MARCXML/METS parsing, naming, and state helpers.'''
 
 	def test_parse_viewer_link_variants(self) -> None:
 		"""Verify viewer link parser extracts markID, fileID, and metsID across formats."""
@@ -280,15 +281,15 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 		)
 
 	def test_parse_record_html_and_marcxml(self) -> None:
-		"""Verify HTML record parser and UNIMARC XML parser extract complete metadata."""
+		'''Verify HTML record parser and UNIMARC XML parser extract complete metadata.'''
 		record_meta = upload_nlb.parse_record_html(MOCK_RECORD_HTML_111, 'BY-NLB-rr111')
 		self.assertEqual(record_meta['title'], 'Минские губернские ведомости : официальная часть')
 		self.assertEqual(record_meta['file_ids'], ['1001'])
 		field_names = [f['name'] for f in record_meta['fields']]
 		self.assertIn('Дата создания', field_names)
 		self.assertIn('Опубликовано', field_names)
-		self.assertNotIn('Всего', field_names)
-		self.assertNotIn('Шифр', field_names)
+		self.assertIn('Всего', field_names)
+		self.assertIn('Шифр', field_names)
 
 		marc_meta = upload_nlb.parse_marcxml(MOCK_MARCXML_111)
 		self.assertEqual(marc_meta['control_number'], 'BY-NLB-rr111')
@@ -340,7 +341,7 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 		self.assertNotIn('Изготовление (MARC 210)', wikitext)
 
 	def test_manufacturing_statements_preserve_order_repetitions_and_field_boundaries(self) -> None:
-		"""Keep manufacture places, addresses, names and dates together in source order."""
+		'''Keep manufacture places, addresses, names and dates together in source order.'''
 		first_field = '''<datafield tag="210">
 			<subfield code="a">Publication city</subfield>
 			<subfield code="c">Publisher</subfield>
@@ -376,14 +377,14 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 		self.assertEqual(metadata['year'], '1890')
 		wikitext = upload_nlb.build_commons_description({'title': 'Test'}, metadata, 'record', 'file')
 		for statement in expected:
-			self.assertIn('** ' + statement.replace('|', '{{!}}'), wikitext)
-		self.assertEqual(wikitext.count('Дата изготовления ($h): [1892?]'), 1)
+			self.assertIn('** ' + upload_nlb.escape_wikitext(statement), wikitext)
+		self.assertEqual(wikitext.count(upload_nlb.escape_wikitext('Дата изготовления ($h): [1892?]')), 1)
 		self.assertNotIn('Printer | A', wikitext)
 		self.assertNotIn('Street | 1', wikitext)
 		self.assertIn('|date=1890\n', wikitext)
 
 	def test_partial_manufacturing_statements_do_not_supply_publication_dates(self) -> None:
-		"""Preserve lone manufacture subfields without requiring a printer or inferring publication."""
+		'''Preserve lone manufacture subfields without requiring a printer or inferring publication.'''
 		cases = (
 			('e', 'Print city', 'Место изготовления ($e)'),
 			('f', 'Street 1', 'Адрес изготовителя ($f)'),
@@ -396,7 +397,7 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 					<datafield tag="210"><subfield code="{code}">{value}</subfield></datafield>
 				</record></collection>''')
 				wikitext = upload_nlb.build_commons_description({'title': 'Test'}, metadata, 'record', 'file')
-				self.assertIn(f'{label}: {value}', wikitext)
+				self.assertIn(upload_nlb.escape_wikitext(f'{label}: {value}'), wikitext)
 				self.assertEqual(metadata['date'], '')
 				self.assertEqual(metadata['year'], '')
 				self.assertIsNone(upload_nlb.resolve_publication_year({}, metadata))
@@ -518,7 +519,7 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 				self.assertIn('Владелец', wikitext)
 
 	def test_contributor_roles_override_tags_and_keep_uncoded_secondary_names(self) -> None:
-		"""Respect explicit roles in every supported tag; infer only uncoded primary responsibility."""
+		'''Respect explicit roles in every supported tag; infer only uncoded primary responsibility.'''
 		for tag in ('700', '701', '702', '710', '711', '712'):
 			for role in ('', '070', '390', '999'):
 				with self.subTest(tag=tag, role=role):
@@ -530,6 +531,7 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 					self.assertEqual(metadata['authors'], ['Name'] if is_author else [])
 					self.assertEqual(metadata['contributors'], [{
 						'name': 'Name', 'tag': tag, 'roles': [role] if role else [], 'copies': [],
+						'dates': [], 'kind': 'person' if tag in {'700', '701', '702'} else 'organization',
 					}])
 					wikitext = upload_nlb.build_commons_description({'title': 'Test'}, metadata, 'record', 'file')
 					if not role:
@@ -567,7 +569,7 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 		self.assertIn('|author=Writer\n', wikitext)
 
 	def test_parse_marcxml_and_description_with_contents_and_all_notes(self) -> None:
-		"""Verify MARC 327 contents note (TOC with section numbers and folio ranges) and 3xx notes are parsed."""
+		'''Verify MARC 327 contents note (TOC with section numbers and folio ranges) and 3xx notes are parsed.'''
 		marcxml = """<?xml version="1.0" encoding="UTF-8"?>
 		<collection xmlns="http://www.loc.gov/MARC21/slim">
 			<record>
@@ -617,7 +619,7 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 			file_id='7386109',
 			part_label='Ч. 3',
 		)
-		self.assertIn("* '''Содержание (MARC 327):'''", wikitext)
+		self.assertIn("* '''Содержание (MARC 327 / оглавление каталога):'''", wikitext)
 		for entry in marc_meta['contents']:
 			self.assertIn(f'** {entry}', wikitext)
 		self.assertIn("* '''Примечания (MARC 3xx):'''", wikitext)
@@ -719,7 +721,7 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 		self.assertIn("* '''Тематика (MARC 6xx):''' Кірыліца ― беларускія выданні", wikitext_dedup)
 
 	def test_description_preserves_library_alternate_terms_and_place_names(self) -> None:
-		"""Retain actual NLB aliases with their main headings, including qualified places."""
+		'''Retain actual NLB aliases with their main headings, including qualified places.'''
 		cases = {
 			'BY-NLB-br0000015701': {
 				'alternate_genres': [
@@ -747,14 +749,14 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 				for key, expected in expected_fields.items():
 					self.assertEqual(marc_meta[key], expected)
 					for entry in expected:
-						self.assertIn(entry, wikitext)
+						self.assertIn(upload_nlb.escape_wikitext(entry), wikitext)
 				self.assertIn('Варианты названий формы / жанра (MARC 908)', wikitext)
 				self.assertEqual('Варианты географических названий (MARC 926)' in wikitext, bool(expected_fields['alternate_geo_places']))
 				for code in ('BY-NLB-ar', 'BYGNR', 'DVNLB', 'BY-auth'):
-					self.assertNotIn(code, wikitext)
+					self.assertNotIn(code, wikitext.split('Дополнительные сведения каталога')[0])
 
 	def test_alternate_headings_handle_order_duplicates_and_missing_authorities(self) -> None:
-		"""Keep unlinked aliases and subdivisions without conflating distinct authorities."""
+		'''Keep unlinked aliases and subdivisions without conflating distinct authorities.'''
 		marcxml = '''<collection><record>
 			<datafield tag="926">
 				<subfield code="3">place1</subfield><subfield code="9">560</subfield>
@@ -791,11 +793,12 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 			{'title': 'Test'}, marc_meta, 'record', 'file',
 		)
 		self.assertIn('Main{{!}}genre: Alias{{!}}one — Subdivision; Alias two', wikitext)
-		self.assertNotIn('vocabulary', wikitext)
+		self.assertNotIn('vocabulary', wikitext.split('Дополнительные сведения каталога')[0])
+		self.assertIn('Система / словарь ($2): vocabulary', wikitext)
 		self.assertNotIn('Main|genre', wikitext)
 
 	def test_alternate_headings_omit_empty_and_canonical_only_variants(self) -> None:
-		"""Omit variant sections when fields are absent, blank, or repeat the main heading."""
+		'''Omit variant sections when fields are absent, blank, or repeat the main heading.'''
 		marcxml = '''<collection><record>
 			<datafield tag="608"><subfield code="3">genre</subfield><subfield code="a">Main genre</subfield></datafield>
 			<datafield tag="908"><subfield code="3">genre</subfield><subfield code="a">Main genre</subfield></datafield>
@@ -807,8 +810,8 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 				self.assertEqual(marc_meta['alternate_genres'], [])
 				self.assertEqual(marc_meta['alternate_geo_places'], [])
 				wikitext = upload_nlb.build_commons_description({'title': 'Test'}, marc_meta, 'record', 'file')
-				self.assertNotIn('MARC 908', wikitext)
-				self.assertNotIn('MARC 926', wikitext)
+				self.assertNotIn('Варианты названий формы / жанра (MARC 908)', wikitext)
+				self.assertNotIn('Варианты географических названий (MARC 926)', wikitext)
 
 	def test_parse_marcxml_and_description_with_secondary_responsibility_and_accompanying_material(self) -> None:
 		"""Verify UNIMARC 200$g secondary responsibility and 215$e accompanying material are parsed and rendered."""
@@ -1151,7 +1154,10 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 		)
 		self.assertNotIn('11.01.53 03.91 03.17 03.81.37', wikitext)
 		self.assertIn(
-			"* '''ГРНТИ:'''\n** 11.01.53\n** 03.91\n** 03.17\n** 03.81.37",
+			"* '''ГРНТИ:'''\n" + '\n'.join(
+				f'** [https://elib.nlb.by/elib/Grnti/Home?grnti={code} {code}]'
+				for code in ('11.01.53', '03.91', '03.17', '03.81.37')
+			),
 			wikitext,
 		)
 		self.assertIn(
@@ -1237,7 +1243,7 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 
 
 class TestComponentIntegration(unittest.TestCase):
-	"""Level 2 component and integration tests for hash checking, IIIF handshake, and uploader."""
+	'''Level 2 component and integration tests for hash checking, IIIF handshake, and uploader.'''
 
 	def test_check_commons_by_hash_uses_api_without_shell(self) -> None:
 		"""Ignore a legacy helper's hash-only output and query Commons in Python."""
@@ -1329,8 +1335,8 @@ class TestComponentIntegration(unittest.TestCase):
 				upload_nlb.parse_commons_allimages_response(payload, '0' * 40)
 
 	def test_nlb_client_handshake_and_pdf_download(self) -> None:
-		"""Verify NlbClient executes the 5-step port-8070 IIIF handshake and streams the PDF."""
-		pdf_payload = b'%PDF-1.6\nFake NLB scan binary payload\n%%EOF\n'
+		'''Verify NlbClient executes the 5-step port-8070 IIIF handshake and streams the PDF.'''
+		pdf_payload = pdf_bytes()
 		mock_session = mock.MagicMock()
 		mock_session.headers = {}
 
@@ -1384,7 +1390,7 @@ class TestComponentIntegration(unittest.TestCase):
 		)
 
 	def test_nlb_client_rejects_non_pdf(self) -> None:
-		"""Reject a complete non-PDF response without retrying the download."""
+		'''Retry an unexpected HTML response and leave the scan pending after exhaustion.'''
 		mock_session = mock.MagicMock()
 		mock_session.headers = {}
 		mock_session.post.return_value = mock.MagicMock()
@@ -1399,16 +1405,18 @@ class TestComponentIntegration(unittest.TestCase):
 		bad_stream.headers = {'Content-Length': str(len(b'<html>Error</html>'))}
 		bad_stream.iter_content.return_value = [b'<html>Error</html>']
 
-		mock_session.get.side_effect = [manifest_resp, ok_resp, ok_resp, bad_stream]
+		mock_session.get.side_effect = [manifest_resp, ok_resp, ok_resp, bad_stream] * 5
 		client = upload_nlb.NlbClient(session=mock_session)
 
-		with tempfile.TemporaryDirectory() as tmp_dir:
+		with tempfile.TemporaryDirectory() as tmp_dir, mock.patch('upload.time.sleep'):
 			target = Path(tmp_dir) / 'bad.pdf'
-			with self.assertRaisesRegex(ValueError, 'not a valid PDF'):
+			with self.assertRaisesRegex(upload_nlb.DownloadRetriesExhausted, 'not a valid PDF'):
 				client.download_pdf_scan('BY-NLB-rr111', '1001', target)
+			self.assertFalse(target.exists())
+			self.assertEqual(mock_session.get.call_count, 20)
 
 	def test_nlb_client_fetch_record_metadata_with_toc_fallback(self) -> None:
-		"""Verify NlbClient.fetch_record_metadata falls back to /TOC tab when MARCXML lacks 327."""
+		'''Verify NlbClient.fetch_record_metadata falls back to /TOC tab when MARCXML lacks 327.'''
 		mock_session = mock.MagicMock()
 		mock_session.headers = {}
 
@@ -1419,6 +1427,7 @@ class TestComponentIntegration(unittest.TestCase):
 		marc_resp = mock.MagicMock()
 		marc_resp.status_code = 200
 		marc_resp.text = MOCK_MARCXML_111
+		marc_resp.content = MOCK_MARCXML_111.encode()
 
 		toc_resp = mock.MagicMock()
 		toc_resp.status_code = 200
@@ -1471,7 +1480,7 @@ class TestComponentIntegration(unittest.TestCase):
 
 
 class TestCommonsHashLookup(unittest.TestCase):
-	"""Exercise direct Commons lookups with real files and mocked HTTP responses."""
+	'''Exercise direct Commons lookups with real files and mocked HTTP responses.'''
 
 	def setUp(self) -> None:
 		"""Create a PDF fixture and an isolated HTTP session for each test."""
@@ -1532,7 +1541,7 @@ class TestCommonsHashLookup(unittest.TestCase):
 				self.session.get.assert_called_once()
 
 	def test_exhausted_lookup_does_not_upload_and_can_resume(self) -> None:
-		"""Leave the item pending after lookup failure and skip it on a later match."""
+		'''Leave the item pending after lookup failure and skip it on a later match.'''
 		error = upload_nlb.requests.exceptions.ReadTimeout('Commons timed out')
 		self.session.get.side_effect = error
 		client = FakeNlbClient()
@@ -1551,9 +1560,7 @@ class TestCommonsHashLookup(unittest.TestCase):
 			'marc_meta': upload_nlb.parse_marcxml(MOCK_MARCXML_111),
 		}
 		with mock.patch('upload.time.sleep') as sleep:
-			with self.assertRaises(upload_nlb.requests.exceptions.ReadTimeout) as raised:
-				upload_nlb.process_single_scan(**kwargs)
-			self.assertIs(raised.exception, error)
+			self.assertEqual(upload_nlb.process_single_scan(**kwargs), 'verification_failed')
 			self.assertEqual(self.session.get.call_count, 5)
 			self.assertEqual(sleep.call_args_list, [mock.call(5), mock.call(10), mock.call(20), mock.call(40)])
 		self.assertEqual(uploader.uploads, [])
@@ -1575,7 +1582,7 @@ class TestCommonsHashLookup(unittest.TestCase):
 
 
 class TestViewerCookies(unittest.TestCase):
-	"""Reuse browser cookies without replacing the authenticated viewer session."""
+	'''Reuse browser cookies without replacing the authenticated viewer session.'''
 
 	def setUp(self) -> None:
 		"""Create a local cookie export and a real session with no network requests."""
@@ -1670,13 +1677,13 @@ class TestViewerCookies(unittest.TestCase):
 					self.assertNotIn('secret-auth-value', '\n'.join(str(item.message) for item in emitted_warnings))
 
 	def test_download_sends_browser_cookies_only_to_library(self) -> None:
-		"""Exercise authenticated download and Commons lookup through prepared requests."""
+		'''Exercise authenticated download and Commons lookup through prepared requests.'''
 		self.write_cookies([
 			'#HttpOnly_.nlb.by\tTRUE\t/\tTRUE\t4102444800\telib_session_id\tviewer-secret',
 			'elib.nlb.by\tFALSE\t/\tTRUE\t0\tJSESSIONID\tauth-secret',
 		])
 		client = upload_nlb.NlbClient(session=self.session, viewer_cookies=self.cookie_path)
-		payload = b'%PDF-1.4\nMock authenticated scan\n%%EOF\n'
+		payload = pdf_bytes()
 		requests_seen = []
 
 		def send(request, **_) -> upload_nlb.requests.Response:
@@ -1709,7 +1716,7 @@ class TestViewerCookies(unittest.TestCase):
 		self.assertNotIn('Cookie', requests_seen[-1].headers)
 
 	def test_cli_passes_viewer_cookie_export_to_client(self) -> None:
-		"""Wire the optional cookie path into the client while retaining dry-run behavior."""
+		'''Wire the optional cookie path into the client while retaining dry-run behavior.'''
 		with (
 			mock.patch('upload.NlbClient') as client_type,
 			mock.patch('upload.CommonsUploader') as uploader_type,
@@ -1717,24 +1724,24 @@ class TestViewerCookies(unittest.TestCase):
 			mock.patch('sys.stdout', new_callable=io.StringIO),
 		):
 			self.assertEqual(upload_nlb.main(['--viewer-cookies', str(self.cookie_path), '--dry-run']), 0)
-			client_type.assert_called_once_with(viewer_cookies=self.cookie_path)
+			client_type.assert_called_once_with(viewer_cookies=self.cookie_path, archive=mock.ANY)
 			uploader_type.assert_not_called()
 			self.assertIs(iterate.call_args.kwargs['client'], client_type.return_value)
 			self.assertTrue(iterate.call_args.kwargs['dry_run'])
 
 
 class TestNlbDownloadRetries(unittest.TestCase):
-	"""Exercise download retries with mocked responses and real temporary files."""
+	'''Exercise download retries with mocked responses and real temporary files.'''
 
 	def setUp(self) -> None:
-		"""Prepare a client and successful IIIF responses without network access."""
+		'''Prepare a client and successful IIIF responses without network access.'''
 		self.session = mock.MagicMock()
 		self.session.headers = {}
 		self.client = upload_nlb.NlbClient(session=self.session)
 		self.manifest = mock.MagicMock()
 		self.manifest.json.return_value = {'rendering': []}
 		self.ok_response = mock.MagicMock()
-		self.payload = b'%PDF-1.4\nComplete scan\n%%EOF\n'
+		self.payload = pdf_bytes()
 
 	def stream_response(self, payload: bytes) -> mock.MagicMock:
 		"""Return a context-managed PDF response split into two chunks."""
@@ -1916,7 +1923,7 @@ class TestNlbDownloadRetries(unittest.TestCase):
 		self.session.head.assert_not_called()
 
 	def test_page_views_timeout_is_deferred_after_five_attempts(self) -> None:
-		"""The reported statistics timeout leaves a pending item without hashing or uploading."""
+		'''The reported statistics timeout leaves a pending item without hashing or uploading.'''
 		error = upload_nlb.requests.exceptions.ReadTimeout('PAGE_VIEWS timed out')
 		self.session.get.side_effect = [self.manifest, error] * 5
 		uploader = FakeCommonsUploader()
@@ -1930,7 +1937,7 @@ class TestNlbDownloadRetries(unittest.TestCase):
 				client=self.client, uploader=uploader, state=state,
 				state_path=root / 'state.json', staging_dir=root / 'staging',
 				marc_id='BY-NLB-br0000078549', file_id='10284033', part_label='',
-				record_meta={'title': 'Reported volume'}, marc_meta={},
+				record_meta={'title': 'Reported volume'}, marc_meta={'date': '1800'},
 			)
 			self.assertEqual(status, 'download_failed')
 			self.assertEqual(sleep.call_args_list, [mock.call(5), mock.call(10), mock.call(20), mock.call(40)])
@@ -1976,7 +1983,7 @@ class TestNlbDownloadRetries(unittest.TestCase):
 				self.assertIs(raised.exception.__cause__, error)
 
 	def test_session_setup_timeout_is_not_misreported_as_exhausted_download(self) -> None:
-		"""A session POST fails before per-scan retry handling, so it remains visible."""
+		'''A session POST fails before per-scan retry handling, so it remains visible.'''
 		error = upload_nlb.requests.exceptions.ReadTimeout('session POST timed out')
 		self.session.post.side_effect = error
 		with tempfile.TemporaryDirectory() as tmp_dir, mock.patch('upload.time.sleep') as sleep:
@@ -1991,11 +1998,11 @@ class TestNlbDownloadRetries(unittest.TestCase):
 			self.session.get.assert_not_called()
 			self.session.post.assert_called_once()
 			sleep.assert_not_called()
-			self.assertEqual(list((root / 'staging').iterdir()), [])
+			self.assertFalse((root / 'staging').exists())
 			self.assertNotIn('record:file', upload_nlb.load_state(root / 'state.json')['items'])
 
 	def test_download_rejection_reports_library_reason_and_leaves_scan_pending(self) -> None:
-		"""Skip the reported HTTP 400 without retries, uploading or completing the scan."""
+		'''Skip the reported HTTP 400 without retries, uploading or completing the scan.'''
 		response = upload_nlb.requests.Response()
 		response.status_code = 400
 		response.url = 'https://elib.nlb.by:8070/iiif/file/12541585/bytes?attachmentName=r18108_4_1'
@@ -2013,7 +2020,7 @@ class TestNlbDownloadRetries(unittest.TestCase):
 				client=self.client, uploader=uploader, state=upload_nlb.default_state(),
 				state_path=state_path, staging_dir=staging_dir,
 				marc_id='BY-NLB-br0000059074', file_id='12541585', part_label='',
-				record_meta={'title': 'Test record'}, marc_meta={},
+				record_meta={'title': 'Test record'}, marc_meta={'date': '1800'},
 			)
 			self.assertEqual(status, 'download_rejected')
 			self.assertEqual(uploader.uploads, [])
@@ -2230,18 +2237,19 @@ class FakeNlbClient:
 
 
 class FakeCommonsUploader:
-	"""In-memory fake CommonsUploader recording uploaded titles, wikitext, and file cleanup."""
+	'''In-memory fake CommonsUploader recording uploaded titles, wikitext, and file cleanup.'''
 
 	def __init__(self) -> None:
-		"""Initialize empty upload history."""
+		'''Initialize empty upload history.'''
 		self.uploads: list[dict[str, str]] = []
+		self.files: dict[str, dict] = {}
 
 	def title_exists(self, commons_filename: str) -> bool:
 		"""Return False so all new titles proceed to hash check and upload."""
 		return False
 
 	def upload(self, file_path: Path, commons_filename: str, wikitext: str, summary: str) -> dict[str, object]:
-		"""Verify the local file exists during upload and record the submission."""
+		'''Verify the local file exists during upload and record the submission.'''
 		if not file_path.is_file():
 			raise AssertionError('Expected local PDF to exist during upload call')
 		self.uploads.append({
@@ -2249,7 +2257,12 @@ class FakeCommonsUploader:
 			'wikitext': wikitext,
 			'summary': summary,
 		})
+		self.files[f'File:{commons_filename}'] = {'sha1': upload_nlb.calculate_sha1(file_path), 'size_bytes': file_path.stat().st_size, 'revision_id': 1, 'page_id': 1}
 		return {'status': 'uploaded', 'commons_title': f'File:{commons_filename}'}
+
+	def file_info(self, title: str) -> dict:
+		'''Return the binary identity actually recorded by the offline upload service.'''
+		return self.files[title]
 
 
 class TestPywikibotUploadTokens(unittest.TestCase):
@@ -2548,12 +2561,12 @@ class TestPywikibotUploadTokens(unittest.TestCase):
 
 
 class TestEndToEndPipeline(unittest.TestCase):
-	"""Level 3 end-to-end tests covering full iteration, hash deduplication, cleanup, and resume."""
+	'''Level 3 end-to-end tests covering full iteration, hash deduplication, cleanup, and resume.'''
 
 	def test_blacklisted_filename_is_corrected_before_lookup_and_upload(self) -> None:
-		"""Use the corrected filename throughout the pipeline and retain the original metadata."""
+		'''Use the corrected filename throughout the pipeline and retain the original metadata.'''
 		original_title = 'Potpourris - Piano & Violon = Ноты'
-		expected_filename = 'Potpourris - Piano & Violon - Ноты(1850) -- BY-NLB-rr111 -- 1001.pdf'
+		expected_filename = 'Potpourris - Piano & Violon - Ноты (1850) -- BY-NLB-rr111 -- 1001.pdf'
 		client = FakeNlbClient()
 		uploader = FakeCommonsUploader()
 		with tempfile.TemporaryDirectory() as tmp_dir, mock.patch.object(
@@ -2569,7 +2582,7 @@ class TestEndToEndPipeline(unittest.TestCase):
 			self.assertEqual(counts['uploaded'], 1)
 			title_exists.assert_called_once_with(expected_filename)
 			self.assertEqual(uploader.uploads[0]['commons_filename'], expected_filename)
-			self.assertIn(original_title, uploader.uploads[0]['wikitext'])
+			self.assertIn(upload_nlb.escape_wikitext(original_title), uploader.uploads[0]['wikitext'])
 			state = upload_nlb.load_state(root / 'state.json')
 			self.assertEqual(state['items']['BY-NLB-rr111:1001']['commons_title'], f'File:{expected_filename}')
 			self.assertEqual(list((root / 'staging').iterdir()), [])
@@ -2595,7 +2608,7 @@ class TestEndToEndPipeline(unittest.TestCase):
 		self.assertIn('|date=1891\n', uploader.uploads[0]['wikitext'])
 
 	def test_upload_preserves_contributor_roles_and_only_attributes_authors(self) -> None:
-		"""Carry real library roles through iteration into the submitted Commons description."""
+		'''Carry real library roles through iteration into the submitted Commons description.'''
 		fixture = Path(__file__).parent / 'tests' / 'fixtures' / 'BY-NLB-br0000060196-contributors.xml'
 		marc_meta = upload_nlb.parse_marcxml(fixture.read_text(encoding='utf-8'))
 		record_meta = {
@@ -2612,13 +2625,13 @@ class TestEndToEndPipeline(unittest.TestCase):
 			counts = upload_nlb.iterate_and_upload(
 				client=client, uploader=uploader,
 				state_path=Path(tmp_dir) / 'state.json', staging_dir=Path(tmp_dir) / 'staging',
-				max_uploads=1,
+				max_uploads=1, explicit_license=True,
 			)
 		self.assertEqual(counts['uploaded'], 1)
 		wikitext = uploader.uploads[0]['wikitext']
 		self.assertIn('|author=Миллер, В. Ф. (Всеволод Федорович), фольклорист, языковед (1848—1913)<br>Кнауэр, Ф. И.\n', wikitext)
 		self.assertIn('Карский, Е. Ф. (Евфимий Федорович), славист (1861—1931) — Предыдущий владелец (390)', wikitext)
-		self.assertIn('Императорский университет святого Владимира — Выпускающая организация (475)', wikitext)
+		self.assertIn('Императорский университет святого Владимира, Киев — Выпускающая организация (475)', wikitext)
 
 	def test_deferred_downloads_continue_across_pages_and_retry_on_restart(self) -> None:
 		"""Revisit rejected and exhausted downloads across upload limits, dry runs and restarts."""
@@ -2730,7 +2743,7 @@ class TestEndToEndPipeline(unittest.TestCase):
 			self.assertEqual(client.fetch_search_page.call_args.kwargs['page'], 2)
 
 	def test_unrelated_http_errors_are_not_skipped(self) -> None:
-		"""Keep other download failures and Commons HTTP 400 errors visible to callers."""
+		'''Keep other download failures and Commons HTTP 400 errors visible to callers.'''
 		for stage, http_status in (
 			('download_pdf_scan', 401), ('download_pdf_scan', 403),
 			('download_pdf_scan', 429), ('download_pdf_scan', 500),
@@ -2756,7 +2769,7 @@ class TestEndToEndPipeline(unittest.TestCase):
 							client=client, uploader=uploader, state=upload_nlb.default_state(),
 							state_path=tmp_path / 'state.json', staging_dir=tmp_path / 'staging',
 							marc_id='BY-NLB-rr111', file_id='1001', part_label='',
-							record_meta={'title': 'Test record'}, marc_meta={},
+							record_meta={'title': 'Test record'}, marc_meta={'date': '1800'},
 						)
 					self.assertIs(raised.exception, error)
 				state = upload_nlb.load_state(tmp_path / 'state.json')
@@ -2765,12 +2778,11 @@ class TestEndToEndPipeline(unittest.TestCase):
 				self.assertEqual(list((tmp_path / 'staging').iterdir()), [])
 
 	def test_download_deferral_does_not_hide_other_failures(self) -> None:
-		"""Keep certificate, disk, interrupt, hash and upload errors outside download deferral."""
+		'''Keep certificate, disk, interrupt, hash and upload errors outside download deferral.'''
 		for stage, error in (
 			('download', upload_nlb.requests.exceptions.SSLError('invalid certificate')),
 			('download', OSError('disk full')),
 			('download', KeyboardInterrupt()),
-			('hash', upload_nlb.requests.exceptions.ReadTimeout('Commons hash timed out')),
 			('upload', upload_nlb.requests.exceptions.ConnectionError('Commons upload failed')),
 		):
 			with self.subTest(stage=stage, error=type(error).__name__), tempfile.TemporaryDirectory() as tmp_dir:
@@ -2788,7 +2800,7 @@ class TestEndToEndPipeline(unittest.TestCase):
 						upload_nlb.process_single_scan(
 							client=client, uploader=uploader, state=upload_nlb.default_state(),
 							state_path=root / 'state.json', staging_dir=root / 'staging',
-							marc_id='record', file_id='file', part_label='', record_meta={}, marc_meta={},
+							marc_id='record', file_id='file', part_label='', record_meta={}, marc_meta={'date': '1800'},
 						)
 				self.assertIs(raised.exception, error)
 				self.assertEqual(list((root / 'staging').iterdir()), [])
@@ -2882,7 +2894,7 @@ class TestEndToEndPipeline(unittest.TestCase):
 			self.assertEqual(list(staging_dir.glob('*')), [])
 
 	def test_progress_logging_prints_urls_and_current_actions(self) -> None:
-		"""Show decimal MB before streaming and keep the later hash-check line size-free."""
+		'''Show decimal MB before streaming and keep the later hash-check line size-free.'''
 		with tempfile.TemporaryDirectory() as tmp_dir:
 			tmp_path = Path(tmp_dir)
 			state_path = tmp_path / 'state.json'
@@ -2890,7 +2902,7 @@ class TestEndToEndPipeline(unittest.TestCase):
 
 			client = FakeNlbClient()
 			uploader = FakeCommonsUploader()
-			payload = b'%PDF-1.4\n' + b'x' * 1_600_000 + b'\n%%EOF\n'
+			payload = pdf_bytes(padding=1_600_000)
 			stream = mock.MagicMock()
 			stream.__enter__.return_value = stream
 			stream.headers = {'Content-Length': str(len(payload))}
@@ -2930,7 +2942,7 @@ class TestEndToEndPipeline(unittest.TestCase):
 			self.assertIn('Uploading', output)
 			self.assertIn(
 				'[BY-NLB-rr111:1001] Checking title on Commons:\n'
-				'File:Минские губернские ведомости - официальная часть(1890) -- BY-NLB-rr111 -- 1001.pdf',
+				'File:Минские губернские ведомости - официальная часть (1890) -- BY-NLB-rr111 -- 1001.pdf',
 				output,
 			)
 			self.assertIn(
@@ -2950,12 +2962,11 @@ class TestEndToEndPipeline(unittest.TestCase):
 			client.session.head.assert_not_called()
 			self.assertIn(
 				'[BY-NLB-rr111:1001] Uploading to Wikimedia Commons:\n'
-				'File:Минские губернские ведомости - официальная часть(1890) -- BY-NLB-rr111 -- 1001.pdf',
+				'File:Минские губернские ведомости - официальная часть (1890) -- BY-NLB-rr111 -- 1001.pdf',
 				output,
 			)
 			self.assertIn(
-				'[BY-NLB-rr111:1001] Uploaded:\nhttps://commons.wikimedia.org/wiki/File:'
-				'Минские_губернские_ведомости_-_официальная_часть(1890)_--_BY-NLB-rr111_--_1001.pdf\n\n',
+				'[BY-NLB-rr111:1001] Uploaded and verified:\nhttps://commons.wikimedia.org/wiki/',
 				output,
 			)
 			self.assertNotIn('Uploaded (uploaded)', output)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline regression tests for deferring exhausted Commons upload attempts."""
+'''Offline regression tests for deferring exhausted Commons upload attempts.'''
 
 import io
 from pathlib import Path
@@ -21,10 +21,10 @@ class FakeAPIError(Exception):
 
 
 class TestDeferredUploads(unittest.TestCase):
-	"""Keep failed uploads resumable while processing other available scans."""
+	'''Keep failed uploads resumable while processing other available scans.'''
 
 	def test_exhaustion_saves_diagnostics_and_earliest_page(self) -> None:
-		"""Persist the failed file identity and hash, clean staging, and preserve the earliest retry."""
+		'''Persist the failed file identity and hash, clean staging, and preserve the earliest retry.'''
 		for earlier_page in (None, 2, 8):
 			with self.subTest(earlier_page=earlier_page), tempfile.TemporaryDirectory() as tmp_dir:
 				root = Path(tmp_dir)
@@ -43,7 +43,7 @@ class TestDeferredUploads(unittest.TestCase):
 						client=client, uploader=uploader, state=state,
 						state_path=root / 'state.json', staging_dir=root / 'staging',
 						marc_id='BY-NLB-rr111', file_id='1001', part_label='',
-						record_meta={'title': 'Test record'}, marc_meta={},
+						record_meta={'title': 'Test record'}, marc_meta={'date': '1800'},
 					)
 				self.assertEqual(status, 'upload_failed')
 				saved = upload_nlb.load_state(root / 'state.json')
@@ -65,7 +65,7 @@ class TestDeferredUploads(unittest.TestCase):
 				self.assertIn('Could not acquire lock.', output.getvalue())
 
 	def test_batch_continues_and_restarts_without_reuploading_completed_scans(self) -> None:
-		"""A failed early upload survives limits and dry runs until it succeeds on a later run."""
+		'''A failed early upload survives limits and dry runs until it succeeds on a later run.'''
 		for first_run_limit in (0, 1):
 			with self.subTest(max_uploads=first_run_limit), tempfile.TemporaryDirectory() as tmp_dir:
 				root = Path(tmp_dir)
@@ -79,8 +79,8 @@ class TestDeferredUploads(unittest.TestCase):
 				fail_first = True
 
 				def upload_with_failure(path: Path, *args: object) -> dict[str, object]:
-					"""Fail only the first scan while allowing later files to upload normally."""
-					if path.name == 'BY-NLB-rr111_1001.pdf' and fail_first:
+					'''Fail only the first scan while allowing later files to upload normally.'''
+					if b'Record=BY-NLB-rr111 File=1001' in path.read_bytes() and fail_first:
 						raise upload_nlb.UploadRetriesExhausted(FakeAPIError('stashfailed', 'Could not acquire lock.'), 3)
 					return original_upload(path, *args)
 
@@ -160,7 +160,7 @@ class TestDeferredUploads(unittest.TestCase):
 			self.assertEqual(list((root / 'staging').iterdir()), [])
 
 	def test_unrelated_upload_errors_still_abort_and_clean_staging(self) -> None:
-		"""Authentication, permissions, disk errors and interrupts must remain visible."""
+		'''Authentication, permissions, disk errors and interrupts must remain visible.'''
 		for error in (
 			FakeAPIError('badtoken', 'Invalid CSRF token.'),
 			FakeAPIError('permissiondenied', 'Permission denied.'),
@@ -178,7 +178,7 @@ class TestDeferredUploads(unittest.TestCase):
 							client=FakeNlbClient(), uploader=uploader, state=upload_nlb.default_state(),
 							state_path=root / 'state.json', staging_dir=root / 'staging',
 							marc_id='BY-NLB-rr111', file_id='1001', part_label='',
-							record_meta={'title': 'Test record'}, marc_meta={},
+							record_meta={'title': 'Test record'}, marc_meta={'date': '1800'},
 						)
 				self.assertIs(raised.exception, error)
 				state = upload_nlb.load_state(root / 'state.json')
@@ -187,7 +187,7 @@ class TestDeferredUploads(unittest.TestCase):
 				self.assertEqual(list((root / 'staging').iterdir()), [])
 
 	def test_upload_exhaustion_is_only_handled_at_the_upload_boundary(self) -> None:
-		"""Do not defer an exception injected into unrelated download or hash operations."""
+		'''Do not defer an exception injected into unrelated download or hash operations.'''
 		for stage in ('download', 'hash'):
 			with self.subTest(stage=stage), tempfile.TemporaryDirectory() as tmp_dir:
 				root = Path(tmp_dir)
@@ -203,7 +203,7 @@ class TestDeferredUploads(unittest.TestCase):
 							client=client, uploader=uploader, state=upload_nlb.default_state(),
 							state_path=root / 'state.json', staging_dir=root / 'staging',
 							marc_id='BY-NLB-rr111', file_id='1001', part_label='',
-							record_meta={'title': 'Test record'}, marc_meta={},
+							record_meta={'title': 'Test record'}, marc_meta={'date': '1800'},
 						)
 				self.assertIs(raised.exception, error)
 				uploader.upload.assert_not_called()

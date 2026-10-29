@@ -6,3 +6,8 @@
 /state.json.new
 /nlb-cookies.txt
 *.pyc
+
+# Source archives and review/report outputs can contain large catalog snapshots.
+/archive/
+/metadata-plan.json
+/run-report.json

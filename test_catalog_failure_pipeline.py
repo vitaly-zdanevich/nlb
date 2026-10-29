@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline batch regressions for exhausted catalog requests and resumable state."""
+'''Offline batch regressions for exhausted catalog requests and resumable state.'''
 
 from contextlib import contextmanager
 import io
@@ -16,7 +16,7 @@ from test_upload import FakeCommonsUploader, FakeNlbClient
 
 
 class TestCatalogFailurePipeline(unittest.TestCase):
-	"""Keep unavailable records pending while retaining completed scan progress."""
+	'''Keep unavailable records pending while retaining completed scan progress.'''
 
 	@contextmanager
 	def environment(self):
@@ -96,24 +96,21 @@ class TestCatalogFailurePipeline(unittest.TestCase):
 					self.assertNotIn('retry_from_page', state)
 					self.assertEqual(len(state['items']), 3)
 
-	def test_completed_direct_record_clears_old_failure_without_catalog_reads(self) -> None:
-		"""An already completed direct record resolves stale failure state except in dry runs."""
+	def test_completed_direct_record_refreshes_metadata_and_clears_old_failure(self) -> None:
+		'''Completed binaries still refresh source metadata without repeating the upload.'''
 		for dry_run in (False, True):
 			with self.subTest(dry_run=dry_run), self.environment() as (client, _, kwargs):
 				state = upload_nlb.default_state()
-				state['items']['BY-NLB-rr111:1001'] = {'status': 'uploaded'}
+				state['items']['BY-NLB-rr111:1001'] = {'status': 'uploaded', 'verification': {'sha1': '1' * 40}}
 				state['record_failures'] = {'BY-NLB-rr111': {'status': 'metadata_failed'}}
 				state['retry_from_page'] = 1
 				upload_nlb.save_state(kwargs['state_path'], state)
 				original = client.check_doc_access
 
-				def check_access(marc_id):
-					"""Assert completed direct files require no new record request."""
-					self.assertNotEqual(marc_id, 'BY-NLB-rr111')
-					return original(marc_id)
-
-				client.check_doc_access = check_access
+				client.check_doc_access = mock.Mock(side_effect=original)
 				upload_nlb.iterate_and_upload(**kwargs, dry_run=dry_run)
+				self.assertIn(mock.call('BY-NLB-rr111'), client.check_doc_access.call_args_list)
+				self.assertNotIn('1001', client.downloaded_file_ids)
 				state = upload_nlb.load_state(kwargs['state_path'])
 				self.assertEqual('BY-NLB-rr111' in state.get('record_failures', {}), dry_run)
 

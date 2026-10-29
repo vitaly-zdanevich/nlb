@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise catalog subject variants through the offline Commons upload pipeline."""
+'''Exercise catalog subject variants through the offline Commons upload pipeline.'''
 
 from pathlib import Path
 import tempfile
@@ -26,10 +26,10 @@ def subject_metadata() -> dict:
 
 
 class TestSubjectVariantsPipeline(unittest.TestCase):
-	"""Preserve subject references without changing author or filename semantics."""
+	'''Preserve subject references without changing author or filename semantics.'''
 
 	def test_full_pipeline_preserves_subject_variants_and_cleans_up_scans(self) -> None:
-		"""Upload the source's references alongside ordinary records with no variants."""
+		'''Upload the source's references alongside ordinary records with no variants.'''
 		metadata = subject_metadata()
 		client = FakeNlbClient()
 		uploader = FakeCommonsUploader()
@@ -54,7 +54,7 @@ class TestSubjectVariantsPipeline(unittest.TestCase):
 					side_effect=lambda path, **_: (upload_nlb.calculate_sha1(path), [])),
 			):
 				counts = upload_nlb.iterate_and_upload(
-					client=client, uploader=uploader, state_path=state_path, staging_dir=staging_dir,
+					client=client, uploader=uploader, state_path=state_path, staging_dir=staging_dir, explicit_license=True,
 				)
 
 			self.assertEqual(counts['uploaded'], 3)
@@ -98,8 +98,8 @@ class TestSubjectVariantsPipeline(unittest.TestCase):
 		for variant in VARIANTS:
 			self.assertIn(variant, wikitext)
 
-	def test_metadata_without_variant_key_keeps_existing_description(self) -> None:
-		"""Older metadata dictionaries render ordinary subjects without a new section."""
+	def test_metadata_without_variant_key_uses_source_field_fallback(self) -> None:
+		'''Raw source fields preserve terms even when a specialized formatter is absent.'''
 		metadata = subject_metadata()
 		metadata.pop('subject_variants', None)
 		wikitext = upload_nlb.build_commons_description(
@@ -109,8 +109,9 @@ class TestSubjectVariantsPipeline(unittest.TestCase):
 		self.assertIn(MAIN_SUBJECT, wikitext)
 		self.assertIn('Тематика (MARC 6xx)', wikitext)
 		self.assertNotIn(SUBJECTS_LABEL, wikitext)
+		self.assertIn('Дополнительные сведения (MARC 906)', wikitext)
 		for variant in VARIANTS:
-			self.assertNotIn(variant, wikitext)
+			self.assertIn(variant, wikitext)
 
 
 if __name__ == '__main__':

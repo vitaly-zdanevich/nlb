@@ -21,7 +21,7 @@ jobs:
           python-version: '3.14'
 
       - name: Install dependencies
-        run: python -m pip install --upgrade pip pytest pytest-cov requests beautifulsoup4 'pywikibot>=11.6'
+        run: python -m pip install --upgrade pip pytest pytest-cov requests beautifulsoup4 'pywikibot>=11.6' 'pypdf>=6,<7' mwparserfromhell
 
       - name: Run tests with coverage
-        run: pytest -v --cov=upload --cov=catalog_requests --cov-report=xml:coverage.xml --cov-report=term-missing
+        run: pytest -v --cov=upload --cov=catalog_requests --cov=catalog_validation --cov=preservation --cov=publication_rights --cov=pdf_validation --cov=reconcile_metadata --cov-report=xml:coverage.xml --cov-report=term-missing

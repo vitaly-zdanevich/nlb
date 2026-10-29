@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Preserve personal-name headings without assigning aliases extra book roles."""
+'''Preserve personal-name headings without assigning aliases extra book roles.'''
 
 from pathlib import Path
 import tempfile
@@ -12,7 +12,7 @@ from test_upload import FakeCommonsUploader, FakeNlbClient
 
 
 FIXTURES = Path(__file__).parent / 'tests' / 'fixtures'
-NAMES_LABEL = 'Имена и варианты по каталогу НББ (MARC 900/990–992)'
+NAMES_LABEL = 'Имена и варианты по каталогу НББ (MARC 900/902/990–992)'
 
 
 def fixture(record_id: str) -> str:
@@ -62,7 +62,7 @@ def names_lines(wikitext: str) -> list[str]:
 
 
 class TestPersonalNames(unittest.TestCase):
-	"""Exercise real omissions and ambiguous local authority-field associations."""
+	'''Exercise real omissions and ambiguous local authority-field associations.'''
 
 	def test_real_pseudonyms_and_full_names_survive_without_extra_authors(self) -> None:
 		"""Dunin-Marcinkiewicz's pseudonyms remain metadata, not extra creators."""
@@ -95,7 +95,7 @@ class TestPersonalNames(unittest.TestCase):
 		self.assertIn('Гизель, И. (Иннокентий) (1600—1683)', '\n'.join(names_lines(wikitext)))
 
 	def test_complete_names_numerals_and_corporate_names(self) -> None:
-		"""Personal name parts survive together; corporate formatting stays intact."""
+		'''Personal name parts survive together; corporate formatting stays intact.'''
 		xml = record(
 			field('700', ('a', 'Миллер'), ('b', 'В. Ф.'), ('g', 'Всеволод Федорович'),
 				('c', 'фольклорист'), ('c', 'языковед'), ('f', '1848—1913')),
@@ -108,7 +108,7 @@ class TestPersonalNames(unittest.TestCase):
 			'Миллер, В. Ф. (Всеволод Федорович), фольклорист, языковед (1848—1913)',
 			'Иоанн II, король (1450—1500)',
 			'Smith, John',
-			'Academy, Division (1900)',
+			'Academy, Division, Minsk (1900)',
 		])
 
 	def test_real_991_and_992_variants_remain_with_the_right_contributor(self) -> None:
@@ -291,7 +291,7 @@ class TestPersonalNames(unittest.TestCase):
 		])
 
 	def test_upload_pipeline_submits_preserved_names_and_cleans_staging(self) -> None:
-		"""The normal upload path submits name preservation using only mocked I/O."""
+		'''The normal upload path submits name preservation using only mocked I/O.'''
 		record_id = 'BY-NLB-br0000116590'
 		metadata = upload_nlb.parse_marcxml(fixture(record_id))
 		client = FakeNlbClient()
@@ -312,10 +312,10 @@ class TestPersonalNames(unittest.TestCase):
 					{'title': 'Ciekawyś? Przeczytaj!', 'fields': []}, metadata,
 				)),
 				mock.patch.object(client, 'resolve_record_files', return_value=[{'file_id': '123', 'part_label': ''}]),
-				mock.patch.object(upload_nlb, 'check_commons_by_hash', return_value=('mock-sha1', [])),
+				mock.patch.object(upload_nlb, 'check_commons_by_hash', side_effect=lambda path, **_: (upload_nlb.calculate_sha1(path), [])),
 			):
 				counts = upload_nlb.iterate_and_upload(
-					client=client, uploader=uploader, state_path=state_path, staging_dir=staging_dir,
+					client=client, uploader=uploader, state_path=state_path, staging_dir=staging_dir, explicit_license=True,
 				)
 			self.assertEqual(counts['uploaded'], 1)
 			wikitext = uploader.uploads[0]['wikitext']

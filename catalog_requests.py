@@ -1,4 +1,4 @@
-"""Bound transient NLB catalog GET failures without changing shared-session retries."""
+'''Bound transient NLB catalog GET failures without changing shared-session retries.'''
 
 from collections.abc import Callable
 import time
@@ -12,8 +12,12 @@ CATALOG_RETRY_DELAY = 5
 CATALOG_TRANSIENT_STATUSES = frozenset({500, 502, 503, 504})
 
 
+class InvalidCatalogResponse(requests.RequestException):
+	'''An HTTP response lacks the expected catalog schema or requested identity.'''
+
+
 class CatalogRetriesExhausted(RuntimeError):
-	"""A catalog read remains pending after its transient retry budget is exhausted."""
+	'''A catalog read remains pending after its transient retry budget is exhausted.'''
 
 	def __init__(self, last_error: requests.RequestException, attempts: int) -> None:
 		"""Preserve the final failure and attempt count for resumable batch diagnostics."""
@@ -28,11 +32,13 @@ def get_catalog_response(
 	*,
 	timeout: float,
 	log: Callable[[str], None] | None = None,
+	validate: Callable[[requests.Response], None] | None = None,
+	observe: Callable[[requests.Response], None] | None = None,
 	**kwargs: Any,
 ) -> requests.Response:
-	"""GET an NLB catalog resource with five attempts and 5/10/20/40-second delays.
+	'''GET an NLB catalog resource with five attempts and 5/10/20/40-second delays.
 
-	Retry read/connection failures and HTTP 500/502/503/504. Certificate errors,
+	Retry invalid catalog bodies, read/connection failures and HTTP 500/502/503/504. Certificate errors,
 	permanent HTTP failures, and interrupts retain their original exception type.
 	The caller owns the successful response; failed responses are always closed.
 	Use this for catalog reads only, leaving PDF and Commons retries independent.
@@ -40,20 +46,24 @@ def get_catalog_response(
 	An application-level loop also catches failures while Requests consumes a
 	response body, which an HTTPAdapter/urllib3 transport retry cannot replay.
 	See https://requests.readthedocs.io/en/latest/user/advanced/#example-automatic-retries
-	"""
+	'''
 	for attempt in range(1, CATALOG_MAX_ATTEMPTS + 1):
 		response = None
 		try:
 			response = session.get(url, timeout=timeout, **kwargs)
+			if observe is not None:
+				observe(response)
 			response.raise_for_status()
+			if validate is not None:
+				validate(response)
 			return response
 		except requests.RequestException as error:
 			if response is None:
 				response = error.response
 			if response is not None:
 				response.close()
-			retryable = (
-				isinstance(error, (requests.Timeout, requests.ConnectionError))
+			retryable = isinstance(error, InvalidCatalogResponse) or (
+				isinstance(error, (requests.Timeout, requests.ConnectionError, requests.exceptions.ChunkedEncodingError))
 				and not isinstance(error, requests.exceptions.SSLError)
 			) or (
 				isinstance(error, requests.HTTPError)

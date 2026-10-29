@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression tests for related catalog records and attributed parent metadata."""
+'''Regression tests for related catalog records and attributed parent metadata.'''
 
 from pathlib import Path
 import tempfile
@@ -33,10 +33,12 @@ def response(body: str, status: int = 200) -> upload_nlb.requests.Response:
 
 
 def marc_record(record_id: str, fields: str, namespace: bool = True) -> str:
-	"""Wrap synthetic fields in the same collection shape as the NLB export."""
+	'''Wrap synthetic fields in the same collection shape as the NLB export.'''
 	xmlns = ' xmlns="http://www.loc.gov/MARC21/slim"' if namespace else ''
+	title = '' if 'tag="200"' in fields else '<datafield tag="200"><subfield code="a">Synthetic catalog record</subfield></datafield>'
 	return (
 		f'<collection{xmlns}><record><controlfield tag="001">{record_id}</controlfield>'
+		f'{title}'
 		f'{fields}</record></collection>'
 	)
 
@@ -50,16 +52,19 @@ def relation(tag: str, record_id: str, extra: str = '') -> str:
 
 
 def mock_client(records: dict[str, str], parent_result: object | None = None) -> tuple:
-	"""Serve record HTML, XML and empty TOCs from a strictly mocked HTTP session."""
+	'''Serve record HTML, XML and empty TOCs from a strictly mocked HTTP session.'''
 	session = mock.Mock(spec=upload_nlb.requests.Session)
 	session.headers = {}
 
 	def get(url: str, **kwargs: object) -> upload_nlb.requests.Response:
-		"""Reject unexpected requests and dispatch source excerpts by their URL."""
+		'''Reject unexpected requests and dispatch source excerpts by their URL.'''
 		for record_id, xml in records.items():
 			base = f'{upload_nlb.ELIB_BASE_URL}/elib/Record/{record_id}'
 			if url == base:
-				return response(f'<h1>{record_id}</h1>')
+				return response(
+					f'<h1>{record_id}</h1><input class="hiddenId" value="{record_id}">'
+					'<table><tr><th>Формат:</th><td>Книга</td></tr></table>'
+				)
 			if url == f'{base}/Export?style=MARCXML':
 				if record_id == PARENT_ID and parent_result is not None:
 					if isinstance(parent_result, Exception):
@@ -67,7 +72,7 @@ def mock_client(records: dict[str, str], parent_result: object | None = None) ->
 					return parent_result
 				return response(xml)
 			if url == f'{base}/TOC':
-				return response('')
+				return response('<div class="tab-pane toc-tab"></div>')
 		raise AssertionError(f'Unexpected network request: {url}')
 
 	session.get.side_effect = get
@@ -75,7 +80,7 @@ def mock_client(records: dict[str, str], parent_result: object | None = None) ->
 
 
 class TestRelatedMetadata(unittest.TestCase):
-	"""Keep catalog links and only missing common imprint data from a parent."""
+	'''Keep catalog links and only missing common imprint data from a parent.'''
 
 	def test_real_volume_keeps_parent_identifier_and_title(self) -> None:
 		"""The encyclopedia's 461 ID and matching 961 title survive together."""
@@ -339,8 +344,8 @@ class TestRelatedMetadata(unittest.TestCase):
 		parent_calls = [call.args[0] for call in session.get.call_args_list if PARENT_ID in call.args[0]]
 		self.assertEqual(parent_calls, [f'{upload_nlb.ELIB_BASE_URL}/elib/Record/{PARENT_ID}/Export?style=MARCXML'])
 
-	def test_parent_failures_keep_links_without_claiming_inheritance(self) -> None:
-		"""Unavailable, malformed or mismatched parent exports produce a warning."""
+	def test_parent_failures_defer_child_without_claiming_inheritance(self) -> None:
+		'''Transient and malformed parent exports stay pending; an explicit 404 permits fallback.'''
 		cases = {
 			'timeout': upload_nlb.requests.Timeout('parent timed out'),
 			'not found': response('', 404),
@@ -355,14 +360,37 @@ class TestRelatedMetadata(unittest.TestCase):
 					PARENT_ID: fixture(PARENT_ID),
 				}, parent_result=parent_result)
 				with mock.patch.object(upload_nlb, 'log_progress') as log, mock.patch('catalog_requests.time.sleep'):
-					_, metadata = client.fetch_record_metadata(VOLUME_ID)
-				self.assertFalse(metadata.get('inherited_metadata'))
-				self.assertEqual(metadata.get('related_records', [{}])[0].get('record_id'), PARENT_ID)
+					if name == 'not found':
+						_, metadata = client.fetch_record_metadata(VOLUME_ID)
+						self.assertFalse(metadata.get('inherited_metadata'))
+						self.assertEqual(metadata.get('related_records', [{}])[0].get('record_id'), PARENT_ID)
+					else:
+						with self.assertRaises(upload_nlb.CatalogRetriesExhausted) as raised:
+							client.fetch_record_metadata(VOLUME_ID)
+						self.assertEqual(raised.exception.attempts, 5)
+						self.assertEqual(client._parent_metadata_cache, {})
 				self.assertTrue(log.called)
 				self.assertIn(PARENT_ID, str(log.call_args_list))
 
+	def test_cached_parent_source_is_associated_with_each_child_archive(self) -> None:
+		'''Cached parent bytes must be retained for every child whose imprint uses them.'''
+		second_id = 'BY-NLB-brVolume2'
+		client, session = mock_client({
+			VOLUME_ID: fixture(VOLUME_ID),
+			second_id: fixture(VOLUME_ID).replace(VOLUME_ID, second_id),
+			PARENT_ID: fixture(PARENT_ID),
+		})
+		client.archive = mock.Mock()
+		client.fetch_record_metadata(VOLUME_ID)
+		parent_response = client._parent_response_cache[PARENT_ID]
+		client.archive.capture_response.reset_mock()
+		client.fetch_record_metadata(second_id)
+		self.assertIs(client.archive.capture_response.call_args.args[0], parent_response)
+		parent_calls = [call for call in session.get.call_args_list if PARENT_ID in call.args[0]]
+		self.assertEqual(len(parent_calls), 1)
+
 	def test_upload_pipeline_preserves_parent_provenance_and_volume_specific_data(self) -> None:
-		"""Submit enriched real metadata through the offline scan/upload lifecycle."""
+		'''Submit enriched real metadata through the offline scan/upload lifecycle.'''
 		metadata_client, session = mock_client({
 			VOLUME_ID: fixture(VOLUME_ID),
 			PARENT_ID: fixture(PARENT_ID),
@@ -386,7 +414,7 @@ class TestRelatedMetadata(unittest.TestCase):
 				mock.patch.object(client, 'fetch_search_page', side_effect=[search_page, {'total_results': 1, 'records': []}]),
 				mock.patch.object(client, 'fetch_record_metadata', side_effect=metadata_client.fetch_record_metadata),
 				mock.patch.object(client, 'resolve_record_files', return_value=[{'file_id': '3460841', 'part_label': 'Ч. 3'}]),
-				mock.patch.object(upload_nlb, 'check_commons_by_hash', return_value=('mock-sha1', [])),
+				mock.patch.object(upload_nlb, 'check_commons_by_hash', side_effect=lambda path, **_: (upload_nlb.calculate_sha1(path), [])),
 			):
 				counts = upload_nlb.iterate_and_upload(
 					client=client,
@@ -405,7 +433,7 @@ class TestRelatedMetadata(unittest.TestCase):
 				'Ф. А. Брокгауз',
 				'И. А. Ефрон',
 				'|date=1892',
-				'[6], II, 488, [1] с., [9] л. ил., карт. : ил.',
+			upload_nlb.escape_wikitext('[6], II, 488, [1] с., [9] л. ил., карт. : ил.'),
 			):
 				self.assertIn(text, wikitext)
 			self.assertNotIn('1890―', wikitext)

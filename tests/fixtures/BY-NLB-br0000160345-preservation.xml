@@ -1,0 +1,21 @@
+<!-- Extracted from https://elib.nlb.by/elib/Record/BY-NLB-br0000160345/Export?style=MARCXML -->
+<collection xmlns="http://www.loc.gov/MARC21/slim" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.loc.gov/MARC21/slim http://www.loc.gov/standards/marcxml/schema/MARC21slim.xsd">
+	<record>
+		<controlfield tag="001">BY-NLB-br0000160345</controlfield>
+		<datafield tag="200" ind1="1" ind2=" ">
+			<subfield code="a">Девятый археологический съезд в Вильне</subfield>
+			<subfield code="f">составил А. П. Смородский</subfield>
+		</datafield>
+		<datafield tag="464" ind1=" " ind2="0">
+			<subfield code="1">2001 </subfield>
+			<subfield code="a">О курганах Минской губернии</subfield>
+			<subfield code="1">700 1</subfield>
+			<subfield code="3">BY-SEK-1134909</subfield>
+			<subfield code="a">Татур</subfield>
+			<subfield code="b">Г. Х.</subfield>
+			<subfield code="g">Генрих Христофорович</subfield>
+			<subfield code="c">археолог</subfield>
+			<subfield code="f">1846—1907</subfield>
+		</datafield>
+	</record>
+</collection>

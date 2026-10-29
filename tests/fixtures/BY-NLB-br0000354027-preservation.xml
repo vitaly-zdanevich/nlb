@@ -1,0 +1,27 @@
+<!-- Extracted from https://elib.nlb.by/elib/Record/BY-NLB-br0000354027/Export?style=MARCXML -->
+<collection xmlns="http://www.loc.gov/MARC21/slim" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.loc.gov/MARC21/slim http://www.loc.gov/standards/marcxml/schema/MARC21slim.xsd">
+	<record>
+		<controlfield tag="001">BY-NLB-br0000354027</controlfield>
+		<datafield tag="200" ind1="1" ind2=" ">
+			<subfield code="a">Flotow. Rübezahl</subfield>
+			<subfield code="f">par G. Wichtl</subfield>
+		</datafield>
+		<datafield tag="210" ind1=" " ind2=" ">
+			<subfield code="d">[1850?]</subfield>
+		</datafield>
+		<datafield tag="488" ind1=" " ind2="1">
+			<subfield code="1">2001 </subfield>
+			<subfield code="a">Rübezahl</subfield>
+			<subfield code="1">5411 </subfield>
+			<subfield code="a">Рюбецаль</subfield>
+			<subfield code="z">rus</subfield>
+			<subfield code="1">700 1</subfield>
+			<subfield code="3">BY-NLB-ar2478771</subfield>
+			<subfield code="a">Флотов</subfield>
+			<subfield code="b">Ф. фон</subfield>
+			<subfield code="g">Фридрих фон</subfield>
+			<subfield code="c">композитор</subfield>
+			<subfield code="f">1812—1883</subfield>
+		</datafield>
+	</record>
+</collection>
