@@ -1,0 +1,1184 @@
+[
+  {
+    "record_id": "BY-NLB-br0000457491",
+    "source": "https://elib.nlb.by:8070/mets//structure/state?id=129730",
+    "captured_at": "2026-11-01T04:22:00.419769+00:00",
+    "record_meta": {
+      "title": "Morituri : powieść w dwóch tomach / przez J. I. Kraszewskiego. T. 1"
+    },
+    "marc_meta": {
+      "title": "Morituri : powieść w dwóch tomach / przez J. I. Kraszewskiego. T. 1",
+      "date": "1874",
+      "related_records": [
+        {
+          "tag": "461",
+          "record_id": "BY-NLB-br0000135112",
+          "title": "Morituri : powieść w dwóch tomach / przez J. I. Kraszewskiego",
+          "volume": "T. 1",
+          "copies": []
+        },
+        {
+          "tag": "481",
+          "record_id": "BY-NLB-br0000457493",
+          "title": "",
+          "volume": "",
+          "copies": []
+        },
+        {
+          "tag": "488",
+          "record_id": "BY-NLB-br0000180860",
+          "title": "",
+          "volume": "",
+          "copies": []
+        }
+      ]
+    },
+    "mets": {
+      "metsID": 129730,
+      "header": "<td bgcolor=\"#3f5070\" class=\"h1\">\n <div align=\"center\">\n  <font color=\"#97a9ca\" size=\"-1\">ЗМЕСТ ПАПКІ ЭКЗЭМПЛЯРА ЗАХОЎВАННЯ</font>\n  <br><font color=\"#ffffff\"> «Morituri : powiesc w dwoch tomach» Kraszewski, Jozef Ignacy</font>\n </div></td>",
+      "description": null,
+      "nodes": [
+        {
+          "key": "129730_FILE_Pu2s05d",
+          "serial": 0,
+          "data": {
+            "id": "129730_FILE_Pu2s05d",
+            "file": {
+              "id": 8373304,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/13i_2976_026/PDF/ch_1_1.pdf"
+            },
+            "linkName": "Ч. 1.",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129730_FILE_gb5htTz",
+          "serial": 0,
+          "data": {
+            "id": "129730_FILE_gb5htTz",
+            "file": {
+              "id": 8373305,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/13i_2976_026/PDF/ch_1_2.pdf"
+            },
+            "linkName": "Ч. 2.",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129730_FILE_fNc42Q2",
+          "serial": 0,
+          "data": {
+            "id": "129730_FILE_fNc42Q2",
+            "file": {
+              "id": 8373306,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/13i_2976_026/PDF/ch_1_3.pdf"
+            },
+            "linkName": "Ч. 3.",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129730_TEXT_KQfmOIU",
+          "serial": 0,
+          "data": {
+            "id": "129730_TEXT_KQfmOIU",
+            "file": null,
+            "linkName": "Morituri. Kraszewski, J. I.",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "TEXT",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129730_FILE_sdG3UKg",
+          "serial": 0,
+          "data": {
+            "id": "129730_FILE_sdG3UKg",
+            "file": {
+              "id": 8373307,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/13i_2976_026/PDF/ch_2_1.pdf"
+            },
+            "linkName": "Ч. 1.",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129730_FILE_cqQOjYp",
+          "serial": 0,
+          "data": {
+            "id": "129730_FILE_cqQOjYp",
+            "file": {
+              "id": 8373308,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/13i_2976_026/PDF/ch_2_2.pdf"
+            },
+            "linkName": "Ч. 2.",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129730_FILE_50Ga4Q7",
+          "serial": 0,
+          "data": {
+            "id": "129730_FILE_50Ga4Q7",
+            "file": {
+              "id": 8373309,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/13i_2976_026/PDF/ch_2_3.pdf"
+            },
+            "linkName": "Ч. 3.",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        }
+      ],
+      "changedBy": "html-migrations-service",
+      "viewMode": "TILES"
+    }
+  },
+  {
+    "record_id": "BY-NLB-br0000457493",
+    "source": "https://elib.nlb.by:8070/mets//structure/state?id=129731",
+    "captured_at": "2026-11-01T04:28:05.227443+00:00",
+    "record_meta": {
+      "title": "Morituri : powieść w dwóch tomach / przez J. I. Kraszewskiego. T. 2"
+    },
+    "marc_meta": {
+      "title": "Morituri : powieść w dwóch tomach / przez J. I. Kraszewskiego. T. 2",
+      "date": "1875",
+      "related_records": [
+        {
+          "tag": "461",
+          "record_id": "BY-NLB-br0000135112",
+          "title": "Morituri : powieść w dwóch tomach / przez J. I. Kraszewskiego",
+          "volume": "T. 2",
+          "copies": []
+        },
+        {
+          "tag": "482",
+          "record_id": "BY-NLB-br0000457491",
+          "title": "",
+          "volume": "",
+          "copies": []
+        },
+        {
+          "tag": "488",
+          "record_id": "BY-NLB-br0000180860",
+          "title": "",
+          "volume": "",
+          "copies": []
+        }
+      ]
+    },
+    "mets": {
+      "metsID": 129731,
+      "header": "<td bgcolor=\"#3f5070\" class=\"h1\">\n <div align=\"center\">\n  <font color=\"#97a9ca\" size=\"-1\">ЗМЕСТ ПАПКІ ЭКЗЭМПЛЯРА ЗАХОЎВАННЯ</font>\n  <br><font color=\"#ffffff\"> «Morituri : powiesc w dwoch tomach» Kraszewski, Jozef Ignacy</font>\n </div></td>",
+      "description": null,
+      "nodes": [
+        {
+          "key": "129731_FILE_UhHYsEn",
+          "serial": 0,
+          "data": {
+            "id": "129731_FILE_UhHYsEn",
+            "file": {
+              "id": 8373942,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/13i_2976_026/PDF/ch_1_1.pdf"
+            },
+            "linkName": "Ч. 1.",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129731_FILE_Af7IbIc",
+          "serial": 0,
+          "data": {
+            "id": "129731_FILE_Af7IbIc",
+            "file": {
+              "id": 8373943,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/13i_2976_026/PDF/ch_1_2.pdf"
+            },
+            "linkName": "Ч. 2.",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129731_FILE_O1QwCN2",
+          "serial": 0,
+          "data": {
+            "id": "129731_FILE_O1QwCN2",
+            "file": {
+              "id": 8373944,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/13i_2976_026/PDF/ch_1_3.pdf"
+            },
+            "linkName": "Ч. 3.",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129731_TEXT_M8R3SGG",
+          "serial": 0,
+          "data": {
+            "id": "129731_TEXT_M8R3SGG",
+            "file": null,
+            "linkName": "Morituri. Kraszewski, J. I.",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "TEXT",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129731_FILE_hWOfYSC",
+          "serial": 0,
+          "data": {
+            "id": "129731_FILE_hWOfYSC",
+            "file": {
+              "id": 8373945,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/13i_2976_026/PDF/ch_2_1.pdf"
+            },
+            "linkName": "Ч. 1.",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129731_FILE_D1RQYPj",
+          "serial": 0,
+          "data": {
+            "id": "129731_FILE_D1RQYPj",
+            "file": {
+              "id": 8373946,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/13i_2976_026/PDF/ch_2_2.pdf"
+            },
+            "linkName": "Ч. 2.",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129731_FILE_eddk00w",
+          "serial": 0,
+          "data": {
+            "id": "129731_FILE_eddk00w",
+            "file": {
+              "id": 8373947,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/13i_2976_026/PDF/ch_2_3.pdf"
+            },
+            "linkName": "Ч. 3.",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        }
+      ],
+      "changedBy": "html-migrations-service",
+      "viewMode": "TILES"
+    }
+  },
+  {
+    "record_id": "BY-NLB-br0000466892",
+    "source": "https://elib.nlb.by:8070/mets//structure/state?id=129763",
+    "captured_at": "2026-11-01T07:23:22.799264+00:00",
+    "record_meta": {
+      "title": "Orbis Polonus : splendoribus caeli, triumphis mundi, pulchritudine animantium, decore aquatilium, naturae excellentia reptilium condecoratus : in quo antiqua Sarmatarum Gentilitia, per vetustae nobilitatis Polonae insignia, vetera & nova indigenatus meritorum praemia & arma, specificantur & relucent : nunc primum, ut Latinitati consecratus, ita claritate & veritate perspicuus : [у 3 т.] / authore Simone Okolski, S. Th. Bacc. Ordinis Praedic. provinciae Russiae, Priore Camen. & Illustriss., Potocij Campiductoris Regni, ordinario concionatore. Orbis Poloni t. 2: in quo Sarmatarum Gentilitia & Arma quaecunque a litera L, usque ad literam R, inclusive, suam incioiunt & recensent denominationem, continentur & dilucidantur"
+    },
+    "marc_meta": {
+      "title": "Orbis Polonus : splendoribus caeli, triumphis mundi, pulchritudine animantium, decore aquatilium, naturae excellentia reptilium condecoratus : in quo antiqua Sarmatarum Gentilitia, per vetustae nobilitatis Polonae insignia, vetera & nova indigenatus meritorum praemia & arma, specificantur & relucent : nunc primum, ut Latinitati consecratus, ita claritate & veritate perspicuus : [у 3 т.] / authore Simone Okolski, S. Th. Bacc. Ordinis Praedic. provinciae Russiae, Priore Camen. & Illustriss., Potocij Campiductoris Regni, ordinario concionatore. Orbis Poloni t. 2",
+      "date": "1643",
+      "related_records": [
+        {
+          "tag": "461",
+          "record_id": "BY-NLB-br0000466864",
+          "title": "Orbis Polonus : splendoribus caeli, triumphis mundi, pulchritudine animantium, decore aquatilium, naturae excellentia reptilium condecoratus : in quo antiqua Sarmatarum Gentilitia, per vetustae nobilitatis Polonae insignia, vetera & nova indigenatus meritorum praemia & arma, specificantur & relucent : nunc primum, ut Latinitati consecratus, ita claritate & veritate perspicuus : [у 3 т.] / authore Simone Okolski, S. Th. Bacc. Ordinis Praedic. provinciae Russiae, Priore Camen. & Illustriss., Potocij Campiductoris Regni, ordinario concionatore",
+          "volume": "T.2",
+          "copies": []
+        },
+        {
+          "tag": "482",
+          "record_id": "BY-NLB-br304781",
+          "title": "",
+          "volume": "",
+          "copies": []
+        }
+      ]
+    },
+    "mets": {
+      "metsID": 129763,
+      "header": "<td bgcolor=\"#3f5070\" class=\"h1\">\n <div align=\"center\">\n  <font color=\"#97a9ca\" size=\"-1\">ЗМЕСТ ПАПКІ ЭКЗЭМПЛЯРА ЗАХОЎВАННЯ</font>\n  <br><font color=\"#ffffff\"> «Orbis Polonus : splendoribus caeli: triumphis mundi: pulchritudine animantium: decore aquatilium: naturae excellentia reptilium : in quo antiqua Sarmatarum gentilitia, per vetustae nobilitatis Polonae insignia, vetera &amp; nova indigenatus meritorum praemia &amp; arma, specificantur &amp; relucent : [в 3 т.] » Okolski, Szymon (1580―1653)</font>\n </div></td>",
+      "description": null,
+      "nodes": [
+        {
+          "key": "129763_FILE_5AnECZr",
+          "serial": 0,
+          "data": {
+            "id": "129763_FILE_5AnECZr",
+            "file": {
+              "id": 8391393,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_1.pdf"
+            },
+            "linkName": "ВВЕДЕНИЕ",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129763_TEXT_ETNSJcC",
+          "serial": 0,
+          "data": {
+            "id": "129763_TEXT_ETNSJcC",
+            "file": null,
+            "linkName": "Том 1",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "TEXT",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129763_FILE_MX91f8G",
+          "serial": 0,
+          "data": {
+            "id": "129763_FILE_MX91f8G",
+            "file": {
+              "id": 8391404,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_2.pdf"
+            },
+            "linkName": "Ч. 1",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129763_FILE_EJZEFhq",
+          "serial": 0,
+          "data": {
+            "id": "129763_FILE_EJZEFhq",
+            "file": {
+              "id": 8391405,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_3.pdf"
+            },
+            "linkName": "Ч. 2",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129763_FILE_tUlegbE",
+          "serial": 0,
+          "data": {
+            "id": "129763_FILE_tUlegbE",
+            "file": {
+              "id": 8391406,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_4.pdf"
+            },
+            "linkName": "Ч. 3",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129763_FILE_FEGTuxj",
+          "serial": 0,
+          "data": {
+            "id": "129763_FILE_FEGTuxj",
+            "file": {
+              "id": 8391407,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_5.pdf"
+            },
+            "linkName": "Ч. 4",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129763_FILE_ehXG6Hg",
+          "serial": 0,
+          "data": {
+            "id": "129763_FILE_ehXG6Hg",
+            "file": {
+              "id": 8391408,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_6.pdf"
+            },
+            "linkName": "Ч. 5",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129763_FILE_In2yVBX",
+          "serial": 0,
+          "data": {
+            "id": "129763_FILE_In2yVBX",
+            "file": {
+              "id": 8391409,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_7.pdf"
+            },
+            "linkName": "Ч. 6",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129763_FILE_LD14r4Y",
+          "serial": 0,
+          "data": {
+            "id": "129763_FILE_LD14r4Y",
+            "file": {
+              "id": 8391410,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_8.pdf"
+            },
+            "linkName": "Ч. 7",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129763_FILE_UYIhREs",
+          "serial": 0,
+          "data": {
+            "id": "129763_FILE_UYIhREs",
+            "file": {
+              "id": 8391411,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_9.pdf"
+            },
+            "linkName": "Ч. 8 - АЛФАВИТНЫЙ УКАЗАТЕЛЬ",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129763_TEXT_JNdXHuP",
+          "serial": 0,
+          "data": {
+            "id": "129763_TEXT_JNdXHuP",
+            "file": null,
+            "linkName": "Том 2",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "TEXT",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129763_FILE_tEqaKyE",
+          "serial": 0,
+          "data": {
+            "id": "129763_FILE_tEqaKyE",
+            "file": {
+              "id": 8391394,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_10.pdf"
+            },
+            "linkName": "Ч. 1",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129763_FILE_xANP11C",
+          "serial": 0,
+          "data": {
+            "id": "129763_FILE_xANP11C",
+            "file": {
+              "id": 8391395,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_11.pdf"
+            },
+            "linkName": "Ч. 2",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129763_FILE_bs1rrF3",
+          "serial": 0,
+          "data": {
+            "id": "129763_FILE_bs1rrF3",
+            "file": {
+              "id": 8391396,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_12.pdf"
+            },
+            "linkName": "Ч. 3",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129763_FILE_jJoRmRA",
+          "serial": 0,
+          "data": {
+            "id": "129763_FILE_jJoRmRA",
+            "file": {
+              "id": 8391397,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_13.pdf"
+            },
+            "linkName": "Ч. 4",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129763_FILE_iE2VLfh",
+          "serial": 0,
+          "data": {
+            "id": "129763_FILE_iE2VLfh",
+            "file": {
+              "id": 8391398,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_14.pdf"
+            },
+            "linkName": "Ч. 5",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129763_FILE_T1XHw1D",
+          "serial": 0,
+          "data": {
+            "id": "129763_FILE_T1XHw1D",
+            "file": {
+              "id": 8391399,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_15.pdf"
+            },
+            "linkName": "Ч. 6 - АЛФАВИТНЫЙ УКАЗАТЕЛЬ",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129763_TEXT_LjuXe6M",
+          "serial": 0,
+          "data": {
+            "id": "129763_TEXT_LjuXe6M",
+            "file": null,
+            "linkName": "Том 3",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "TEXT",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129763_FILE_olFI4dT",
+          "serial": 0,
+          "data": {
+            "id": "129763_FILE_olFI4dT",
+            "file": {
+              "id": 8391400,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_16.pdf"
+            },
+            "linkName": "Ч. 1",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129763_FILE_jp4qznh",
+          "serial": 0,
+          "data": {
+            "id": "129763_FILE_jp4qznh",
+            "file": {
+              "id": 8391401,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_17.pdf"
+            },
+            "linkName": "Ч. 2",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129763_FILE_okrsSFH",
+          "serial": 0,
+          "data": {
+            "id": "129763_FILE_okrsSFH",
+            "file": {
+              "id": 8391402,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_18.pdf"
+            },
+            "linkName": "Ч. 3",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129763_FILE_ivjbduO",
+          "serial": 0,
+          "data": {
+            "id": "129763_FILE_ivjbduO",
+            "file": {
+              "id": 8391403,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_19.pdf"
+            },
+            "linkName": "Ч. 4 - АЛФАВИТНЫЙ УКАЗАТЕЛЬ",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        }
+      ],
+      "changedBy": "html-migrations-service",
+      "viewMode": "TILES"
+    }
+  },
+  {
+    "record_id": "BY-NLB-br0000466893",
+    "source": "https://elib.nlb.by:8070/mets//structure/state?id=129764",
+    "captured_at": "2026-11-01T08:17:05.004752+00:00",
+    "record_meta": {
+      "title": "Orbis Polonus : splendoribus caeli, triumphis mundi, pulchritudine animantium, decore aquatilium, naturae excellentia reptilium condecoratus : in quo antiqua Sarmatarum Gentilitia, per vetustae nobilitatis Polonae insignia, vetera & nova indigenatus meritorum praemia & arma, specificantur & relucent : nunc primum, ut Latinitati consecratus, ita claritate & veritate perspicuus : [у 3 т.] / authore Simone Okolski, S. Th. Bacc. Ordinis Praedic. provinciae Russiae, Priore Camen. & Illustriss., Potocij Campiductoris Regni, ordinario concionatore. Orbis Poloni t. 3: in quo antiqua Sarmatarum Gentilitia & Arma quaecunque a litera S, usque ad finem Alphabeti suam incipiunt & recensent denominationem, continentur & dilucidantur"
+    },
+    "marc_meta": {
+      "title": "Orbis Polonus : splendoribus caeli, triumphis mundi, pulchritudine animantium, decore aquatilium, naturae excellentia reptilium condecoratus : in quo antiqua Sarmatarum Gentilitia, per vetustae nobilitatis Polonae insignia, vetera & nova indigenatus meritorum praemia & arma, specificantur & relucent : nunc primum, ut Latinitati consecratus, ita claritate & veritate perspicuus : [у 3 т.] / authore Simone Okolski, S. Th. Bacc. Ordinis Praedic. provinciae Russiae, Priore Camen. & Illustriss., Potocij Campiductoris Regni, ordinario concionatore. Orbis Poloni t. 3",
+      "date": "1645",
+      "related_records": [
+        {
+          "tag": "461",
+          "record_id": "BY-NLB-br0000466864",
+          "title": "Orbis Polonus : splendoribus caeli, triumphis mundi, pulchritudine animantium, decore aquatilium, naturae excellentia reptilium condecoratus : in quo antiqua Sarmatarum Gentilitia, per vetustae nobilitatis Polonae insignia, vetera & nova indigenatus meritorum praemia & arma, specificantur & relucent : nunc primum, ut Latinitati consecratus, ita claritate & veritate perspicuus : [у 3 т.] / authore Simone Okolski, S. Th. Bacc. Ordinis Praedic. provinciae Russiae, Priore Camen. & Illustriss., Potocij Campiductoris Regni, ordinario concionatore",
+          "volume": "T.3",
+          "copies": []
+        },
+        {
+          "tag": "482",
+          "record_id": "BY-NLB-br304781",
+          "title": "",
+          "volume": "",
+          "copies": []
+        }
+      ]
+    },
+    "mets": {
+      "metsID": 129764,
+      "header": "<td bgcolor=\"#3f5070\" class=\"h1\">\n <div align=\"center\">\n  <font color=\"#97a9ca\" size=\"-1\">ЗМЕСТ ПАПКІ ЭКЗЭМПЛЯРА ЗАХОЎВАННЯ</font>\n  <br><font color=\"#ffffff\"> «Orbis Polonus : splendoribus caeli: triumphis mundi: pulchritudine animantium: decore aquatilium: naturae excellentia reptilium : in quo antiqua Sarmatarum gentilitia, per vetustae nobilitatis Polonae insignia, vetera &amp; nova indigenatus meritorum praemia &amp; arma, specificantur &amp; relucent : [в 3 т.] » Okolski, Szymon (1580―1653)</font>\n </div></td>",
+      "description": null,
+      "nodes": [
+        {
+          "key": "129764_FILE_tIHfDvc",
+          "serial": 0,
+          "data": {
+            "id": "129764_FILE_tIHfDvc",
+            "file": {
+              "id": 8393119,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_1.pdf"
+            },
+            "linkName": "ВВЕДЕНИЕ",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129764_TEXT_Foh9mhk",
+          "serial": 0,
+          "data": {
+            "id": "129764_TEXT_Foh9mhk",
+            "file": null,
+            "linkName": "Том 1",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "TEXT",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129764_FILE_GE4uCso",
+          "serial": 0,
+          "data": {
+            "id": "129764_FILE_GE4uCso",
+            "file": {
+              "id": 8393130,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_2.pdf"
+            },
+            "linkName": "Ч. 1",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129764_FILE_2MdyWfC",
+          "serial": 0,
+          "data": {
+            "id": "129764_FILE_2MdyWfC",
+            "file": {
+              "id": 8393131,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_3.pdf"
+            },
+            "linkName": "Ч. 2",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129764_FILE_vf9FSvC",
+          "serial": 0,
+          "data": {
+            "id": "129764_FILE_vf9FSvC",
+            "file": {
+              "id": 8393132,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_4.pdf"
+            },
+            "linkName": "Ч. 3",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129764_FILE_hEGXheg",
+          "serial": 0,
+          "data": {
+            "id": "129764_FILE_hEGXheg",
+            "file": {
+              "id": 8393133,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_5.pdf"
+            },
+            "linkName": "Ч. 4",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129764_FILE_pz4vTbs",
+          "serial": 0,
+          "data": {
+            "id": "129764_FILE_pz4vTbs",
+            "file": {
+              "id": 8393134,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_6.pdf"
+            },
+            "linkName": "Ч. 5",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129764_FILE_0FDI2cG",
+          "serial": 0,
+          "data": {
+            "id": "129764_FILE_0FDI2cG",
+            "file": {
+              "id": 8393135,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_7.pdf"
+            },
+            "linkName": "Ч. 6",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129764_FILE_pZBpU14",
+          "serial": 0,
+          "data": {
+            "id": "129764_FILE_pZBpU14",
+            "file": {
+              "id": 8393136,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_8.pdf"
+            },
+            "linkName": "Ч. 7",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129764_FILE_oGQhGD4",
+          "serial": 0,
+          "data": {
+            "id": "129764_FILE_oGQhGD4",
+            "file": {
+              "id": 8393137,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_9.pdf"
+            },
+            "linkName": "Ч. 8 - АЛФАВИТНЫЙ УКАЗАТЕЛЬ",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129764_TEXT_S4Xjd3z",
+          "serial": 0,
+          "data": {
+            "id": "129764_TEXT_S4Xjd3z",
+            "file": null,
+            "linkName": "Том 2",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "TEXT",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129764_FILE_xh8YOuK",
+          "serial": 0,
+          "data": {
+            "id": "129764_FILE_xh8YOuK",
+            "file": {
+              "id": 8393120,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_10.pdf"
+            },
+            "linkName": "Ч. 1",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129764_FILE_6uEnw6D",
+          "serial": 0,
+          "data": {
+            "id": "129764_FILE_6uEnw6D",
+            "file": {
+              "id": 8393121,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_11.pdf"
+            },
+            "linkName": "Ч. 2",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129764_FILE_bC9WZzt",
+          "serial": 0,
+          "data": {
+            "id": "129764_FILE_bC9WZzt",
+            "file": {
+              "id": 8393122,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_12.pdf"
+            },
+            "linkName": "Ч. 3",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129764_FILE_gwqU89e",
+          "serial": 0,
+          "data": {
+            "id": "129764_FILE_gwqU89e",
+            "file": {
+              "id": 8393123,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_13.pdf"
+            },
+            "linkName": "Ч. 4",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129764_FILE_3w82lId",
+          "serial": 0,
+          "data": {
+            "id": "129764_FILE_3w82lId",
+            "file": {
+              "id": 8393124,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_14.pdf"
+            },
+            "linkName": "Ч. 5",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129764_FILE_YSBtiRV",
+          "serial": 0,
+          "data": {
+            "id": "129764_FILE_YSBtiRV",
+            "file": {
+              "id": 8393125,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_15.pdf"
+            },
+            "linkName": "Ч. 6 - АЛФАВИТНЫЙ УКАЗАТЕЛЬ",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129764_TEXT_e6eGprg",
+          "serial": 0,
+          "data": {
+            "id": "129764_TEXT_e6eGprg",
+            "file": null,
+            "linkName": "Том 3",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "TEXT",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129764_FILE_BrZiOuh",
+          "serial": 0,
+          "data": {
+            "id": "129764_FILE_BrZiOuh",
+            "file": {
+              "id": 8393126,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_16.pdf"
+            },
+            "linkName": "Ч. 1",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129764_FILE_NRM5nvC",
+          "serial": 0,
+          "data": {
+            "id": "129764_FILE_NRM5nvC",
+            "file": {
+              "id": 8393127,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_17.pdf"
+            },
+            "linkName": "Ч. 2",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129764_FILE_OQTqNIa",
+          "serial": 0,
+          "data": {
+            "id": "129764_FILE_OQTqNIa",
+            "file": {
+              "id": 8393128,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_18.pdf"
+            },
+            "linkName": "Ч. 3",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        },
+        {
+          "key": "129764_FILE_V2zYvAE",
+          "serial": 0,
+          "data": {
+            "id": "129764_FILE_V2zYvAE",
+            "file": {
+              "id": 8393129,
+              "fileLocation": "/import/s3/nlb/0/9/_2011/094_12629k/PDF/Ch_19.pdf"
+            },
+            "linkName": "Ч. 4 - АЛФАВИТНЫЙ УКАЗАТЕЛЬ",
+            "description": null,
+            "visible": true,
+            "elibLocal": false,
+            "nodeType": "FILE",
+            "elibLocalUrl": null
+          },
+          "children": []
+        }
+      ],
+      "changedBy": "html-migrations-service",
+      "viewMode": "TILES"
+    }
+  }
+]

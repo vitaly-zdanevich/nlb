@@ -131,6 +131,9 @@ def generate_plan(archive_dir: Path, fetch_page: Callable[[str], dict[str, Any]]
 			if not IDENTIFIER_RE.fullmatch(file_id):
 				raise ValueError('Invalid archived file identifier')
 			identity = {'record_id': record_id, 'file_id': file_id}
+			if (item.get('scan_identity') or {}).get('eligible') is not True:
+				plan['skipped'].append({**identity, 'reason': 'Catalog-to-scan association needs review; refresh metadata before planning'})
+				continue
 			sha1 = item.get('sha1') or ''
 			if item.get('status') not in COMPLETED_STATUSES or not SHA1_RE.fullmatch(sha1):
 				plan['skipped'].append({**identity, 'reason': 'No completed, hash-identified Commons association'})

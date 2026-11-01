@@ -265,7 +265,7 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 		"""Verify METS structure flattening keeps visible open files and builds labels."""
 		files = upload_nlb.extract_files_from_mets_structure(MOCK_METS_STRUCTURE_555)
 		self.assertEqual(
-			files,
+			[{key: item[key] for key in ('file_id', 'part_label', 'file_location')} for item in files],
 			[
 				{
 					'file_id': '2001',

@@ -33,6 +33,7 @@ import requests
 from catalog_requests import CatalogRetriesExhausted, InvalidCatalogResponse, get_catalog_response
 from preservation import ArchiveStore
 from pdf_validation import InvalidPDFError, validate_pdf
+from scan_identity import assess_scan_identity, flatten_mets
 from publication_rights import evaluate_publication, publication_year
 from catalog_validation import (
 	validate_access_json, validate_manifest, validate_marcxml, validate_mets_json,
@@ -165,9 +166,10 @@ UNIMARC_ROLE_LABELS = {
 
 
 def default_state() -> dict[str, Any]:
-	"""Return a fresh resumable state dictionary."""
+	'''Return a fresh resumable state dictionary.'''
 	return {
 		'version': 1,
+		'scan_identity_version': 1,
 		'from_year': None,
 		'until_year': DEFAULT_UNTIL_YEAR,
 		'search_url': None,
@@ -207,6 +209,11 @@ def load_state(
 		state.pop('retry_from_page', None)
 	if not isinstance(state.get('items'), dict):
 		state['items'] = {}
+	# Revisit older associations once: a verified binary does not establish its
+	# catalog volume. Preserve prior results until the fresh scope check runs.
+	if not data.get('scan_identity_version') and state['items']:
+		state['retry_from_page'] = 1
+	state['scan_identity_version'] = 1
 	# Older releases treated HTML/error responses as terminal non-PDF records.
 	# Their original page was not saved, so revisit the selected catalog once.
 	for entry in state['items'].values():
@@ -382,47 +389,9 @@ def parse_search_results_html(html: str) -> dict[str, Any]:
 	}
 
 
-def extract_files_from_mets_structure(structure: dict[str, Any]) -> list[dict[str, str]]:
-	"""Flatten a METS structure tree into ordered downloadable file descriptors."""
-	files: list[dict[str, str]] = []
-	seen_file_ids: set[str] = set()
-
-	def walk(nodes: list[dict[str, Any]], parent_labels: list[str]) -> None:
-		for node in nodes:
-			if not isinstance(node, dict):
-				continue
-			data = node.get('data') or {}
-			if not data.get('visible', True):
-				continue
-			link_name = (data.get('linkName') or '').strip()
-			description = (data.get('description') or '').strip()
-			label_parts = [part for part in (link_name, description) if part]
-			current_label = ' — '.join(label_parts)
-			path_labels = [*parent_labels, current_label] if current_label else list(parent_labels)
-
-			node_type = data.get('nodeType')
-			if node_type == 'FILE':
-				if data.get('elibLocal'):
-					continue
-				file_info = data.get('file') or {}
-				raw_file_id = file_info.get('id')
-				if raw_file_id is not None:
-					file_id = str(raw_file_id).strip()
-					if file_id and file_id not in seen_file_ids:
-						seen_file_ids.add(file_id)
-						files.append({
-							'file_id': file_id,
-							'part_label': ' / '.join(path_labels),
-							'file_location': str(file_info.get('fileLocation') or ''),
-						})
-			children = node.get('children') or []
-			if isinstance(children, list) and children:
-				walk(children, path_labels)
-
-	top_nodes = structure.get('nodes') or []
-	if isinstance(top_nodes, list):
-		walk(top_nodes, [])
-	return files
+def extract_files_from_mets_structure(structure: dict[str, Any]) -> list[dict[str, Any]]:
+	'''Flatten viewer files while retaining sibling headings and association evidence.'''
+	return flatten_mets(structure)
 
 
 def extract_cell_values(cell: Any) -> list[str]:
@@ -2021,32 +1990,30 @@ class NlbClient:
 		return resp.json()
 
 	def resolve_record_files(
-		self,
-		search_entry: dict[str, Any],
-		record_meta: dict[str, Any],
-	) -> list[dict[str, str]]:
-		'''Resolve each METS structure once, retaining its labels for direct viewer files.'''
-		files: list[dict[str, str]] = []
-		by_id: dict[str, dict[str, str]] = {}
-
+		self, search_entry: dict[str, Any], record_meta: dict[str, Any],
+	) -> list[dict[str, Any]]:
+		'''Keep all METS scope evidence, including when a file also has a direct link.'''
+		by_id: dict[str, dict[str, Any]] = {}
 		for file_id in [*search_entry.get('file_ids', []), *record_meta.get('file_ids', [])]:
-			if file_id not in by_id:
-				by_id[file_id] = {'file_id': file_id, 'part_label': ''}
-				files.append(by_id[file_id])
-
+			by_id.setdefault(file_id, {'file_id': file_id, 'part_label': ''})
+		all_volumes: set[int] = set()
+		unresolved = False
 		for mets_id in dict.fromkeys([*search_entry.get('mets_ids', []), *record_meta.get('mets_ids', [])]):
 			for item in self.fetch_mets_files(mets_id):
-				fid = item['file_id']
-				if fid not in by_id:
-					by_id[fid] = {
-						'file_id': fid,
-						'part_label': item.get('part_label', ''),
-					}
-					files.append(by_id[fid])
-				elif item.get('part_label') and not by_id[fid]['part_label']:
-					by_id[fid]['part_label'] = item['part_label']
-
-		return files
+				entry = by_id.setdefault(item['file_id'], {'file_id': item['file_id'], 'part_label': ''})
+				for key in ('part_label', 'file_location'):
+					if item.get(key) and not entry.get(key):
+						entry[key] = item[key]
+				for context in item.get('mets_contexts', []):
+					context = {**context, 'mets_id': str(mets_id)}
+					if context not in entry.setdefault('mets_contexts', []):
+						entry['mets_contexts'].append(context)
+				all_volumes.update(item.get('mets_volumes', []))
+				unresolved |= item.get('mets_unresolved_volume', False)
+		for entry in by_id.values():
+			if all_volumes or unresolved or 'mets_contexts' in entry:
+				entry.update(mets_volumes=sorted(all_volumes), mets_unresolved_volume=unresolved)
+		return list(by_id.values())
 
 	def fetch_scan_manifest(self, marc_id: str, file_id: str) -> dict[str, Any]:
 		'''Capture viewer metadata even when a scan already exists on Commons.'''
@@ -2543,6 +2510,7 @@ def process_single_scan(
 	category: str = DEFAULT_CATEGORY, license_template: str = DEFAULT_LICENSE,
 	dry_run: bool = False, progress_label: str = '', *,
 	explicit_license: bool = False, metadata_only: bool = False,
+	file_entry: dict[str, Any] | None = None,
 ) -> str:
 	'''Archive each scan's metadata before deduplication; verify bytes before completion.
 
@@ -2560,7 +2528,8 @@ def process_single_scan(
 	save_state(state_path, state)
 	decision = evaluate_publication(record_meta, marc_meta, license_template, explicit_license=explicit_license)
 	commons_filename = build_commons_filename(record_meta, marc_meta, marc_id, file_id, part_label)
-	base = {'marc_id': marc_id, 'file_id': file_id, 'rights': decision}
+	identity = assess_scan_identity(file_entry or {'file_id': file_id, 'part_label': part_label}, record_meta, marc_meta)
+	base = {'marc_id': marc_id, 'file_id': file_id, 'rights': decision, 'scan_identity': identity}
 	viewer_url = f'{VIEWER_BASE_URL}/viewer?markID={marc_id}&fileID={file_id}'
 
 	def finish(status: str, *, pending: bool = False, **details: Any) -> str:
@@ -2572,6 +2541,8 @@ def process_single_scan(
 			state['retry_from_page'] = min(page, int(state.get('retry_from_page') or page))
 			log_progress(f'{prefix}[{key}] Pending ({status}): {details.get("error", "Review required")}')
 		if archive is not None:
+			if marc_id not in archive.snapshots:
+				archive.save_record(marc_id, record_meta, marc_meta)
 			archive.record_result(marc_id, file_id, entry)
 		save_state(state_path, state)
 		return status
@@ -2582,9 +2553,14 @@ def process_single_scan(
 		if archive is not None:
 			if marc_id not in archive.snapshots:
 				archive.save_record(marc_id, record_meta, marc_meta)
-			archive.save_scan(marc_id, file_id, text, f'File:{commons_filename}', rights=decision, part_label=part_label)
+			archive.save_scan(marc_id, file_id, text, f'File:{commons_filename}', rights=decision, part_label=part_label, scan_identity=identity)
 		return text
 
+	if not identity['eligible']:
+		# Keep the historical binary association for repair, without generating a
+		# new authoritative description from metadata known to be out of scope.
+		base = {**previous, **base}
+		return finish('metadata_review', pending=True, error=identity['reason'], previous_status=previous.get('previous_status', previous.get('status')))
 	wikitext = preserve_description(record_meta)
 	if hasattr(client, 'fetch_scan_manifest'):
 		try:
@@ -2594,15 +2570,18 @@ def process_single_scan(
 			return finish('metadata_failed', pending=True, error=str(error), attempts=error.attempts)
 	if metadata_only:
 		if archive is not None:
-			archive.record_result(marc_id, file_id, {**previous, 'rights': decision} if previous else {'status': 'metadata_ready'})
+			archive.record_result(marc_id, file_id, {**previous, **base} if previous else {**base, 'status': 'metadata_ready'})
 		return 'metadata_ready'
 	if previous.get('status') in TERMINAL_STATUSES and previous.get('verification'):
+		state['items'][key] = {**previous, **base}
 		if archive is not None:
-			archive.record_result(marc_id, file_id, {**previous, 'rights': decision})
+			archive.record_result(marc_id, file_id, state['items'][key])
+		save_state(state_path, state)
 		return 'completed'
 	if not decision['eligible']:
 		log_progress(f'{prefix}[{key}] Deferring for rights review: {decision["reason"]}')
 		return finish('rights_review', pending=True, error=decision['reason'])
+
 
 	title_exists = False
 	if not dry_run:
@@ -2770,6 +2749,7 @@ def iterate_and_upload(
 		'download_failed': 0,
 		'upload_failed': 0,
 		'metadata_failed': 0,
+		'metadata_review': 0,
 		'search_failed': 0,
 		'duplicate_sha1': 0,
 		'existing_title': 0,
@@ -2925,6 +2905,7 @@ def iterate_and_upload(
 						progress_label=progress_label,
 						explicit_license=explicit_license,
 						metadata_only=metadata_only,
+						file_entry=file_entry,
 					)
 					counts[status] = counts.get(status, 0) + 1
 					if status == 'uploaded':
@@ -3087,7 +3068,7 @@ def main(argv: list[str] | None = None) -> int:
 			atomic_json(args.report, {'counts': counts, 'finished_at': datetime.now(timezone.utc).isoformat()})
 		return 2 if any(counts.get(key) for key in (
 			'search_failed', 'metadata_failed', 'download_failed', 'download_rejected',
-			'upload_failed', 'verification_failed', 'title_conflict', 'rights_review',
+			'upload_failed', 'verification_failed', 'title_conflict', 'rights_review', 'metadata_review',
 		)) else 0
 	except ViewerSessionExpired as error:
 		print(f'Stopped: {error}')

@@ -6,8 +6,8 @@
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
-[![Production code](https://img.shields.io/badge/production%20code-3%2C715%20lines-blue)](upload.py)
-[![Test code](https://img.shields.io/badge/test%20code-6%2C242%20lines-blue)](#running-tests)
+[![Production code](https://img.shields.io/badge/production%20code-3%2C846%20lines-blue)](upload.py)
+[![Test code](https://img.shields.io/badge/test%20code-6%2C395%20lines-blue)](#running-tests)
 
 [`upload.py`](upload.py) iterates over open-access digitized scans from the Electronic Library of the National Library of Belarus (`https://elib.nlb.by`), archives the source responses, and uploads eligible PDFs to Wikimedia Commons with their useful catalog metadata readable on the file page.
 
@@ -30,6 +30,7 @@
 - **Parent and bound-with links**: Preserves typed `461` parent and `481`/`482` bound-with relationships with clickable NLB record IDs, titles, volume designations and copy qualifiers. Catalog links in HTML metadata tables also survive; sidebar recommendations are excluded. A matching local `961` can supply the parent's display title, but does not establish parenthood on its own.
 - **Parent publication details with provenance**: Missing MARC publication places or publishers can come from a single unambiguous direct `461` parent and are labeled with the source parent record. The child's own fields take precedence; other parent fields are not inherited. Cached parent responses retain their original capture time and are associated with each child archive. Transient, malformed or mismatched parent responses leave the child pending; an explicit HTTP 404 retains the relationship without claiming inherited metadata.
 - **Single-file and multi-part (`METS`) support**: Resolves direct `fileID` links and `metsID` trees. Each structure is fetched once per record, and a direct file also found in METS keeps its part label.
+- **Viewer-to-record association**: Standalone METS headings apply to following PDF parts, including Roman-numbered volumes. Shared multi-volume and bound-with viewers require a consistent catalog/scan volume match; source filenames and scan chunk numbers do not establish it. Ambiguous associations remain `metadata_review` before downloading or reusing completed state. Historical Commons titles and hashes remain available for repair. Upgrading a legacy state rewinds the selected catalog to page 1 once to check older associations.
 - **SHA-1 deduplication**: Computes the digest with Python's `hashlib` and queries the MediaWiki `allimages` API directly. No shell helper is required. Timeouts, broken connections, invalid JSON and HTTP 500/502/503/504 receive up to five attempts with 5, 10, 20 and 40 seconds between attempts; failed or invalid lookups leave the scan pending without uploading.
 - **Resumable state**: Saves progress atomically after each item and page. Pending work keeps the earliest affected page. Dry runs and metadata-only runs leave the production state file unchanged.
 - **Record and page counters**: Progress includes `[record 345/9743; page 4/98]`. Counters show the record's position in the selected catalog results and the search-page position, including completed or skipped records. Multiple PDFs from one record share its counter. Resuming or revisiting deferred pages uses the corresponding search position; unavailable totals are omitted.
@@ -135,7 +136,7 @@ A metadata-only run starts at page 1 of the selected catalog, captures metadata 
 
 `--refresh-metadata` revisits completed files to archive their current metadata; verified completed PDFs can skip another transfer. It is a normal upload run and can upload new/pending items. Neither refresh mode edits existing Commons descriptions.
 
-The separate reconciliation command builds a reviewable plan from the latest snapshots with completed, hash-identified Commons associations. It reads current Commons pages anonymously, verifies the binary SHA-1, and includes a diff for each proposed edit. Items without an established matching Commons file are reported under `skipped`. An incomplete latest snapshot is reported there too; refresh that record before planning again. Earlier snapshots remain preserved in the archive.
+The separate reconciliation command builds a reviewable plan from the latest snapshots with completed, hash-identified Commons associations and an eligible scan-identity check. Legacy or ambiguous associations require metadata refresh/review before planning. It reads current Commons pages anonymously, verifies the binary SHA-1, and includes a diff for each proposed edit. Items without an established matching Commons file are reported under `skipped`. An incomplete latest snapshot is reported there too; refresh that record before planning again. Earlier snapshots remain preserved in the archive.
 
 ```bash
 python reconcile_metadata.py --archive-dir archive --plan metadata-plan.json
@@ -145,11 +146,11 @@ python reconcile_metadata.py --archive-dir archive --plan metadata-plan.json
 python reconcile_metadata.py --apply metadata-plan.json --pywikibot-dir ~/.pywikibot
 ```
 
-Applying a plan checks the current binary hash, page revision and original text again. Changed files/pages require a fresh plan. Additions use a dedicated block for each NLB record/file pair, preserving the surrounding description and licensing. An already applied entry is skipped when resuming a partially applied plan. Generating a plan does not perform those edits.
+This additive workflow does not repair an incorrect original volume/date field; those pages require a separate reviewed correction. Applying a plan checks the current binary hash, page revision and original text again. Changed files/pages require a fresh plan. Additions use a dedicated block for each NLB record/file pair, preserving the surrounding description and licensing. An already applied entry is skipped when resuming a partially applied plan. Generating a plan does not perform those edits.
 
 ## Run reports and exit status
 
-The uploader prints a JSON count summary. `--report run-report.json` also writes the counts and completion time as JSON after a normal or partial run. Exit status `0` means the run reported no deferred/error/review outcomes; `2` means at least one search, metadata, download, upload, verification, title-conflict or rights-review outcome remains unresolved. These counts describe this selected run, not an independent completeness audit of the entire library. Unhandled errors still terminate the process; an immediate second interrupt exits with `130`.
+The uploader prints a JSON count summary. `--report run-report.json` also writes the counts and completion time as JSON after a normal or partial run. Exit status `0` means the run reported no deferred/error/review outcomes; `2` means at least one search, metadata, download, upload, verification, title-conflict, metadata-review or rights-review outcome remains unresolved. These counts describe this selected run, not an independent completeness audit of the entire library. Unhandled errors still terminate the process; an immediate second interrupt exits with `130`.
 
 Dry runs and metadata-only runs can create archive snapshots and reports, but do not change the production state file. They require network access to the catalog; dry runs also download eligible PDFs and perform anonymous Commons hash lookups.
 
@@ -159,7 +160,7 @@ The upload integration tests use Pywikibot's real request and chunk-upload code 
 
 ```bash
 python -m pip install pytest pytest-cov requests beautifulsoup4 'pywikibot>=11.6' 'pypdf>=6,<7' mwparserfromhell
-pytest -v --cov=upload --cov=catalog_requests --cov=catalog_validation --cov=preservation --cov=publication_rights --cov=pdf_validation --cov=reconcile_metadata --cov-report=term-missing
+pytest -v --cov=upload --cov=scan_identity --cov=catalog_requests --cov=catalog_validation --cov=preservation --cov=publication_rights --cov=pdf_validation --cov=reconcile_metadata --cov-report=term-missing
 # or
 python3 -m unittest discover -v
 ```

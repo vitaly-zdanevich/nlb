@@ -26,11 +26,23 @@ def archive_scan(root, record='BY-NLB-test', file_id='1', text='Catalog text', e
 	archive = ArchiveStore(root)
 	archive.begin_record(record)
 	archive.save_scan(record, file_id, '{{Information\n|description={{ru|1=' + text + '}}\n' + extra_fields + '}}\n{{New-license-must-not-copy}}\n[[Category:New-must-not-copy]]', 'File:Generated.pdf')
-	archive.record_result(record, file_id, {'status': 'duplicate_sha1', 'sha1': SHA1, 'duplicates': ['File:Shared.pdf'], **details})
+	archive.record_result(record, file_id, {'status': 'duplicate_sha1', 'sha1': SHA1, 'duplicates': ['File:Shared.pdf'], 'scan_identity': {'eligible': True}, **details})
 
 
 class TestReconcileMetadata(unittest.TestCase):
 	'''Use immutable fixtures and mocked reads/writes; never contact Commons.'''
+
+	def test_unchecked_or_ambiguous_scan_associations_require_refresh(self):
+		'''Legacy snapshots cannot republish a catalog volume never checked against its viewer.'''
+		for identity in (None, {'eligible': False}):
+			with self.subTest(identity=identity), tempfile.TemporaryDirectory() as directory:
+				root = Path(directory)
+				archive_scan(root, scan_identity=identity)
+				reader = mock.Mock()
+				plan = generate_plan(root, reader)
+				self.assertEqual(plan['entries'], [])
+				self.assertIn('association', plan['skipped'][0]['reason'])
+				reader.assert_not_called()
 
 	def test_plan_preserves_original_page_and_uses_actual_duplicate_target(self):
 		'''Only a managed metadata section is added; existing licenses survive unchanged.'''

@@ -95,7 +95,7 @@ class TestPreservationPipeline(unittest.TestCase):
 		'''Automation receives a failure status and JSON counts for unresolved scans.'''
 		with tempfile.TemporaryDirectory() as directory:
 			root = Path(directory)
-			for status in ('rights_review', 'verification_failed', 'metadata_failed', 'download_failed', 'title_conflict'):
+			for status in ('rights_review', 'verification_failed', 'metadata_failed', 'metadata_review', 'download_failed', 'title_conflict'):
 				with self.subTest(status=status), mock.patch('upload.NlbClient', return_value=Catalog()), mock.patch('upload.iterate_and_upload', return_value={status: 1}), mock.patch('sys.stdout', io.StringIO()):
 					result = upload.main(['--metadata-only', '--state-file', str(root / 'state.json'), '--report', str(root / 'report.json')])
 					self.assertEqual(result, 2)
