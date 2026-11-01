@@ -1808,6 +1808,19 @@ class DownloadRetriesExhausted(RuntimeError):
 		super().__init__(f'Download failed after {attempts} attempts ({type(last_error).__name__}): {last_error}')
 
 
+class ViewerSessionExpired(RuntimeError):
+	'''The viewer explicitly rejected a session that no longer exists server-side.'''
+
+	def __init__(self) -> None:
+		'''Explain recovery without copying the session identifier from the response.'''
+		super().__init__(
+			'NLB viewer session no longer exists on the server. With --viewer-cookies, '
+			'restarting reloads the same expired session: sign in, open the NLB viewer, '
+			'export fresh cookies, and restart with the new file. '
+			'Without exported cookies, retry later; automatic session renewal did not recover the download.'
+		)
+
+
 class NlbClient:
 	'''HTTP client for browsing elib.nlb.by metadata and downloading IIIF PDF scans.'''
 
@@ -1824,6 +1837,7 @@ class NlbClient:
 		self.timeout = timeout
 		self.archive = archive
 		self._viewer_session_initialized = False
+		self._viewer_cookies_imported = viewer_cookies is not None
 		self._parent_metadata_cache: dict[str, dict[str, Any]] = {}
 		self._parent_response_cache: dict[str, requests.Response] = {}
 		if viewer_cookies is not None:
@@ -2032,16 +2046,24 @@ class NlbClient:
 	def download_pdf_scan(self, marc_id: str, file_id: str, target_path: Path) -> int:
 		'''Retry transient download failures with backoff, discarding partial PDFs.
 
-		The viewer session POST runs once. Each GET/stream attempt starts from
-		byte zero. HTTP 500/502/503/504 and network failures share one retry
-		budget. Exhaustion raises DownloadRetriesExhausted so the batch can
-		defer this scan; session setup and permanent errors still propagate.
+		Each GET/stream attempt starts from byte zero within one retry budget.
+		Renew an explicitly missing guest session once within that budget; imported
+		sessions require a fresh browser export instead of replacing authentication.
+		Statistics outages alone do not block the PDF, matching the NLB viewer.
 		'''
 		self.ensure_viewer_session()
 		attempt = 1
+		session_renewed = False
 		while True:
 			try:
 				return self._download_pdf_scan_once(marc_id, file_id, target_path)
+			except ViewerSessionExpired:
+				if self._viewer_cookies_imported or session_renewed or attempt >= DOWNLOAD_MAX_ATTEMPTS:
+					raise
+				log_progress(f'[{marc_id}:{file_id}] Renewing the expired guest viewer session once.')
+				self.ensure_viewer_session(force=True)
+				session_renewed = True
+				attempt += 1
 			except (
 				InvalidPDFError,
 				InvalidCatalogResponse,
@@ -2068,6 +2090,47 @@ class NlbClient:
 				)
 				time.sleep(delay)
 				attempt += 1
+
+	def _record_viewer_event(self, event: str, marc_id: str, file_id: str) -> None:
+		'''Send viewer statistics once, distinguishing expired sessions from outages.
+
+		NLB's viewer tolerates statistics failures. A missing session is different:
+		the bytes endpoint also rejects it. Never print the response's session ID.
+		Authorization and TLS errors remain fatal; PDF validation still applies.
+		'''
+		response = None
+		try:
+			response = self.session.get(
+				f'{VIEWER_BASE_URL}/stats/event/{event}',
+				params={'marcID': marc_id, 'fileId': file_id},
+				headers={'Authorization': VIEWER_BASIC_AUTH}, timeout=self.timeout,
+			)
+			if response.status_code == 500:
+				try:
+					payload = response.json()
+				except ValueError:
+					payload = None
+				message = payload.get('message') if isinstance(payload, dict) else None
+				if isinstance(message, str) and re.fullmatch(r'Session with id: .+ not exists', message):
+					raise ViewerSessionExpired()
+			response.raise_for_status()
+		except (
+			requests.exceptions.Timeout, requests.exceptions.ConnectionError,
+			requests.exceptions.ChunkedEncodingError, requests.exceptions.HTTPError,
+		) as error:
+			if isinstance(error, requests.exceptions.SSLError):
+				raise
+			if isinstance(error, requests.HTTPError) and (
+				error.response is None or error.response.status_code not in DOWNLOAD_TRANSIENT_STATUSES
+			):
+				raise
+			log_progress(
+				f'[{marc_id}:{file_id}] Viewer statistics {event} unavailable '
+				f'({type(error).__name__}); continuing to the PDF request.'
+			)
+		finally:
+			if response is not None:
+				response.close()
 
 	def _download_pdf_scan_once(self, marc_id: str, file_id: str, target_path: Path) -> int:
 		'''Log the header's size before streaming; retain bounded HTTP error details.
@@ -2110,19 +2173,8 @@ class NlbClient:
 		if rendered_file and rendered_file.group(1) != str(file_id):
 			raise InvalidPDFError(f'Manifest rendering identifies file {rendered_file.group(1)} instead of requested file {file_id}')
 
-		self.session.get(
-			f'{VIEWER_BASE_URL}/stats/event/PAGE_VIEWS',
-			params={'marcID': marc_id, 'fileId': file_id},
-			headers=auth_headers,
-			timeout=self.timeout,
-		).raise_for_status()
-
-		self.session.get(
-			f'{VIEWER_BASE_URL}/stats/event/IIIF_DOWNLOAD_ATTEMPT',
-			params={'marcID': marc_id, 'fileId': file_id},
-			headers=auth_headers,
-			timeout=self.timeout,
-		).raise_for_status()
+		self._record_viewer_event('PAGE_VIEWS', marc_id, file_id)
+		self._record_viewer_event('IIIF_DOWNLOAD_ATTEMPT', marc_id, file_id)
 
 		with self.session.get(
 			download_url,
@@ -2523,6 +2575,9 @@ def process_single_scan(
 	try:
 		try:
 			size_bytes = client.download_pdf_scan(marc_id, file_id, temp_pdf)
+		except ViewerSessionExpired as error:
+			finish('download_failed', pending=True, error=str(error), error_type=type(error).__name__)
+			raise
 		except DownloadRetriesExhausted as error:
 			log_progress(f'{prefix}[{key}] Deferring download after {error.attempts} attempts: {error}')
 			return finish('download_failed', pending=True, error=str(error), attempts=error.attempts, error_type=type(error.last_error).__name__)
@@ -2993,6 +3048,9 @@ def main(argv: list[str] | None = None) -> int:
 			'search_failed', 'metadata_failed', 'download_failed', 'download_rejected',
 			'upload_failed', 'verification_failed', 'title_conflict', 'rights_review',
 		)) else 0
+	except ViewerSessionExpired as error:
+		print(f'Stopped: {error}')
+		return 2
 	except KeyboardInterrupt:
 		print('Interrupted by user; state saved for resumption.')
 		return 130

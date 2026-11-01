@@ -1766,10 +1766,10 @@ class TestNlbDownloadRetries(unittest.TestCase):
 		return response
 
 	def test_transient_http_errors_retry_at_each_download_stage(self) -> None:
-		"""Retry temporary manifest, event and PDF errors through the complete download path."""
+		'''Retry temporary manifest and PDF errors through the complete download path.'''
 		self.manifest.json.return_value = {'rendering': [{'id': '/iiif/file/7837809/bytes?attachmentName=ch_2'}]}
 		for status in (500, 502, 503, 504):
-			for stage in range(4):
+			for stage in (0, 3):
 				with self.subTest(status=status, stage=stage), tempfile.TemporaryDirectory() as tmp_dir:
 					self.session.reset_mock()
 					self.client._viewer_session_initialized = False
@@ -1922,46 +1922,22 @@ class TestNlbDownloadRetries(unittest.TestCase):
 				self.assertNotIn(' MB', output.getvalue())
 		self.session.head.assert_not_called()
 
-	def test_page_views_timeout_is_deferred_after_five_attempts(self) -> None:
-		'''The reported statistics timeout leaves a pending item without hashing or uploading.'''
+	def test_page_views_timeout_does_not_block_a_valid_pdf(self) -> None:
+		'''A statistics outage does not consume the PDF retry budget.'''
 		error = upload_nlb.requests.exceptions.ReadTimeout('PAGE_VIEWS timed out')
-		self.session.get.side_effect = [self.manifest, error] * 5
-		uploader = FakeCommonsUploader()
+		self.session.get.side_effect = [
+			self.manifest, error, self.ok_response, self.stream_response(self.payload),
+		]
 		with tempfile.TemporaryDirectory() as tmp_dir, mock.patch('upload.time.sleep') as sleep, mock.patch(
-			'upload.check_commons_by_hash',
-		) as hash_check, mock.patch('sys.stdout', new_callable=io.StringIO) as output:
-			root = Path(tmp_dir)
-			state = upload_nlb.default_state()
-			state['current_page'] = 4
-			status = upload_nlb.process_single_scan(
-				client=self.client, uploader=uploader, state=state,
-				state_path=root / 'state.json', staging_dir=root / 'staging',
-				marc_id='BY-NLB-br0000078549', file_id='10284033', part_label='',
-				record_meta={'title': 'Reported volume'}, marc_meta={'date': '1800'},
-			)
-			self.assertEqual(status, 'download_failed')
-			self.assertEqual(sleep.call_args_list, [mock.call(5), mock.call(10), mock.call(20), mock.call(40)])
-			self.assertEqual(self.session.get.call_count, 10)
-			self.assertEqual(
-				[call.args[0] for call in self.session.get.call_args_list],
-				[
-					f'{upload_nlb.VIEWER_BASE_URL}/iiif/manifest',
-					f'{upload_nlb.VIEWER_BASE_URL}/stats/event/PAGE_VIEWS',
-				] * 5,
-			)
-			self.session.post.assert_called_once()
-			hash_check.assert_not_called()
-			self.assertEqual(uploader.uploads, [])
-			self.assertEqual(list((root / 'staging').iterdir()), [])
-			saved = upload_nlb.load_state(root / 'state.json')
-			entry = saved['items']['BY-NLB-br0000078549:10284033']
-			self.assertEqual(entry['status'], 'download_failed')
-			self.assertEqual(entry['attempts'], 5)
-			self.assertEqual(entry['error_type'], 'ReadTimeout')
-			self.assertIn('PAGE_VIEWS timed out', entry['error'])
-			self.assertEqual(saved['retry_from_page'], 4)
-			self.assertFalse(upload_nlb.is_item_completed(saved, 'BY-NLB-br0000078549', '10284033'))
-			self.assertIn('Deferring download after 5 attempts', output.getvalue())
+			'sys.stdout', new_callable=io.StringIO,
+		) as output:
+			target = Path(tmp_dir) / 'scan.pdf'
+			self.assertEqual(self.client.download_pdf_scan('record', 'file', target), len(self.payload))
+			self.assertEqual(target.read_bytes(), self.payload)
+		self.assertEqual(self.session.get.call_count, 4)
+		self.session.post.assert_called_once()
+		sleep.assert_not_called()
+		self.assertIn('Viewer statistics PAGE_VIEWS unavailable', output.getvalue())
 
 	def test_exhaustion_preserves_original_error_and_attempt_count(self) -> None:
 		"""Only exhausted transient attempts produce the typed error handled by the batch."""
