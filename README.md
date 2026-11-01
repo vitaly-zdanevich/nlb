@@ -6,8 +6,8 @@
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
-[![Production code](https://img.shields.io/badge/production%20code-3%2C677%20lines-blue)](upload.py)
-[![Test code](https://img.shields.io/badge/test%20code-6%2C152%20lines-blue)](#running-tests)
+[![Production code](https://img.shields.io/badge/production%20code-3%2C685%20lines-blue)](upload.py)
+[![Test code](https://img.shields.io/badge/test%20code-6%2C170%20lines-blue)](#running-tests)
 
 [`upload.py`](upload.py) iterates over open-access digitized scans from the Electronic Library of the National Library of Belarus (`https://elib.nlb.by`), archives the source responses, and uploads eligible PDFs to Wikimedia Commons with their useful catalog metadata readable on the file page.
 
@@ -48,7 +48,7 @@
 
 Commons descriptions include the bibliographic details, contributors and their roles, subjects and variants, contents, copy and storage information, related works, and useful IIIF metadata. Remaining MARC values appear in a readable catalog supplement with field/subfield labels; unfamiliar codes retain their source codes instead of receiving guessed meanings. Embedded contributor names and dates in linked records also remain visible. Exact repeated display values are deduplicated without dropping distinct copy-specific statements.
 
-Literal catalog punctuation is escaped consistently: `[[...]]`, `{{...}}`, pipes and HTML cannot turn into unintended Commons links, templates or categories. Intentional catalog links remain links. Publication dates retain their original uncertainty and ranges, such as `[1850?]` or `1890–1910`; separate date evidence drives filtering and rights decisions. Arbitrary years in a title do not establish publication dates.
+Literal catalog punctuation is escaped consistently: `[[...]]`, `{{...}}`, pipes and HTML cannot turn into unintended Commons links, templates or categories. Intentional catalog links remain links. A supplied catalog year such as `[1836]` displays as `1836` in the Commons Date field, with its original notation retained in the visible bibliographic details and archived metadata; brackets alone do not mean “circa.” Publication dates retain their original uncertainty and ranges, such as `[1850?]` or `1890–1910`; separate date evidence drives filtering and rights decisions. Arbitrary years in a title do not establish publication dates.
 
 Every run writes an archive, defaulting to `archive/` beside the state file. It contains:
 

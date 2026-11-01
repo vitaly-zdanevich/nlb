@@ -1451,6 +1451,7 @@ def build_commons_description(
 	'''Build Commons wikitext with subtitles and catalog-attributed contributor roles.
 
 	Catalog copy references are preserved, but are not matched to the scanned copy.
+	Plain bracketed years display without brackets; the original notation stays visible.
 	'''
 	title = (record_meta.get('title') or marc_meta.get('title') or marc_id).strip()
 	subtitle = (marc_meta.get('subtitle') or '').strip()
@@ -1466,7 +1467,9 @@ def build_commons_description(
 	if not date_statement:
 		year = resolve_publication_year(record_meta, marc_meta)
 		date_statement = str(year) if year else ''
-	date_value = escape_wikitext(date_statement)
+	# Brackets alone mark a supplied catalog date, not an approximate year.
+	supplied_year = re.fullmatch(r'\[([0-9]{4})\]', date_statement.strip())
+	date_value = supplied_year.group(1) if supplied_year else escape_wikitext(date_statement)
 
 	metadata_lines: list[str] = [f"'''{escape_wikitext(title)}'''"]
 	if marc_meta.get('responsibility'):
@@ -1492,6 +1495,11 @@ def build_commons_description(
 	related_entries = format_related_records(record_meta, marc_meta, marc_id)
 
 	metadata_lines.append("\n'''Библиографические сведения / Bibliographic details'''\n")
+	if supplied_year:
+		metadata_lines.append(format_metadata_field(
+			'Дата издания по каталогу (исходная запись) / Catalog publication date (original notation)',
+			[date_statement],
+		))
 	seen_pairs: set[tuple[str, tuple[str, ...]]] = set()
 	for field in record_meta.get('fields', []):
 		name = field.get('name', '').strip()

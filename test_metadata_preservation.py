@@ -123,11 +123,30 @@ class TestMetadataPreservation(unittest.TestCase):
 
 	def test_uncertain_dates_ranges_and_distinct_contents_are_preserved(self) -> None:
 		'''The date field retains the source statement and TOC supplements MARC contents.'''
-		for date in ('[1850?]', '[да 1850?]', '1890—1910'):
+		for date in ('[1850?]', '[да 1850?]', '[пасля 1847?]', '1890—1910', '[1836—1837]', '[18--]', '[1836] (reprint)'):
 			with self.subTest(date=date):
 				_, wikitext = render(record(field('210', ('d', date)), field('327', ('a', 'First chapter'))), {'contents': ['First chapter', 'Second chapter']})
 				self.assertIn(f'|date={date}\n', unescape(wikitext))
 				self.assertIn('Second chapter', wikitext)
+
+	def test_supplied_catalog_year_is_readable_with_original_notation_preserved(self) -> None:
+		'''Display an exact supplied year plainly while keeping its catalog notation visible.'''
+		cases = (
+			(record(field('210', ('d', '[1836]'))), {}),
+			(record(field('214', ('d', '[1836]'), indicators=(' ', '1'))), {}),
+			(record(), {'fields': [{'name': 'Дата издания', 'values': ['[1836]']}]}),
+		)
+		for xml, html in cases:
+			with self.subTest(xml=xml, html=html):
+				metadata, wikitext = render(xml, html)
+				self.assertIn('|date=1836\n', wikitext)
+				description = unescape(wikitext.split('|date=', 1)[0])
+				self.assertIn('Catalog publication date (original notation)', description)
+				self.assertIn('[1836]', description)
+				self.assertNotIn('circa', wikitext)
+				if not html:
+					self.assertEqual(metadata['date'], '[1836]')
+					self.assertEqual(metadata['raw_marc_fields'][-1]['subfields'], [{'code': 'd', 'value': '[1836]'}])
 
 	def test_html_holdings_and_non_catalog_links_survive(self) -> None:
 		'''Storage rows and source document URLs remain visible with safe external links.'''
