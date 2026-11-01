@@ -1162,7 +1162,11 @@ def build_commons_filename(
 	file_id: str,
 	part_label: str = '',
 ) -> str:
-	'''Construct a unique, descriptive PDF filename within Commons' 240-byte UTF-8 limit.'''
+	'''Keep full names up to 240 UTF-8 bytes, using only the file ID on overflow.
+
+	Overflow drops the appended year and record ID before shortening the title.
+	The file ID keeps multipart scans distinct; full metadata stays in the description.
+	'''
 	marc_title = (marc_meta.get('title') or '').strip()
 	html_title = (record_meta.get('title') or '').strip()
 	if html_title and (not marc_title or (len(html_title) > len(marc_title) and not marc_meta.get('subtitle'))):
@@ -1180,10 +1184,17 @@ def build_commons_filename(
 
 	clean_base = sanitize_commons_filename(base_title)
 	clean_suffix = ' ' + sanitize_commons_filename(suffix)
+	full_filename = sanitize_commons_filename(f'{clean_base}{clean_suffix}')
+	if len(full_filename.encode('utf-8')) <= 240:
+		return full_filename
 
-	max_base_bytes = 230 - len(clean_suffix.encode('utf-8'))
-	while len(clean_base.encode('utf-8')) > max_base_bytes and len(clean_base) > 10:
-		clean_base = clean_base[:-1].rstrip(' .,-_')
+	clean_suffix = ' ' + sanitize_commons_filename(f'-- {file_id}.pdf')
+	max_base_bytes = 240 - len(clean_suffix.encode('utf-8'))
+	if max_base_bytes < 1:
+		raise ValueError('The file ID is too long for a Commons filename')
+	if len(clean_base.encode('utf-8')) > max_base_bytes:
+		# Ignoring a partial final UTF-8 sequence preserves complete source codepoints.
+		clean_base = clean_base.encode('utf-8')[:max_base_bytes].decode('utf-8', errors='ignore').rstrip(' .,-_')
 
 	return sanitize_commons_filename(f'{clean_base}{clean_suffix}')
 

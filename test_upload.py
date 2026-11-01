@@ -932,7 +932,7 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 		self.assertIn('** 48 с. : 20 см', wikitext)
 
 	def test_build_commons_filename_truncates_within_utf8_byte_limit(self) -> None:
-		"""Verify Commons filename sanitization and 240-byte UTF-8 length bound."""
+		'''Verify sanitized overflowing filenames keep only the file ID suffix.'''
 		record_meta = {'title': 'Сборник ' * 40, 'fields': []}
 		marc_meta = {'title': 'Сборник ' * 40, 'subtitle': 'Материалы [том 1|2]', 'year': '1888'}
 		filename = upload_nlb.build_commons_filename(
@@ -942,7 +942,9 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 			file_id='1001',
 			part_label='Выпуск 1/2',
 		)
-		self.assertTrue(filename.endswith('-- BY-NLB-rr111 -- 1001.pdf'))
+		self.assertTrue(filename.endswith(' -- 1001.pdf'))
+		self.assertNotIn('BY-NLB-rr111', filename)
+		self.assertNotIn('1888', filename)
 		self.assertLessEqual(len(filename.encode('utf-8')), 240)
 		self.assertNotIn('[', filename)
 		self.assertNotIn('|', filename)
@@ -973,7 +975,7 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 				self.assertEqual(upload_nlb.sanitize_commons_filename(filename), filename)
 
 	def test_reported_potpourris_filename_avoids_title_blacklist(self) -> None:
-		"""Keep the rejected scan's title and identifiers with only its separator corrected."""
+		'''Correct the rejected scan separator and retain its file ID after truncation.'''
 		original = (
 			'Potpourris (Ноты) - pour Piano & Violon - № 1―10 par H. Cramer, '
 			'№ 11 et les suivans par G. Wichtl. № 38 - Flotow. Rübezahl - par G. Wichtl '
@@ -988,7 +990,9 @@ class TestUnitParsingAndFormatting(unittest.TestCase):
 		)
 		self.assertIn('Piano & Violon', filename)
 		self.assertIn('Zigeunerin - Bohemian', filename)
-		self.assertTrue(filename.endswith('(1850) -- BY-NLB-br0000354027 -- 6517951.pdf'))
+		self.assertTrue(filename.endswith(' -- 6517951.pdf'))
+		self.assertNotIn('BY-NLB-br0000354027', filename)
+		self.assertNotIn('1850', filename)
 		self.assertLessEqual(len(filename.encode('utf-8')), 240)
 		self.assertNotRegex(filename, r'.*[?&]+[^=]+=[^&]+.*')
 

@@ -6,8 +6,8 @@
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
-[![Production code](https://img.shields.io/badge/production%20code-3%2C685%20lines-blue)](upload.py)
-[![Test code](https://img.shields.io/badge/test%20code-6%2C170%20lines-blue)](#running-tests)
+[![Production code](https://img.shields.io/badge/production%20code-3%2C695%20lines-blue)](upload.py)
+[![Test code](https://img.shields.io/badge/test%20code-6%2C242%20lines-blue)](#running-tests)
 
 [`upload.py`](upload.py) iterates over open-access digitized scans from the Electronic Library of the National Library of Belarus (`https://elib.nlb.by`), archives the source responses, and uploads eligible PDFs to Wikimedia Commons with their useful catalog metadata readable on the file page.
 
@@ -73,11 +73,13 @@ This is the tool's upload policy, not a determination of every applicable countr
 
 ## Duplicate titles and binary verification
 
-Target filenames retain the NLB identifiers:
+Target filenames retain the publication year and NLB identifiers when the complete filename fits within 240 UTF-8 bytes:
 
 ```text
 <Title> (<Year>) -- <marcID> -- <fileID>.pdf
 ```
+
+If that filename exceeds 240 bytes, the uploader omits the appended year and record ID, keeps ` -- <fileID>.pdf` to distinguish multipart scans, and truncates the end of the title only if needed. Truncation preserves complete Unicode codepoints. The full title, date, part information and source identifiers remain readable in the Commons description and preserved in the metadata archive.
 
 Commons' query-like title blacklist rule (`.*[?&]+[^=]+=[^&]+.*`) is handled by replacing `=` with `-` only in matching filenames. For example, `Piano & Violon = Ноты` becomes `Piano & Violon - Ноты`. The original title remains readable in the description.
 
