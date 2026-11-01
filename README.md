@@ -6,8 +6,8 @@
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
-[![Production code](https://img.shields.io/badge/production%20code-3%2C846%20lines-blue)](upload.py)
-[![Test code](https://img.shields.io/badge/test%20code-6%2C395%20lines-blue)](#running-tests)
+[![Production code](https://img.shields.io/badge/production%20code-3%2C944%20lines-blue)](upload.py)
+[![Test code](https://img.shields.io/badge/test%20code-6%2C551%20lines-blue)](#running-tests)
 
 [`upload.py`](upload.py) iterates over open-access digitized scans from the Electronic Library of the National Library of Belarus (`https://elib.nlb.by`), archives the source responses, and uploads eligible PDFs to Wikimedia Commons with their useful catalog metadata readable on the file page.
 
@@ -86,7 +86,7 @@ Commons' query-like title blacklist rule (`.*[?&]+[^=]+=[^&]+.*`) is handled by 
 
 An existing title alone is not proof of identical content. The uploader downloads and validates the scan, computes its SHA-1 and SHA-256, and checks Commons for the actual bytes. Matching content is recorded as `existing_title` or `duplicate_sha1`, with its Commons association. A title holding different bytes remains `title_conflict`; the uploader does not overwrite it. Previous completed state without verification is checked again when encountered.
 
-After uploading, the uploader reads Commons file information and compares the stored SHA-1 and byte count with the source. A failed or mismatched check remains `verification_failed`, even when the upload itself may have succeeded. Available Commons revision/file details and source digests are retained together. No existing description is silently replaced during deduplication; metadata updates use the separate reconciliation workflow below.
+After uploading, the uploader reads Commons file information and compares the stored SHA-1 and byte count with the source. A failed or mismatched check remains `verification_failed`, even when the upload itself may have succeeded. Incomplete Commons page/revision information receives up to five fresh reads with 2/4/8/16-second waits. On restart, a pending verification with a saved source SHA-1, size and Commons title is checked directly without downloading or uploading again; mismatches stay pending. Available Commons revision/file details and source digests are retained together. No existing description is silently replaced during deduplication; metadata updates use the separate reconciliation workflow below.
 
 ## Usage
 
@@ -160,7 +160,7 @@ The upload integration tests use Pywikibot's real request and chunk-upload code 
 
 ```bash
 python -m pip install pytest pytest-cov requests beautifulsoup4 'pywikibot>=11.6' 'pypdf>=6,<7' mwparserfromhell
-pytest -v --cov=upload --cov=scan_identity --cov=catalog_requests --cov=catalog_validation --cov=preservation --cov=publication_rights --cov=pdf_validation --cov=reconcile_metadata --cov-report=term-missing
+pytest -v --cov=upload --cov=scan_identity --cov=commons_verification --cov=catalog_requests --cov=catalog_validation --cov=preservation --cov=publication_rights --cov=pdf_validation --cov=reconcile_metadata --cov-report=term-missing
 # or
 python3 -m unittest discover -v
 ```

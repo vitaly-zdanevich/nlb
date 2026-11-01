@@ -33,6 +33,7 @@ import requests
 from catalog_requests import CatalogRetriesExhausted, InvalidCatalogResponse, get_catalog_response
 from preservation import ArchiveStore
 from pdf_validation import InvalidPDFError, validate_pdf
+from commons_verification import read_file_info
 from scan_identity import assess_scan_identity, flatten_mets
 from publication_rights import evaluate_publication, publication_year
 from catalog_validation import (
@@ -2398,24 +2399,8 @@ class CommonsUploader:
 		return bool(file_page.exists())
 
 	def file_info(self, title: str) -> dict[str, Any]:
-		'''Read the stored binary identity and page revision after upload publication.'''
-		payload = self.site.simple_request(
-			action='query', titles=title, prop='imageinfo|info',
-			iiprop='sha1|size|timestamp|url', formatversion=2,
-		).submit()
-		pages = payload.get('query', {}).get('pages', [])
-		if len(pages) != 1 or not pages[0].get('imageinfo'):
-			raise ValueError('Commons verification response has no file information')
-		page = pages[0]
-		info = page['imageinfo'][0]
-		if not re.fullmatch(r'[0-9a-fA-F]{40}', str(info.get('sha1', ''))) or not isinstance(info.get('size'), int):
-			raise ValueError('Commons verification response has an invalid hash or size')
-		return {
-			'commons_title': page['title'], 'page_id': page['pageid'],
-			'revision_id': page.get('lastrevid'), 'sha1': info['sha1'],
-			'size_bytes': info['size'], 'timestamp': info.get('timestamp'),
-			'url': info.get('url'), 'checked_at': datetime.now(timezone.utc).isoformat(),
-		}
+		'''Read complete Commons binary/page identity, allowing for publication visibility.'''
+		return read_file_info(self.site, title)
 
 	def upload(self, file_path: Path, commons_filename: str, wikitext: str, summary: str) -> dict[str, Any]:
 		'''Upload with one retry budget, reusing the stash when publication is locked.'''
@@ -2582,6 +2567,21 @@ def process_single_scan(
 		log_progress(f'{prefix}[{key}] Deferring for rights review: {decision["reason"]}')
 		return finish('rights_review', pending=True, error=decision['reason'])
 
+	if (not dry_run and previous.get('status') == 'verification_failed'
+		and re.fullmatch(r'[0-9a-fA-F]{40}', str(previous.get('sha1', '')))
+		and type(previous.get('size_bytes')) is int and previous['size_bytes'] > 0
+		and str(previous.get('commons_title', '')).startswith('File:')):
+		# Publication succeeded or may have succeeded; recheck the saved identity
+		# before any download or upload. A mismatch remains pending for review.
+		base = {**{name: value for name, value in previous.items() if name not in ('error', 'attempts', 'error_type')}, **base}
+		try:
+			info = uploader.file_info(previous['commons_title'])
+			if info['sha1'].lower() != previous['sha1'].lower() or info['size_bytes'] != previous['size_bytes']:
+				raise ValueError('Commons stored hash or size differs from the saved source identity')
+		except Exception as error:
+			return finish('verification_failed', pending=True, error=str(error))
+		log_progress(f'{prefix}[{key}] Recovered Commons verification without downloading the PDF.')
+		return finish('existing_title', commons_title=info.get('commons_title', previous['commons_title']), verification=info)
 
 	title_exists = False
 	if not dry_run:

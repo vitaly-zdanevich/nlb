@@ -114,7 +114,8 @@ class TestPreservationPipeline(unittest.TestCase):
 		self.assertIn(upload.escape_wikitext('[[literal]]'), text)
 		self.assertEqual(original, {'title': 'Book'})
 
-	def test_file_info_validates_server_binary_and_records_revision(self):
+	@mock.patch('time.sleep')
+	def test_file_info_validates_server_binary_and_records_revision(self, sleep):
 		'''Verification reads authoritative imageinfo, rejecting absent or malformed files.'''
 		uploader = upload.CommonsUploader.__new__(upload.CommonsUploader)
 		uploader.site = mock.Mock()

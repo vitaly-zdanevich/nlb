@@ -45,6 +45,28 @@ class TestScanRecovery(unittest.TestCase):
 				else:
 					self.assertEqual(state['retry_from_page'], 1)
 
+	def test_pending_verification_recovers_or_stays_pending_without_redownload(self):
+		'''A saved source hash and size permit a read-only recovery of a completed upload.'''
+		for mismatch in (False, True):
+			with self.subTest(mismatch=mismatch), tempfile.TemporaryDirectory() as directory:
+				root = Path(directory)
+				state = upload.default_state()
+				state['items']['BY-NLB-one:1'] = {
+					'status': 'verification_failed', 'sha1': 'a' * 40, 'sha256': 'b' * 64,
+					'size_bytes': 123, 'commons_title': 'File:Existing.pdf', 'error': "'pageid'",
+				}
+				uploader = mock.Mock()
+				uploader.file_info.return_value = {'commons_title': 'File:Existing.pdf', 'sha1': ('c' if mismatch else 'a') * 40, 'size_bytes': 123, 'page_id': 1, 'revision_id': 2}
+				status, client = self.run_scan(root, state, uploader)
+				self.assertEqual(status, 'verification_failed' if mismatch else 'existing_title')
+				self.assertEqual(client.downloads, [])
+				uploader.upload.assert_not_called()
+				uploader.title_exists.assert_not_called()
+				entry = state['items']['BY-NLB-one:1']
+				self.assertEqual(entry['sha256'], 'b' * 64)
+				if not mismatch:
+					self.assertEqual(entry['verification']['page_id'], 1)
+					self.assertNotIn('error', entry)
 
 	def test_legacy_state_rewinds_once_for_scan_identity_audit(self):
 		'''An upgrade rechecks records before the old cursor without erasing prior results.'''
