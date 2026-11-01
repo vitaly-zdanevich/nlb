@@ -2347,37 +2347,59 @@ class UploadRetriesExhausted(RuntimeError):
 
 
 def make_stash_retrying_uploader(uploader_class: type, api_error_class: type[Exception]) -> type:
-	"""Adapt Pywikibot's publication phase to retry locks using the assembled stash.
+	'''Adapt Pywikibot's publication phase to retry locks using the assembled stash.
 
 	A failed asynchronous status poll can repeat a stored failure indefinitely.
 	Retry the original publication request instead, keeping its file key, text,
 	summary and warning policy. Chunk transfers retain Pywikibot's own handling.
+	Support both the legacy submit hook and the newer publication state machine.
 	https://www.mediawiki.org/wiki/API:Upload#Example_3:_Upload_file_in_chunks
-	"""
+	'''
 	class StashRetryingUploader(uploader_class):
-		"""Reuse one completed stash with the caller's shared bounded retry policy."""
+		'''Reuse one completed stash with the caller's shared bounded retry policy.'''
 
 		def __init__(self, *args: Any, retry: Any, **kwargs: Any) -> None:
-			"""Keep retry accounting in the outer uploader, shared with chunk failures."""
+			'''Keep retry accounting in the outer uploader, shared with chunk failures.'''
 			super().__init__(*args, **kwargs)
 			self.retry = retry
 			self.already_exists = False
 
+		def _retry_publication(self, error: Exception, file_key: str | None) -> bool:
+			'''Retry only locks on an assembled stash, sharing the outer upload budget.'''
+			message = getattr(error, 'info', '') or str(error)
+			if not file_key or getattr(error, 'code', '') != 'stashfailed' or (
+				'could not acquire lock' not in message.lower()
+			):
+				raise error
+			if not self.retry(error, 'Commons publication'):
+				self.already_exists = True
+				return False
+			return True
+
+		def _finalize_upload(self, state: Any) -> bool | None:
+			'''Restore the publication request after newer Pywikibot replaces it with a poll.'''
+			if not state.request.get('checkstatus'):
+				self._publication_request = state.request
+				self._publication_stage = state.stage
+			while True:
+				try:
+					return super()._finalize_upload(state)
+				except api_error_class as error:
+					if not self._retry_publication(error, state.file_key):
+						return True
+					state.request = self._publication_request
+					state.stage = self._publication_stage
+					state.response = None
+
 		def submit(self, request: Any, result: Any, data_result: Any, ignore_warnings: Any,
 			ignore_all_warnings: bool, report_success: Any, file_key: str | None) -> bool:
-			"""Restart publication after a lock error, including errors from status polls."""
+			'''Restart legacy publication after a lock error, including errors from status polls.'''
 			while True:
 				try:
 					return super().submit(request, result, data_result, ignore_warnings,
 						ignore_all_warnings, report_success, file_key)
 				except api_error_class as error:
-					message = getattr(error, 'info', '') or str(error)
-					if not file_key or getattr(error, 'code', '') != 'stashfailed' or (
-						'could not acquire lock' not in message.lower()
-					):
-						raise
-					if not self.retry(error, 'Commons publication'):
-						self.already_exists = True
+					if not self._retry_publication(error, file_key):
 						return True
 					result = None
 

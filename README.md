@@ -6,7 +6,7 @@
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
-[![Production code](https://img.shields.io/badge/production%20code-3%2C695%20lines-blue)](upload.py)
+[![Production code](https://img.shields.io/badge/production%20code-3%2C715%20lines-blue)](upload.py)
 [![Test code](https://img.shields.io/badge/test%20code-6%2C242%20lines-blue)](#running-tests)
 
 [`upload.py`](upload.py) iterates over open-access digitized scans from the Electronic Library of the National Library of Belarus (`https://elib.nlb.by`), archives the source responses, and uploads eligible PDFs to Wikimedia Commons with their useful catalog metadata readable on the file page.
@@ -155,7 +155,7 @@ Dry runs and metadata-only runs can create archive snapshots and reports, but do
 
 ## Running Tests
 
-The upload integration tests use Pywikibot's real request and chunk-upload code with mocked HTTP responses and an isolated configuration directory. They do not use your credentials or upload files.
+The upload integration tests use Pywikibot's real request and chunk-upload code with mocked HTTP responses and an isolated configuration directory. They do not use your credentials or upload files. CI runs the suite with both the minimum supported Pywikibot 11.6.0 and the latest available version, covering the legacy publication hook and the newer upload state machine.
 
 ```bash
 python -m pip install pytest pytest-cov requests beautifulsoup4 'pywikibot>=11.6' 'pypdf>=6,<7' mwparserfromhell

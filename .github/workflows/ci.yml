@@ -11,6 +11,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 360
+    strategy:
+      matrix:
+        pywikibot: ['pywikibot==11.6.0', 'pywikibot>=11.6']
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -21,7 +24,7 @@ jobs:
           python-version: '3.14'
 
       - name: Install dependencies
-        run: python -m pip install --upgrade pip pytest pytest-cov requests beautifulsoup4 'pywikibot>=11.6' 'pypdf>=6,<7' mwparserfromhell
+        run: python -m pip install --upgrade pip pytest pytest-cov requests beautifulsoup4 '${{ matrix.pywikibot }}' 'pypdf>=6,<7' mwparserfromhell
 
       - name: Run tests with coverage
         run: pytest -v --cov=upload --cov=catalog_requests --cov=catalog_validation --cov=preservation --cov=publication_rights --cov=pdf_validation --cov=reconcile_metadata --cov-report=xml:coverage.xml --cov-report=term-missing
