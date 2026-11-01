@@ -31,10 +31,10 @@ import mwparserfromhell
 import requests
 
 from catalog_requests import CatalogRetriesExhausted, InvalidCatalogResponse, get_catalog_response
-from preservation import ArchiveStore
-from pdf_validation import InvalidPDFError, validate_pdf
 from commons_verification import read_file_info
 from scan_identity import assess_scan_identity, flatten_mets
+from preservation import ArchiveStore, ArchiveWriteError, file_integrity
+from pdf_validation import InvalidPDFError, manifest_page_count, validate_pdf
 from publication_rights import evaluate_publication, publication_year
 from catalog_validation import (
 	validate_access_json, validate_manifest, validate_marcxml, validate_mets_json,
@@ -2037,10 +2037,13 @@ class NlbClient:
 		Renew an explicitly missing guest session once within that budget; imported
 		sessions require a fresh browser export instead of replacing authentication.
 		Statistics outages alone do not block the PDF, matching the NLB viewer.
+		Repeated complete invalid PDFs with the same validation context are deferred
+		after two copies; partial transfers and changed bodies retain the full budget.
 		'''
 		self.ensure_viewer_session()
 		attempt = 1
 		session_renewed = False
+		rejected_pdfs = set()
 		while True:
 			try:
 				return self._download_pdf_scan_once(marc_id, file_id, target_path)
@@ -2068,6 +2071,16 @@ class NlbClient:
 					error.response.close()
 				target_path.unlink(missing_ok=True)
 				getattr(self, '_scan_manifests', {}).pop((marc_id, file_id), None)
+				rejected = getattr(error, 'rejected_pdf', None)
+				if rejected is not None:
+					identity = (rejected['sha256'], rejected['manifest_pages'])
+					if identity in rejected_pdfs:
+						log_progress(
+							f'[{marc_id}:{file_id}] Same complete PDF failed strict validation twice '
+							'with the same manifest page count; deferring for review.'
+						)
+						raise DownloadRetriesExhausted(error, attempt) from error
+					rejected_pdfs.add(identity)
 				if attempt >= DOWNLOAD_MAX_ATTEMPTS:
 					raise DownloadRetriesExhausted(error, attempt) from error
 				delay = DOWNLOAD_RETRY_DELAY * 2 ** (attempt - 1)
@@ -2212,7 +2225,23 @@ class NlbClient:
 			)
 		if not first_chunk.startswith(b'%PDF-'):
 			raise InvalidPDFError(f'Downloaded content for {marc_id}:{file_id} is not a valid PDF: {first_chunk!r}')
-		validation = validate_pdf(target_path, manifest)
+		try:
+			validation = validate_pdf(target_path, manifest)
+		except InvalidPDFError as error:
+			# Only completed PDF-prefixed streams qualify. Partial transfers and login
+			# pages never become stable PDF evidence or consume the shorter retry budget.
+			manifest_pages = manifest_page_count(manifest)
+			if self.archive is not None:
+				try:
+					error.rejected_pdf = self.archive.preserve_rejected_pdf(
+						marc_id, file_id, target_path, source_url=download_url,
+						manifest=manifest, manifest_pages=manifest_pages, error=error,
+					)
+				except OSError as archive_error:
+					raise ArchiveWriteError(str(archive_error)) from archive_error
+			else:
+				error.rejected_pdf = {**file_integrity(target_path), 'manifest_pages': manifest_pages}
+			raise
 		if not hasattr(self, 'pdf_validation'):
 			self.pdf_validation = {}
 		self.pdf_validation[(marc_id, file_id)] = validation
@@ -2592,6 +2621,7 @@ def process_single_scan(
 	import tempfile
 	with tempfile.NamedTemporaryFile(dir=staging_dir, prefix='nlb-', suffix='.pdf', delete=False) as temporary:
 		temp_pdf = Path(temporary.name)
+	retain_staging_pdf = False
 	try:
 		try:
 			size_bytes = client.download_pdf_scan(marc_id, file_id, temp_pdf)
@@ -2600,6 +2630,8 @@ def process_single_scan(
 			raise
 		except DownloadRetriesExhausted as error:
 			log_progress(f'{prefix}[{key}] Deferring download after {error.attempts} attempts: {error}')
+			if getattr(error.last_error, 'rejected_pdf', None) is not None:
+				base['rejected_pdf'] = error.last_error.rejected_pdf
 			return finish('download_failed', pending=True, error=str(error), attempts=error.attempts, error_type=type(error.last_error).__name__)
 		except requests.HTTPError as error:
 			if error.response is None or error.response.status_code != 400:
@@ -2610,6 +2642,12 @@ def process_single_scan(
 			if not isinstance(error, InvalidPDFError) and 'not a valid PDF' not in str(error):
 				raise
 			return finish('download_failed', pending=True, error=str(error), error_type=type(error).__name__)
+		except ArchiveWriteError:
+			# A failed quarantine/archive write must not erase the only local copy.
+			retain_staging_pdf = temp_pdf.exists()
+			if retain_staging_pdf:
+				log_progress(f'[{key}] Archive write failed; staging original retained at {temp_pdf}')
+			raise
 
 		with temp_pdf.open('rb') as source:
 			sha256 = hashlib.file_digest(source, 'sha256').hexdigest()
@@ -2668,7 +2706,8 @@ def process_single_scan(
 		log_progress(f'{prefix}[{key}] Uploaded and verified:\nhttps://commons.wikimedia.org/wiki/{quote(title.replace(" ", "_"))}\n')
 		return finish(result['status'], commons_title=title, duplicates=duplicates, verification=info)
 	finally:
-		temp_pdf.unlink(missing_ok=True)
+		if not retain_staging_pdf:
+			temp_pdf.unlink(missing_ok=True)
 
 
 def with_viewer_metadata(record_meta: dict[str, Any], manifest: dict[str, Any]) -> dict[str, Any]:

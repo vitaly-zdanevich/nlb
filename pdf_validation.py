@@ -17,8 +17,8 @@ class InvalidPDFError(requests.RequestException):
 	'''An expected PDF is malformed, unreadable or inconsistent with its manifest.'''
 
 
-def validate_pdf(path: Path, manifest: dict[str, Any] | None = None) -> dict[str, Any]:
-	'''Parse pages and contents in strict mode; retain originals and reject repair needs.'''
+def manifest_page_count(manifest: dict[str, Any] | None = None) -> int | None:
+	'''Return the IIIF canvas count used for validation, ignoring descriptive metadata.'''
 	manifest = manifest or {}
 	expected = None
 	sequences = manifest.get('sequences')
@@ -29,6 +29,12 @@ def validate_pdf(path: Path, manifest: dict[str, Any] | None = None) -> dict[str
 	items = manifest.get('items')
 	if isinstance(items, list) and items and all(isinstance(item, dict) and item.get('type') == 'Canvas' for item in items):
 		expected = len(items)
+	return expected
+
+
+def validate_pdf(path: Path, manifest: dict[str, Any] | None = None) -> dict[str, Any]:
+	'''Parse pages and contents in strict mode; retain originals and reject repair needs.'''
+	expected = manifest_page_count(manifest)
 	try:
 		with path.open('rb') as source:
 			reader = PdfReader(source, strict=True)

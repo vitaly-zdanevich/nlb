@@ -15,6 +15,10 @@ from typing import Any
 import uuid
 
 
+class ArchiveWriteError(OSError):
+	'''Preservation failed after a complete download; retain its staging original.'''
+
+
 def atomic_json(path: Path, value: Any) -> None:
 	'''Replace one JSON document only after its complete contents reach disk.'''
 	path.parent.mkdir(parents=True, exist_ok=True)
@@ -135,29 +139,56 @@ class ArchiveStore:
 		self.manifests[record_id]['files'].setdefault(file_id, {}).update(result)
 		atomic_json(self.snapshots[record_id], self.manifests[record_id])
 
+	def _copy_pdf(self, path: Path, integrity: dict[str, Any], directory: str) -> str:
+		'''Atomically publish unchanged PDF bytes in bounded chunks, checking reused objects.'''
+		target = self.root / directory / (integrity['sha256'] + '.pdf')
+		target.parent.mkdir(parents=True, exist_ok=True)
+		if target.exists():
+			if file_integrity(target) != integrity:
+				raise OSError(f'Archive integrity check failed: {target}')
+		else:
+			temporary = target.with_name(target.name + '.' + uuid.uuid4().hex + '.new')
+			try:
+				with path.open('rb') as source, temporary.open('wb') as output:
+					for chunk in iter(lambda: source.read(1024 * 1024), b''):
+						output.write(chunk)
+					output.flush()
+					os.fsync(output.fileno())
+				if file_integrity(temporary) != integrity:
+					raise OSError(f'PDF copy failed integrity check: {path}')
+				temporary.replace(target)
+			finally:
+				temporary.unlink(missing_ok=True)
+		return str(target.relative_to(self.root))
+
 	def preserve_pdf(self, record_id: str, file_id: str, path: Path) -> dict[str, Any]:
 		'''Hash original bytes and optionally preserve a verified, atomically published copy.'''
 		result = file_integrity(path)
 		if self.keep_pdfs:
-			# Copy in bounded chunks: scans can be larger than available memory.
-			target = self.root / 'objects' / (result['sha256'] + '.pdf')
-			target.parent.mkdir(parents=True, exist_ok=True)
-			if target.exists():
-				if file_integrity(target) != result:
-					raise OSError(f'Archive integrity check failed: {target}')
-			else:
-				temporary = target.with_name(target.name + '.' + uuid.uuid4().hex + '.new')
-				try:
-					with path.open('rb') as source, temporary.open('wb') as output:
-						for chunk in iter(lambda: source.read(1024 * 1024), b''):
-							output.write(chunk)
-						output.flush()
-						os.fsync(output.fileno())
-					if file_integrity(temporary) != result:
-						raise OSError(f'PDF copy failed integrity check: {path}')
-					temporary.replace(target)
-				finally:
-					temporary.unlink(missing_ok=True)
-			result['pdf_path'] = str(target.relative_to(self.root))
+			result['pdf_path'] = self._copy_pdf(path, result, 'objects')
 		self.record_result(record_id, file_id, result)
+		return result
+
+	def preserve_rejected_pdf(
+		self, record_id: str, file_id: str, path: Path, *,
+		source_url: str, manifest: dict[str, Any], manifest_pages: int | None, error: Exception,
+	) -> dict[str, Any]:
+		'''Quarantine a complete rejected PDF independently of optional successful PDF retention.
+
+		Keep each validation failure's provenance and exact manifest without claiming the
+		file as a verified scan. Identical bodies share a checked, immutable disk object.
+		'''
+		result = file_integrity(path)
+		pdf_path = self._copy_pdf(path, result, 'quarantine')
+		manifest_body = json.dumps(manifest, ensure_ascii=False, indent=2).encode('utf-8')
+		result.update({
+			'pdf_path': pdf_path, 'record_id': record_id, 'file_id': file_id,
+			'source_url': source_url, 'manifest': self._object(manifest_body, '.json'),
+			'manifest_pages': manifest_pages, 'error_type': type(error).__name__, 'error': str(error),
+			'captured_at': datetime.now(timezone.utc).isoformat(),
+		})
+		if record_id not in self.snapshots:
+			self.save_record(record_id, {}, {})
+		entry = self.manifests[record_id]['files'].get(file_id, {})
+		self.record_result(record_id, file_id, {'rejected_downloads': [*entry.get('rejected_downloads', []), result]})
 		return result
