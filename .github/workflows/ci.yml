@@ -27,4 +27,4 @@ jobs:
         run: python -m pip install --upgrade pip pytest pytest-cov requests beautifulsoup4 '${{ matrix.pywikibot }}' 'pypdf>=6,<7' mwparserfromhell
 
       - name: Run tests with coverage
-        run: pytest -v --cov=upload --cov=scan_identity --cov=commons_verification --cov=catalog_requests --cov=catalog_validation --cov=preservation --cov=publication_rights --cov=pdf_validation --cov=reconcile_metadata --cov-report=xml:coverage.xml --cov-report=term-missing
+        run: pytest -v --cov=upload --cov=metadata_refresh --cov=metadata_refresh_merge --cov=scan_identity --cov=commons_verification --cov=catalog_requests --cov=catalog_validation --cov=preservation --cov=publication_rights --cov=pdf_validation --cov=reconcile_metadata --cov-report=xml:coverage.xml --cov-report=term-missing

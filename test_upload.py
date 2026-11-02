@@ -1728,7 +1728,7 @@ class TestViewerCookies(unittest.TestCase):
 			mock.patch('sys.stdout', new_callable=io.StringIO),
 		):
 			self.assertEqual(upload_nlb.main(['--viewer-cookies', str(self.cookie_path), '--dry-run']), 0)
-			client_type.assert_called_once_with(viewer_cookies=self.cookie_path, archive=mock.ANY)
+			client_type.assert_called_once_with(viewer_cookies=self.cookie_path, archive=mock.ANY, metadata_reads_only=False)
 			uploader_type.assert_not_called()
 			self.assertIs(iterate.call_args.kwargs['client'], client_type.return_value)
 			self.assertTrue(iterate.call_args.kwargs['dry_run'])

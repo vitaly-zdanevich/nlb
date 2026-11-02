@@ -216,6 +216,7 @@ class TestReconcileMetadata(unittest.TestCase):
 		entry = {'title': 'File:Shared.pdf', 'new_text': 'Reviewed text', 'baserevid': 123}
 		with mock.patch.object(pywikibot, 'Site', return_value=site), mock.patch.object(pywikibot, 'FilePage', return_value=file_page):
 			self.assertTrue(edit_commons_page(entry))
+		site.login.assert_called_once_with()
 		params = site.simple_request.call_args.kwargs
 		self.assertEqual(params['baserevid'], 123)
 		self.assertEqual(params['text'], 'Reviewed text')

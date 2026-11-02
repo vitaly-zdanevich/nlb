@@ -41,7 +41,7 @@ def read_commons_page(title: str, *, session: Any = None) -> dict[str, Any]:
 	response = (session or requests).get(API_URL, params={
 		'action': 'query', 'format': 'json', 'formatversion': '2',
 		'titles': title, 'prop': 'revisions|imageinfo',
-		'rvprop': 'ids|content', 'rvslots': 'main', 'iiprop': 'sha1',
+		'rvprop': 'ids|content', 'rvslots': 'main', 'iiprop': 'sha1|size', 'redirects': True,
 	}, headers={'User-Agent': USER_AGENT}, timeout=60)
 	response.raise_for_status()
 	payload = response.json()
@@ -54,9 +54,12 @@ def read_commons_page(title: str, *, session: Any = None) -> dict[str, Any]:
 		text = revision['slots']['main']['content']
 		sha1 = page['imageinfo'][0]['sha1']
 		valid = page['ns'] == 6 and not page.get('missing') and isinstance(text, str) and SHA1_RE.fullmatch(sha1)
-		if not valid or not isinstance(revision['revid'], int):
+		if not valid or type(revision['revid']) is not int or revision['revid'] <= 0:
 			raise ValueError('Invalid file revision')
-		return {'title': page['title'], 'revid': revision['revid'], 'text': text, 'sha1': sha1.lower()}
+		result = {'title': page['title'], 'revid': revision['revid'], 'text': text, 'sha1': sha1.lower()}
+		if 'size' in page['imageinfo'][0]:
+			result['size_bytes'] = page['imageinfo'][0]['size']
+		return result
 	except (KeyError, IndexError, TypeError, ValueError) as error:
 		raise ValueError(f'Missing or invalid Commons file identity for {title}') from error
 
@@ -176,8 +179,9 @@ def edit_commons_page(entry: dict[str, Any]) -> bool:
 	'''Apply an explicitly selected plan through Pywikibot with revision protection.'''
 	import pywikibot
 	site = pywikibot.Site('commons', 'commons')
+	site.login()
 	page = pywikibot.FilePage(site, entry['title'])
-	return site.editpage(page, text=entry['new_text'], baserevid=entry['baserevid'], nocreate=True, recreate=False, summary='Preserve additional National Library of Belarus catalog metadata', minor=False)
+	return site.editpage(page, text=entry['new_text'], baserevid=entry['baserevid'], nocreate=True, recreate=False, summary=entry.get('summary', 'Preserve additional National Library of Belarus catalog metadata'), minor=False)
 
 
 def apply_plan(

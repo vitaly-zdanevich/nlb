@@ -6,8 +6,8 @@
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
-[![Production code](https://img.shields.io/badge/production%20code-4%2C013%20lines-blue)](upload.py)
-[![Test code](https://img.shields.io/badge/test%20code-6%2C694%20lines-blue)](#running-tests)
+[![Production code](https://img.shields.io/badge/production%20code-4%2C463%20lines-blue)](upload.py)
+[![Test code](https://img.shields.io/badge/test%20code-7%2C227%20lines-blue)](#running-tests)
 
 [`upload.py`](upload.py) iterates over open-access digitized scans from the Electronic Library of the National Library of Belarus (`https://elib.nlb.by`), archives the source responses, and uploads eligible PDFs to Wikimedia Commons with their useful catalog metadata readable on the file page.
 
@@ -137,6 +137,21 @@ A metadata-only run starts at page 1 of the selected catalog, captures metadata 
 
 `--refresh-metadata` revisits completed files to archive their current metadata; verified completed PDFs can skip another transfer. It is a normal upload run and can upload new/pending items. Neither refresh mode edits existing Commons descriptions.
 
+To refresh the metadata of every hash-identified Commons association saved in `state.json` and **apply updates automatically**:
+
+```bash
+./upload.py --refresh-uploaded-metadata
+
+# Optional preview; no Commons edits and no PDF downloads:
+./upload.py --refresh-uploaded-metadata --dry-run
+```
+
+This mode reads saved source IDs directly, fetches fresh catalog/METS/IIIF metadata, and checks the current Commons SHA-1 and byte size. It includes duplicates and pending post-upload verifications. Public metadata reads do not create viewer statistics sessions, so an outage of `POST /stats/session` does not block this mode. It does not depend on search pagination or year filters, does not upload PDFs, and leaves the upload state file unchanged. Supply `--viewer-cookies` and `--pywikibot-dir` as usual when needed.
+
+For pages with a proven uploader-generated description, unchanged bibliographic fields in `Information` are updated in place. Human-edited fields and text outside the template, including licensing and categories, are preserved. A human-edited description, conflicting source association, missing file, or incomplete source response is skipped and reported automatically. Pages whose primary description is not owned by the uploader receive separate catalog metadata blocks; later runs update only those owned blocks. Existing human changes inside a block are preserved by skipping that page.
+
+Publication snapshots and receipts in `archive/metadata-refresh/pages/` establish ownership and allow safe reruns after interruption. The command checks the page revision and binary again immediately before each edit, skips already-current pages, and continues after per-page conflicts. Rerunning fetches fresh source metadata again. Reports default to `archive/metadata-refresh/report.json`; `--report PATH` changes that location. No separate approval or apply command is required.
+
 The separate reconciliation command builds a reviewable plan from the latest snapshots with completed, hash-identified Commons associations and an eligible scan-identity check. Legacy or ambiguous associations require metadata refresh/review before planning. It reads current Commons pages anonymously, verifies the binary SHA-1, and includes a diff for each proposed edit. Items without an established matching Commons file are reported under `skipped`. An incomplete latest snapshot is reported there too; refresh that record before planning again. Earlier snapshots remain preserved in the archive.
 
 ```bash
@@ -161,7 +176,7 @@ The upload integration tests use Pywikibot's real request and chunk-upload code 
 
 ```bash
 python -m pip install pytest pytest-cov requests beautifulsoup4 'pywikibot>=11.6' 'pypdf>=6,<7' mwparserfromhell
-pytest -v --cov=upload --cov=scan_identity --cov=commons_verification --cov=catalog_requests --cov=catalog_validation --cov=preservation --cov=publication_rights --cov=pdf_validation --cov=reconcile_metadata --cov-report=term-missing
+pytest -v --cov=upload --cov=metadata_refresh --cov=metadata_refresh_merge --cov=scan_identity --cov=commons_verification --cov=catalog_requests --cov=catalog_validation --cov=preservation --cov=publication_rights --cov=pdf_validation --cov=reconcile_metadata --cov-report=term-missing
 # or
 python3 -m unittest discover -v
 ```

@@ -1819,12 +1819,14 @@ class NlbClient:
 		timeout: int = 60,
 		viewer_cookies: Path | None = None,
 		archive: Any | None = None,
+		metadata_reads_only: bool = False,
 	) -> None:
 		'''Initialize HTTP, optional source capture, and an exported signed-in viewer session.'''
 		self.session = session or requests.Session()
 		self.session.headers.setdefault('User-Agent', DEFAULT_USER_AGENT)
 		self.timeout = timeout
 		self.archive = archive
+		self.metadata_reads_only = metadata_reads_only
 		self._viewer_session_initialized = False
 		self._viewer_cookies_imported = viewer_cookies is not None
 		self._parent_metadata_cache: dict[str, dict[str, Any]] = {}
@@ -1947,7 +1949,9 @@ class NlbClient:
 		]
 
 	def ensure_viewer_session(self, force: bool = False) -> None:
-		"""Initialize the elib_session_id cookie on port 8070 if not already set."""
+		'''Initialize download statistics sessions; public metadata GETs do not need one.'''
+		if getattr(self, 'metadata_reads_only', False):
+			return
 		if self._viewer_session_initialized and not force:
 			return
 		now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -2040,6 +2044,8 @@ class NlbClient:
 		Repeated complete invalid PDFs with the same validation context are deferred
 		after two copies; partial transfers and changed bodies retain the full budget.
 		'''
+		if getattr(self, 'metadata_reads_only', False):
+			raise ValueError('This client is configured for metadata reads only')
 		self.ensure_viewer_session()
 		attempt = 1
 		session_renewed = False
@@ -2981,6 +2987,90 @@ def iterate_and_upload(
 	return counts
 
 
+def refresh_uploaded_metadata(
+	client: NlbClient, state_path: Path, staging_dir: Path, *,
+	category: str = DEFAULT_CATEGORY, license_template: str = DEFAULT_LICENSE,
+	explicit_license: bool = False,
+) -> dict[str, int]:
+	'''Refresh state-known Commons associations without search, PDF transfer or state writes.
+
+	Every selected file receives a fresh result in this run's archive snapshot.
+	Missing or failed source reads cannot leave an older description eligible for
+	automatic publication. Historical title/hash evidence remains available.
+	'''
+	state = json.loads(state_path.read_text(encoding='utf-8'))
+	archive = client.archive
+	counts = dict.fromkeys(('metadata_ready', 'metadata_review', 'metadata_failed', 'source_missing', 'source_changed', 'restricted', 'skipped'), 0)
+	groups: dict[str, dict[str, dict]] = {}
+	published = {'uploaded', 'existing_title', 'duplicate_sha1', 'verification_failed'}
+	for key, item in state.get('items', {}).items():
+		titles = [item.get('commons_title'), *item.get('duplicates', [])]
+		if (item.get('status') not in published and item.get('previous_status') not in published
+			or not re.fullmatch(r'[0-9a-fA-F]{40}', str(item.get('sha1', '')))
+			or type(item.get('size_bytes')) is not int or item['size_bytes'] <= 0
+			or not any(isinstance(title, str) and title.startswith('File:') for title in titles)):
+			counts['skipped'] += 1
+			continue
+		marc_id, file_id = key.split(':', 1)
+		groups.setdefault(marc_id, {})[file_id] = item
+
+	def failure(marc_id: str, file_id: str, previous: dict, status: str, reason: str, **details: Any) -> None:
+		'''Retain historical binary identity while explicitly disqualifying a failed refresh.'''
+		counts[status] += 1
+		archive.record_result(marc_id, file_id, {
+			**previous, 'status': status, 'previous_status': previous.get('previous_status', previous.get('status')),
+			'error': reason, 'scan_identity': {'eligible': False, 'reason': reason},
+			'metadata_refresh': {'status': status, 'checked_at': datetime.now(timezone.utc).isoformat(), **details},
+		})
+		log_progress(f'[{marc_id}:{file_id}] Metadata refresh deferred ({status}): {reason}')
+
+	for position, (marc_id, items) in enumerate(groups.items(), 1):
+		log_progress(f'[metadata record {position}/{len(groups)}] Refreshing {marc_id}')
+		archive.begin_record(marc_id)
+		try:
+			record_meta, marc_meta = client.fetch_record_metadata(marc_id)
+			archive.save_record(marc_id, record_meta, marc_meta)
+			if not client.check_doc_access(marc_id).get('publicAccess'):
+				for fid, previous in items.items():
+					failure(marc_id, fid, previous, 'restricted', 'Source record is no longer publicly accessible')
+				continue
+			files = {item['file_id']: item for item in client.resolve_record_files({}, record_meta)}
+		except CatalogRetriesExhausted as error:
+			for fid, previous in items.items():
+				failure(marc_id, fid, previous, 'metadata_failed', str(error))
+			continue
+		except requests.HTTPError as error:
+			status = 'source_missing' if error.response is not None and error.response.status_code in (404, 410) else 'metadata_failed'
+			for fid, previous in items.items():
+				failure(marc_id, fid, previous, status, str(error))
+			continue
+		for fid, previous in items.items():
+			if fid not in files:
+				failure(marc_id, fid, previous, 'source_missing', 'Previously uploaded file ID is absent from the current record', current_file_ids=list(files))
+				continue
+			entry = files[fid]
+			old_location = previous.get('scan_identity', {}).get('context', {}).get('file', {}).get('file_location')
+			if old_location and entry.get('file_location') and old_location != entry['file_location']:
+				failure(marc_id, fid, previous, 'source_changed', f'Source path changed from {old_location} to {entry["file_location"]}')
+				continue
+			isolated = default_state()
+			isolated['items'][item_state_key(marc_id, fid)] = previous
+			try:
+				status = process_single_scan(client, None, isolated, state_path, staging_dir,
+					marc_id, fid, entry.get('part_label', ''), record_meta, marc_meta,
+					category, license_template, metadata_only=True, explicit_license=explicit_license, file_entry=entry)
+			except requests.HTTPError as error:
+				failure(marc_id, fid, previous, 'metadata_failed', str(error))
+				continue
+			if status != 'metadata_ready':
+				result = archive.manifests[marc_id]['files'][fid]
+				failure(marc_id, fid, previous, status, result.get('error', 'Incomplete metadata refresh'))
+				continue
+			counts[status] += 1
+			archive.record_result(marc_id, fid, {'metadata_refresh': {'status': status, 'checked_at': datetime.now(timezone.utc).isoformat()}})
+	return counts
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
 	'''Create the command-line argument parser.'''
 	parser = argparse.ArgumentParser(
@@ -3041,6 +3131,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 	parser.add_argument('--keep-pdfs', action='store_true', help='Also retain original PDFs in the archive after verification.')
 	parser.add_argument('--metadata-only', action='store_true', help='Revisit all selected records and archive Commons metadata without uploading or changing upload progress.')
 	parser.add_argument('--refresh-metadata', action='store_true', help='Revisit the search from page 1 to archive updated metadata for completed files.')
+	parser.add_argument('--refresh-uploaded-metadata', action='store_true', help='Refresh saved Commons associations and automatically update their bibliographic metadata; no PDF uploads. Combine with --dry-run for an optional preview.')
 	parser.add_argument('--report', type=Path, help='Write a machine-readable run summary to this JSON file.')
 	parser.add_argument(
 		'--viewer-cookies',
@@ -3062,7 +3153,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 	parser.add_argument(
 		'--dry-run',
 		action='store_true',
-		help='Download and hash-check without uploading to Wikimedia Commons.',
+		help='Preview without Commons writes; ordinary upload previews download/hash-check PDFs, metadata refresh previews do not.',
 	)
 	return parser
 
@@ -3071,6 +3162,11 @@ def main(argv: list[str] | None = None) -> int:
 	'''Entry point for CLI execution.'''
 	parser = build_arg_parser()
 	args = parser.parse_args(argv)
+	if args.refresh_uploaded_metadata:
+		if args.metadata_only or args.refresh_metadata or args.url or args.search_url or args.from_year is not None or args.until_year is not None or args.max_uploads:
+			parser.error('--refresh-uploaded-metadata uses saved associations; search filters, upload limits and other refresh modes do not apply')
+		if args.report and args.report.resolve() == args.state_file.resolve():
+			parser.error('--report must not overwrite the upload state file')
 
 	target_url = args.search_url or args.url
 	until_year = args.until_year
@@ -3080,11 +3176,26 @@ def main(argv: list[str] | None = None) -> int:
 			until_year = DEFAULT_UNTIL_YEAR
 
 	archive = ArchiveStore(args.archive_dir or args.state_file.parent / 'archive', keep_pdfs=args.keep_pdfs)
-	client = NlbClient(viewer_cookies=args.viewer_cookies, archive=archive)
+	if args.refresh_uploaded_metadata and (args.report or archive.root / 'metadata-refresh' / 'report.json').resolve() == args.state_file.resolve():
+		parser.error('The metadata refresh report must not overwrite the upload state file')
+	client = NlbClient(viewer_cookies=args.viewer_cookies, archive=archive,
+		metadata_reads_only=args.metadata_only or args.refresh_uploaded_metadata)
 	client.archive = archive
-	uploader = None if args.dry_run or args.metadata_only else CommonsUploader(pywikibot_dir=args.pywikibot_dir)
+	uploader = None if args.dry_run or args.metadata_only or args.refresh_uploaded_metadata else CommonsUploader(pywikibot_dir=args.pywikibot_dir)
 
 	try:
+		if args.refresh_uploaded_metadata:
+			from metadata_refresh import apply_uploaded_metadata
+			counts = refresh_uploaded_metadata(client, args.state_file, args.staging_dir,
+				category=args.category, license_template=args.license or DEFAULT_LICENSE, explicit_license=args.license is not None)
+			report = apply_uploaded_metadata(archive.root, archive.snapshots.values(), dry_run=args.dry_run,
+				report_path=args.report, pywikibot_dir=args.pywikibot_dir)
+			counts.update(report['counts'])
+			from preservation import atomic_json
+			atomic_json(args.report or archive.root / 'metadata-refresh' / 'report.json', {**report, 'counts': counts})
+			print(json.dumps(counts, ensure_ascii=False))
+			return 2 if any(counts.get(key) for key in ('metadata_review', 'metadata_failed', 'source_missing',
+				'source_changed', 'restricted', 'metadata_conflict', 'metadata_edit_failed', 'metadata_source_skipped')) else 0
 		counts = iterate_and_upload(
 			client=client,
 			uploader=uploader,
