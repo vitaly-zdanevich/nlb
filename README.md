@@ -6,7 +6,7 @@
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
-[![Production code](https://img.shields.io/badge/production%20code-4%2C463%20lines-blue)](upload.py)
+[![Production code](https://img.shields.io/badge/production%20code-4%2C474%20lines-blue)](upload.py)
 [![Test code](https://img.shields.io/badge/test%20code-7%2C227%20lines-blue)](#running-tests)
 
 [`upload.py`](upload.py) iterates over open-access digitized scans from the Electronic Library of the National Library of Belarus (`https://elib.nlb.by`), archives the source responses, and uploads eligible PDFs to Wikimedia Commons with their useful catalog metadata readable on the file page.
@@ -147,6 +147,8 @@ To refresh the metadata of every hash-identified Commons association saved in `s
 ```
 
 This mode reads saved source IDs directly, fetches fresh catalog/METS/IIIF metadata, and checks the current Commons SHA-1 and byte size. It includes duplicates and pending post-upload verifications. Public metadata reads do not create viewer statistics sessions, so an outage of `POST /stats/session` does not block this mode. It does not depend on search pagination or year filters, does not upload PDFs, and leaves the upload state file unchanged. Supply `--viewer-cookies` and `--pywikibot-dir` as usual when needed.
+
+The log distinguishes each phase: `Collecting source metadata` saves NLB metadata locally for all selected records, followed by reading current Commons metadata and archived publication records. `Preparing metadata changes` computes each page's update; `Applying metadata update` appears immediately before an edit attempt, and `metadata_updated` confirms success. Dry runs show `Preparing metadata preview` instead of applying edits. Progress and outcomes are flushed immediately, including when output is redirected to a log file.
 
 For pages with a proven uploader-generated description, unchanged bibliographic fields in `Information` are updated in place. Human-edited fields and text outside the template, including licensing and categories, are preserved. A human-edited description, conflicting source association, missing file, or incomplete source response is skipped and reported automatically. Pages whose primary description is not owned by the uploader receive separate catalog metadata blocks; later runs update only those owned blocks. Existing human changes inside a block are preserved by skipping that page.
 

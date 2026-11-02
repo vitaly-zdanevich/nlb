@@ -2997,6 +2997,7 @@ def refresh_uploaded_metadata(
 	Every selected file receives a fresh result in this run's archive snapshot.
 	Missing or failed source reads cannot leave an older description eligible for
 	automatic publication. Historical title/hash evidence remains available.
+	Progress describes local source collection, before any Commons edit phase.
 	'''
 	state = json.loads(state_path.read_text(encoding='utf-8'))
 	archive = client.archive
@@ -3024,8 +3025,9 @@ def refresh_uploaded_metadata(
 		})
 		log_progress(f'[{marc_id}:{file_id}] Metadata refresh deferred ({status}): {reason}')
 
+	log_progress(f'Collecting source metadata for {len(groups)} records into the local archive.')
 	for position, (marc_id, items) in enumerate(groups.items(), 1):
-		log_progress(f'[metadata record {position}/{len(groups)}] Refreshing {marc_id}')
+		log_progress(f'[metadata record {position}/{len(groups)}] Collecting source metadata: {marc_id}')
 		archive.begin_record(marc_id)
 		try:
 			record_meta, marc_meta = client.fetch_record_metadata(marc_id)
@@ -3068,6 +3070,8 @@ def refresh_uploaded_metadata(
 				continue
 			counts[status] += 1
 			archive.record_result(marc_id, fid, {'metadata_refresh': {'status': status, 'checked_at': datetime.now(timezone.utc).isoformat()}})
+	deferred = sum(count for status, count in counts.items() if status not in ('metadata_ready', 'skipped'))
+	log_progress(f'Source metadata collection complete: {counts["metadata_ready"]} scan associations ready, {deferred} deferred.')
 	return counts
 
 

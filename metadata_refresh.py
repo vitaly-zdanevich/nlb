@@ -193,6 +193,7 @@ def apply_uploaded_metadata(
 	Receipts precede edits so an interrupted run can recognize a completed write.
 	Running again refreshes sources and skips unchanged pages without requesting
 	manual approval. A dry run writes report previews but no edit receipts.
+	Progress distinguishes Commons reads, change preparation and attempted edits.
 	'''
 	root = Path(archive_dir)
 	if pywikibot_dir:
@@ -205,7 +206,7 @@ def apply_uploaded_metadata(
 		report['counts'][status] += 1
 		report['items'].append({'status': status, **details})
 		atomic_json(output, report)
-		print(f'[{details.get("title", details.get("key", "metadata"))}] {status}: {details.get("error", "")}')
+		print(f'[{details.get("title", details.get("key", "metadata"))}] {status}: {details.get("error", "")}', flush=True)
 	requested = defaultdict(list)
 	for snapshot in snapshots:
 		path = Path(snapshot).resolve()
@@ -228,7 +229,9 @@ def apply_uploaded_metadata(
 			for title in _targets(item):
 				requested[title].append({'key': key, 'item': item, 'text': text, 'binary': binary})
 	groups = {}
-	for title, candidates in requested.items():
+	print(f'Reading current Commons metadata for {len(requested)} saved titles.', flush=True)
+	for position, (title, candidates) in enumerate(requested.items(), 1):
+		print(f'[Commons title {position}/{len(requested)}] Reading current metadata and binary identity: {title}', flush=True)
 		try:
 			page = reader(title)
 			if any(item['binary'] != _binary(page) for item in candidates):
@@ -240,8 +243,11 @@ def apply_uploaded_metadata(
 			outcome('metadata_conflict', title=title, error=str(error))
 			if isinstance(error, requests.exceptions.SSLError):
 				raise
+	print('Reading archived publication records to preserve human edits.', flush=True)
 	history = _publication_history(root, {_binary(group['page']) for group in groups.values()})
-	for title, group in groups.items():
+	preparation = 'metadata preview' if dry_run else 'metadata changes'
+	for position, (title, group) in enumerate(groups.items(), 1):
+		print(f'[Commons page {position}/{len(groups)}] Preparing {preparation}: {title}', flush=True)
 		page = group['page']
 		receipt_path = root / 'metadata-refresh' / 'pages' / (text_hash(title) + '.json')
 		try:
@@ -263,6 +269,7 @@ def apply_uploaded_metadata(
 				'status': 'pending', 'expected_text_sha256': text_hash(new_text), 'baserevid': page['revid'],
 				'updated_at': datetime.now(timezone.utc).isoformat()}
 			atomic_json(receipt_path, checkpoint)
+			print(f'Applying metadata update: {title}', flush=True)
 			if not writer({'title': title, 'new_text': new_text, 'baserevid': page['revid'], 'sha1': page['sha1'],
 				'summary': 'Refresh National Library of Belarus catalog metadata from preserved source records'}):
 				raise RuntimeError('Commons rejected the metadata update')
