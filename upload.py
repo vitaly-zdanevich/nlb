@@ -2899,8 +2899,9 @@ def iterate_and_upload(
 	explicit_license: bool = False,
 	metadata_only: bool = False,
 	refresh_metadata: bool = False,
+	continue_run: bool = False,
 ) -> dict[str, int]:
-	'''Upload available scans, revisiting deferred transfers from earlier pages on each run.'''
+	'''Scan from page one by default; explicit continuation resumes pending progress.'''
 	if search_url:
 		url_from, url_to = extract_year_bounds_from_search_url(search_url)
 		if from_year is None:
@@ -2916,7 +2917,7 @@ def iterate_and_upload(
 	)
 	if dry_run or metadata_only:
 		state['_read_only'] = True
-	if refresh_metadata or metadata_only:
+	if not continue_run or metadata_only:
 		state['current_page'] = 1
 	page = max(1, int(state.get('current_page') or 1))
 	if state.get('retry_from_page') is not None:
@@ -3134,7 +3135,7 @@ def iterate_and_upload(
 def refresh_uploaded_metadata(
 	client: NlbClient, state_path: Path, staging_dir: Path, *,
 	category: str = DEFAULT_CATEGORY, license_template: str = DEFAULT_LICENSE,
-	explicit_license: bool = False,
+	explicit_license: bool = False, continue_run: bool = False,
 ) -> dict[str, int]:
 	'''Refresh state-known Commons associations without search, PDF transfer or state writes.
 
@@ -3158,6 +3159,15 @@ def refresh_uploaded_metadata(
 			continue
 		marc_id, file_id = key.split(':', 1)
 		groups.setdefault(marc_id, {})[file_id] = item
+	from refresh_checkpoint import RefreshCheckpoint
+	checkpoint = RefreshCheckpoint(archive, groups, {
+		'category': category, 'license_template': license_template, 'explicit_license': explicit_license,
+	}, resume=continue_run, log=log_progress)
+	client.refresh_checkpoint = checkpoint
+
+	def checkpoint_record(marc_id: str, before: dict[str, int]) -> None:
+		'''Record one completed source boundary, including its deferred scan counts.'''
+		checkpoint.save_record(marc_id, {key: value - before[key] for key, value in counts.items()})
 
 	def failure(marc_id: str, file_id: str, previous: dict, status: str, reason: str, **details: Any) -> None:
 		'''Retain historical binary identity while explicitly disqualifying a failed refresh.'''
@@ -3171,6 +3181,13 @@ def refresh_uploaded_metadata(
 
 	log_progress(f'Collecting source metadata for {len(groups)} records into the local archive.')
 	for position, (marc_id, items) in enumerate(groups.items(), 1):
+		saved = checkpoint.restore(marc_id)
+		if saved is not None:
+			for status, count in saved.items():
+				counts[status] += count
+			log_progress(f'[metadata record {position}/{len(groups)}] Reusing verified source collection: {marc_id}')
+			continue
+		before = counts.copy()
 		log_progress(f'[metadata record {position}/{len(groups)}] Collecting source metadata: {marc_id}')
 		archive.begin_record(marc_id)
 		try:
@@ -3179,16 +3196,19 @@ def refresh_uploaded_metadata(
 			if not client.check_doc_access(marc_id).get('publicAccess'):
 				for fid, previous in items.items():
 					failure(marc_id, fid, previous, 'restricted', 'Source record is no longer publicly accessible')
+				checkpoint_record(marc_id, before)
 				continue
 			files = {item['file_id']: item for item in client.resolve_record_files({}, record_meta)}
 		except CatalogRetriesExhausted as error:
 			for fid, previous in items.items():
 				failure(marc_id, fid, previous, 'metadata_failed', str(error))
+			checkpoint_record(marc_id, before)
 			continue
 		except requests.HTTPError as error:
 			status = 'source_missing' if error.response is not None and error.response.status_code in (404, 410) else 'metadata_failed'
 			for fid, previous in items.items():
 				failure(marc_id, fid, previous, status, str(error))
+			checkpoint_record(marc_id, before)
 			continue
 		for fid, previous in items.items():
 			if fid not in files:
@@ -3214,6 +3234,7 @@ def refresh_uploaded_metadata(
 				continue
 			counts[status] += 1
 			archive.record_result(marc_id, fid, {'metadata_refresh': {'status': status, 'checked_at': datetime.now(timezone.utc).isoformat()}})
+		checkpoint_record(marc_id, before)
 	deferred = sum(count for status, count in counts.items() if status not in ('metadata_ready', 'skipped'))
 	log_progress(f'Source metadata collection complete: {counts["metadata_ready"]} scan associations ready, {deferred} deferred.')
 	return counts
@@ -3278,8 +3299,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
 	)
 	parser.add_argument('--keep-pdfs', action='store_true', help='Also retain original PDFs in the archive after verification.')
 	parser.add_argument('--metadata-only', action='store_true', help='Revisit all selected records and archive Commons metadata without uploading or changing upload progress.')
-	parser.add_argument('--refresh-metadata', action='store_true', help='Revisit the search from page 1 to archive updated metadata for completed files.')
+	parser.add_argument('--refresh-metadata', action='store_true', help='Archive updated metadata for completed files during the upload run; starts at page 1 unless --continue is given.')
 	parser.add_argument('--refresh-uploaded-metadata', action='store_true', help='Refresh saved Commons associations and automatically update their bibliographic metadata; no PDF uploads. Combine with --dry-run for an optional preview.')
+	parser.add_argument('--continue', dest='continue_run', action='store_true', help='Resume saved catalog progress or an interrupted metadata collection; otherwise start from the beginning while retaining upload history.')
 	parser.add_argument('--report', type=Path, help='Write a machine-readable run summary to this JSON file.')
 	parser.add_argument(
 		'--viewer-cookies',
@@ -3312,6 +3334,8 @@ def main(argv: list[str] | None = None) -> int:
 	args = parser.parse_args(argv)
 	if args.report and args.report.resolve() == args.state_file.resolve():
 		parser.error('--report must not overwrite the upload state file')
+	if args.continue_run and args.metadata_only:
+		parser.error('--metadata-only does not save catalog progress; use it without --continue')
 	if args.refresh_uploaded_metadata:
 		if args.metadata_only or args.refresh_metadata or args.url or args.search_url or args.from_year is not None or args.until_year is not None or args.max_uploads:
 			parser.error('--refresh-uploaded-metadata uses saved associations; search filters, upload limits and other refresh modes do not apply')
@@ -3325,14 +3349,16 @@ def main(argv: list[str] | None = None) -> int:
 
 	archive = ArchiveStore(args.archive_dir or args.state_file.parent / 'archive', keep_pdfs=args.keep_pdfs)
 	if args.refresh_uploaded_metadata and args.state_file.resolve() in {
-		(archive.root / 'metadata-refresh' / name).resolve() for name in ('archive-issues.json',)
+		(archive.root / 'metadata-refresh' / name).resolve() for name in ('collection.json', 'archive-issues.json')
 	}:
-		parser.error('Archive diagnostics must not overwrite the upload state file')
+		parser.error('Metadata collection and archive diagnostics must not overwrite the upload state file')
 	if args.report:
 		output = args.report.resolve()
 		protected = [archive.root / name for name in ('objects', 'records', 'quarantine', 'metadata-refresh/pages')]
-		if any(output.is_relative_to(path.resolve()) for path in protected):
-			parser.error('--report must not overwrite archived sources or receipts')
+		if any(output.is_relative_to(path.resolve()) for path in protected) or (
+			output.parent == (archive.root / 'metadata-refresh').resolve() and output.name.startswith('collection')
+		):
+			parser.error('--report must not overwrite archived sources, receipts or collection checkpoints')
 	if args.refresh_uploaded_metadata and (args.report or archive.root / 'metadata-refresh' / 'report.json').resolve() == args.state_file.resolve():
 		parser.error('The metadata refresh report must not overwrite the upload state file')
 	client = NlbClient(viewer_cookies=args.viewer_cookies, archive=archive,
@@ -3349,12 +3375,17 @@ def main(argv: list[str] | None = None) -> int:
 				atomic_json(archive.root / 'metadata-refresh' / 'archive-issues.json', issues)
 				log_progress(f'Archive preflight found {len(issues)} issues; affected Commons pages will be deferred. See archive-issues.json.')
 			counts = refresh_uploaded_metadata(client, args.state_file, args.staging_dir,
-				category=args.category, license_template=args.license or DEFAULT_LICENSE, explicit_license=args.license is not None)
+				category=args.category, license_template=args.license or DEFAULT_LICENSE, explicit_license=args.license is not None,
+				continue_run=args.continue_run)
 			report = apply_uploaded_metadata(archive.root, archive.snapshots.values(), dry_run=args.dry_run,
 				report_path=args.report, pywikibot_dir=args.pywikibot_dir)
 			counts.update(report['counts'])
 			from preservation import atomic_json
 			atomic_json(args.report or archive.root / 'metadata-refresh' / 'report.json', {**report, 'counts': counts})
+			# Preview runs keep their verified collection available for the real apply.
+			# An interrupted/failed edit also keeps it for a bounded retry next run.
+			if not args.dry_run and not counts.get('metadata_edit_failed') and hasattr(client, 'refresh_checkpoint'):
+				client.refresh_checkpoint.complete()
 			print(json.dumps(counts, ensure_ascii=False))
 			return 2 if any(counts.get(key) for key in ('metadata_review', 'metadata_failed', 'source_missing',
 				'source_changed', 'restricted', 'metadata_conflict', 'metadata_edit_failed', 'metadata_source_skipped')) else 0
@@ -3373,6 +3404,7 @@ def main(argv: list[str] | None = None) -> int:
 			explicit_license=args.license is not None,
 			metadata_only=args.metadata_only,
 			refresh_metadata=args.refresh_metadata,
+			continue_run=args.continue_run,
 		)
 		print(json.dumps(counts, ensure_ascii=False))
 		if args.report:

@@ -31,7 +31,7 @@ class TestProgress(unittest.TestCase):
 			with mock.patch('upload.SEARCH_PAGE_SIZE', 2), mock.patch(
 				'upload.check_commons_by_hash', return_value=('a' * 40, []),
 			), mock.patch('sys.stdout', io.StringIO()) as output:
-				upload.iterate_and_upload(client, FakeCommonsUploader(), root / 'state.json', root / 'staging')
+				upload.iterate_and_upload(client, FakeCommonsUploader(), root / 'state.json', root / 'staging', continue_run=True)
 				return output.getvalue()
 
 	def test_record_totals_are_not_pdf_totals(self) -> None:

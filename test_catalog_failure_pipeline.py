@@ -178,7 +178,7 @@ class TestCatalogFailurePipeline(unittest.TestCase):
 				fail_search = False
 				client.downloaded_file_ids.clear()
 				client.fetch_search_page.reset_mock()
-				counts = upload_nlb.iterate_and_upload(**kwargs)
+				counts = upload_nlb.iterate_and_upload(**kwargs, continue_run=True)
 				self.assertEqual(counts['search_failed'], 0)
 				self.assertEqual(counts['uploaded'], 4 - failed_page)
 				self.assertEqual(client.fetch_search_page.call_args_list[0].kwargs['page'], failed_page)

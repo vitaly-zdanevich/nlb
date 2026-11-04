@@ -6,8 +6,8 @@
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
-[![Production code](https://img.shields.io/badge/production%20code-5%2C095%20lines-blue)](upload.py)
-[![Test code](https://img.shields.io/badge/test%20code-8%2C202%20lines-blue)](#running-tests)
+[![Production code](https://img.shields.io/badge/production%20code-5%2C232%20lines-blue)](upload.py)
+[![Test code](https://img.shields.io/badge/test%20code-8%2C317%20lines-blue)](#running-tests)
 
 [`upload.py`](upload.py) iterates over open-access digitized scans from the Electronic Library of the National Library of Belarus (`https://elib.nlb.by`), archives the source responses, and uploads eligible PDFs to Wikimedia Commons with their useful catalog metadata readable on the file page.
 
@@ -32,7 +32,7 @@
 - **Single-file and multi-part (`METS`) support**: Resolves direct `fileID` links and `metsID` trees. Each structure is fetched once per record, and a direct file also found in METS keeps its part label.
 - **Viewer-to-record association**: Standalone METS headings apply to following PDF parts, including Roman-numbered volumes. Shared multi-volume and bound-with viewers require a consistent catalog/scan volume match; source filenames and scan chunk numbers do not establish it. Ambiguous associations remain `metadata_review` before downloading or reusing completed state. Historical Commons titles and hashes remain available for repair. Upgrading a legacy state rewinds the selected catalog to page 1 once to check older associations.
 - **SHA-1 deduplication**: Computes the digest with Python's `hashlib` and queries the MediaWiki `allimages` API directly. No shell helper is required. Timeouts, broken connections, invalid JSON and HTTP 500/502/503/504 receive up to five attempts with 5, 10, 20 and 40 seconds between attempts; failed or invalid lookups leave the scan pending without uploading.
-- **Resumable state**: Saves progress atomically after each item and page. Pending work keeps the earliest affected page. Dry runs and metadata-only runs leave the production state file unchanged.
+- **Fresh scans and explicit continuation**: Starts from page 1 by default, retaining completed upload history so newly added catalog records can be discovered without uploading completed files again. `--continue` resumes the saved page, including any earlier pending work. Catalog ordering can change; use a fresh scan after a long break. Dry runs and metadata-only runs leave the production state file unchanged.
 - **Record and page counters**: Progress includes `[record 345/9743; page 4/98]`. Counters show the record's position in the selected catalog results and the search-page position, including completed or skipped records. Multiple PDFs from one record share its counter. Resuming or revisiting deferred pages uses the corresponding search position; unavailable totals are omitted.
 - **Catalog validation and retries**: Search, HTML, MARCXML, TOC, access, METS and IIIF manifest reads validate their expected structures before use, including record IDs and boolean access decisions. HTTP 200 database/error pages, malformed bodies, interrupted responses, timeouts and HTTP 500/502/503/504 share five attempts with 5/10/20/40-second delays. Exhausted metadata remains pending; failed search pages retain their restart position. Explicit 404s remain allowed for optional MARCXML/TOC/parent exports. Certificate and permanent HTTP errors still stop the run.
 - **Rejected PDF evidence**: Completed PDF responses that fail strict parsing or the manifest page-count check are preserved unchanged in `archive/quarantine/`, even without `--keep-pdfs`, with hashes, source URL, validation error and manifest. Receiving identical rejected bytes with the same manifest page count twice ends that download retry cycle early; the scan remains pending. Partial transfers and HTML responses retain the normal retry budget.
@@ -65,7 +65,7 @@ Every run writes an archive, defaulting to `archive/` beside the state file. It 
 
 Metadata archives are retained by default and grow with repeated snapshots; keeping successful PDFs or quarantined rejected PDFs requires substantially more storage. Choose `--archive-dir` on suitable storage and back up the whole directory, including `objects/`, `quarantine/` and `records/`, together with `state.json`. A local archive on the same disk is not an independent backup. Cookies, authorization headers and viewer-session creation responses are excluded. The default archive path is ignored by Git; exclude custom archive locations as appropriate.
 
-A metadata outage retains historical Commons titles, hashes and verification evidence. A local write failure after a complete PDF download retains the staging original and logs its exact path; a recovery sidecar is written when storage allows. Report paths cannot overwrite upload state or archived objects, record snapshots, receipts.
+A metadata outage retains historical Commons titles, hashes and verification evidence. A local write failure after a complete PDF download retains the staging original and logs its exact path; a recovery sidecar is written when storage allows. Report paths cannot overwrite upload state or archived objects, record snapshots, receipts or collection checkpoints.
 
 The archive preserves the responses actually retrieved. It cannot reconstruct metadata absent from those responses or prove that the library scanned every physical leaf. Strict PDF parsing and a matching IIIF page count detect structural problems, but do not certify visual readability, image completeness or the correctness of catalog descriptions. A PDF requiring repair stays pending; the uploader does not rewrite it to make validation pass.
 
@@ -116,6 +116,9 @@ chmod 600 ~/.config/nlb/cookies.txt
 # Process selected scans up to 1900; upload only after the rights checks pass
 ./upload.py
 
+# Continue a recent interrupted catalog run from saved progress
+./upload.py --continue
+
 # Adjust publication year bounds
 ./upload.py --from-year 1850 --to-year 1900
 
@@ -128,7 +131,7 @@ chmod 600 ~/.config/nlb/cookies.txt
 
 ## Refreshing metadata and reviewing existing Commons descriptions
 
-A metadata-only run starts at page 1 of the selected catalog, captures metadata and descriptions, and leaves upload progress unchanged. It performs catalog/manifest reads but does not download PDFs, upload files or edit Commons descriptions. For previously completed items, their existing file associations are carried into the new snapshot.
+A metadata-only run starts at page 1 of the selected catalog, captures metadata and descriptions, and leaves upload progress unchanged. It does not accept `--continue`, since it has no separate catalog cursor. It performs catalog/manifest reads but does not download PDFs, upload files or edit Commons descriptions. For previously completed items, their existing file associations are carried into the new snapshot.
 
 ```bash
 # Capture updated metadata without changing upload state or Commons
@@ -141,12 +144,15 @@ A metadata-only run starts at page 1 of the selected catalog, captures metadata 
 ./upload.py --keep-pdfs --archive-dir /path/to/nlb-archive
 ```
 
-`--refresh-metadata` revisits completed files to archive their current metadata; verified completed PDFs can skip another transfer. It is a normal upload run and can upload new/pending items. Neither refresh mode edits existing Commons descriptions.
+`--refresh-metadata` revisits completed files to archive their current metadata; verified completed PDFs can skip another transfer. It is a normal upload run and can upload new/pending items; `--continue` resumes its saved catalog progress. Neither refresh mode edits existing Commons descriptions.
 
 To refresh the metadata of every hash-identified Commons association saved in `state.json` and **apply updates automatically**:
 
 ```bash
 ./upload.py --refresh-uploaded-metadata
+
+# Resume an interrupted source collection or edit phase
+./upload.py --refresh-uploaded-metadata --continue
 
 # Optional preview; no Commons edits and no PDF downloads:
 ./upload.py --refresh-uploaded-metadata --dry-run
@@ -160,6 +166,7 @@ For pages with a proven uploader-generated description, unchanged bibliographic 
 
 Publication snapshots and receipts in `archive/metadata-refresh/pages/` establish ownership and allow safe reruns after interruption. New receipts use stable Commons page IDs; older title receipts are recovered through verified aliases when a file has moved. The command checks the page revision and binary again immediately before each edit, skips already-current pages, and continues after per-page conflicts. Damaged historical metadata is reported and blocks affected pages while independent pages can continue. Reports default to `archive/metadata-refresh/report.json`; `--report PATH` changes that location. No separate approval or apply command is required.
 
+Without `--continue`, metadata refresh collects fresh sources. With `--continue`, an unfinished collection can reuse complete record snapshots after verifying their checksums and referenced metadata objects. The selection, code and rendering settings must match, and the collection must have started less than 24 hours ago; otherwise it starts fresh. Failed source reads are retried. Checkpoints live separately in `archive/metadata-refresh/collection.json` and do not modify upload state. Commons updates begin after collection so all selected source associations for a shared file can be considered together. A preview leaves its collection available for a subsequent `--continue` apply. A completed applied run starts fresh next time.
 
 An archive preflight reports missing or corrupt metadata evidence before source collection; it does not verify every PDF or certify a complete backup. Explicit file/record IDs in IIIF manifests are checked before their descriptions are used, including metadata-only runs.
 
@@ -193,7 +200,7 @@ The upload integration tests use Pywikibot's real request and chunk-upload code 
 
 ```bash
 python -m pip install pytest pytest-cov requests beautifulsoup4 'pywikibot>=11.6' 'pypdf>=6,<7' mwparserfromhell
-pytest -v --cov=upload --cov=viewer_outline --cov=wikimedia_text --cov=catalog_hierarchy --cov=metadata_refresh --cov=metadata_refresh_merge --cov=scan_identity --cov=commons_verification --cov=catalog_requests --cov=catalog_validation --cov=preservation --cov=publication_rights --cov=pdf_validation --cov=reconcile_metadata --cov-report=term-missing
+pytest -v --cov=upload --cov=refresh_checkpoint --cov=viewer_outline --cov=wikimedia_text --cov=catalog_hierarchy --cov=metadata_refresh --cov=metadata_refresh_merge --cov=scan_identity --cov=commons_verification --cov=catalog_requests --cov=catalog_validation --cov=preservation --cov=publication_rights --cov=pdf_validation --cov=reconcile_metadata --cov-report=term-missing
 # or
 python3 -m unittest discover -v
 ```
