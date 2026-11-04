@@ -153,7 +153,59 @@ def validate_access_json(response: requests.Response) -> None:
 		reject(response, 'Access response lacks a boolean publicAccess decision')
 
 
-def validate_manifest(response: requests.Response) -> None:
+def validate_manifest_identity(
+	payload: dict[str, Any], marc_id: str, file_id: str, *, response: requests.Response | None = None,
+) -> None:
+	'''Reject explicit scan identities that differ from the requested record or file.
+
+	NLB often leaves the manifest id empty and uses generic canvas IDs. Only
+	explicit identity fields, self-link parameters and known file rendering routes
+	establish an identity here; related catalog links and canvas labels do not.
+	'''
+	def check(value: Any, expected: str, label: str) -> None:
+		'''Preserve the requested association rather than accepting a stale response.'''
+		if str(value) != str(expected):
+			raise InvalidCatalogResponse(
+				f'IIIF manifest identifies {label} {value!r} instead of requested {expected!r}', response=response,
+			)
+
+	def check_url(identifier: Any) -> None:
+		'''Read URL identity only where the manifest explicitly identifies its own scan.'''
+		if not isinstance(identifier, str) or not identifier:
+			return
+		try:
+			url = urlsplit(identifier)
+		except ValueError as error:
+			raise InvalidCatalogResponse('IIIF manifest has a malformed identity URL', response=response) from error
+		params = parse_qs(url.query, keep_blank_values=True)
+		for name in ('marcID', 'markID'):
+			for value in params.get(name, []):
+				check(value, marc_id, 'record')
+		for name in ('fileID', 'fileId'):
+			for value in params.get(name, []):
+				check(value, file_id, 'file')
+		file = re.fullmatch(r'/iiif/file/([^/]+)/(?:bytes|pages)/?', url.path)
+		if file:
+			check(file[1], file_id, 'file')
+
+	for name in ('marcID', 'markID'):
+		if name in payload:
+			check(payload[name], marc_id, 'record')
+	for name in ('fileID', 'fileId'):
+		if name in payload:
+			check(payload[name], file_id, 'file')
+	for name in ('id', '@id'):
+		check_url(payload.get(name))
+	renderings = payload.get('rendering') or []
+	if isinstance(renderings, dict):
+		renderings = [renderings]
+	for rendering in renderings:
+		if isinstance(rendering, dict) and (rendering.get('format') == 'application/pdf' or rendering.get('type') is None):
+			for name in ('id', '@id'):
+				check_url(rendering.get(name))
+
+
+def validate_manifest(response: requests.Response, marc_id: str | None = None, file_id: str | None = None) -> None:
 	'''Accept the IIIF manifest containers used by NLB, rejecting JSON error bodies.
 
 	NLB permits a rendering-only response; an empty rendering list still uses
@@ -185,6 +237,8 @@ def validate_manifest(response: requests.Response) -> None:
 				canvases = sequence.get('canvases')
 				if not isinstance(canvases, list) or any(not isinstance(canvas, dict) for canvas in canvases):
 					reject(response, 'IIIF sequence lacks its canvases list')
+	if marc_id is not None and file_id is not None:
+		validate_manifest_identity(payload, marc_id, file_id, response=response)
 
 
 def validate_mets_json(response: requests.Response, mets_id: str) -> None:

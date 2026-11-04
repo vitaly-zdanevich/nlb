@@ -159,8 +159,8 @@ class TestDeferredUploads(unittest.TestCase):
 			self.assertEqual([entry['status'] for entry in state['items'].values()], ['upload_failed'] * 3)
 			self.assertEqual(list((root / 'staging').iterdir()), [])
 
-	def test_unrelated_upload_errors_still_abort_and_clean_staging(self) -> None:
-		'''Authentication, permissions, disk errors and interrupts must remain visible.'''
+	def test_unrelated_upload_errors_abort_and_disk_failures_retain_originals(self) -> None:
+		'''Failures remain visible; completed bytes survive local disk-write failures.'''
 		for error in (
 			FakeAPIError('badtoken', 'Invalid CSRF token.'),
 			FakeAPIError('permissiondenied', 'Permission denied.'),
@@ -184,7 +184,12 @@ class TestDeferredUploads(unittest.TestCase):
 				state = upload_nlb.load_state(root / 'state.json')
 				self.assertEqual(state['items'], {})
 				self.assertIsNone(state.get('retry_from_page'))
-				self.assertEqual(list((root / 'staging').iterdir()), [])
+				if isinstance(error, OSError):
+					path, = (root / 'staging').glob('*.pdf')
+					self.assertIn(b'Record=BY-NLB-rr111 File=1001', path.read_bytes())
+					self.assertTrue(path.with_suffix('.recovery.json').exists())
+				else:
+					self.assertEqual(list((root / 'staging').iterdir()), [])
 
 	def test_upload_exhaustion_is_only_handled_at_the_upload_boundary(self) -> None:
 		'''Do not defer an exception injected into unrelated download or hash operations.'''

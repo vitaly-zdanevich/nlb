@@ -1,0 +1,26 @@
+{
+	"id": "BY-NLB-br0000369995",
+	"text": "Algebra czyli nauka o rachunkach literalnych",
+	"li_attr": {"data-recordid": "BY-NLB-br0000369995"},
+	"a_attr": {
+		"href": "/elib/Collection/BY-NLB-br0000369995/HierarchyTree?recordID=BY-NLB-br0000369995#tabnav",
+		"title": "Algebra czyli nauka o rachunkach literalnych"
+	},
+	"type": "collection",
+	"children": [
+		{
+			"id": "BY-NLB-br0000370146",
+			"text": "Część 1",
+			"li_attr": {"data-recordid": "BY-NLB-br0000370146"},
+			"a_attr": {"href": "/elib/Record/BY-NLB-br0000370146/HierarchyTree?recordID=BY-NLB-br0000370146#tree-BY-NLB-br0000370146"},
+			"type": "record"
+		},
+		{
+			"id": "BY-NLB-br0000370151",
+			"text": "Część 2",
+			"li_attr": {"data-recordid": "BY-NLB-br0000370151"},
+			"a_attr": {"href": "/elib/Record/BY-NLB-br0000370151/HierarchyTree?recordID=BY-NLB-br0000370151#tree-BY-NLB-br0000370151"},
+			"type": "record"
+		}
+	]
+}

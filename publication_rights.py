@@ -91,7 +91,7 @@ def _marc_values(metadata: dict[str, Any], tag: str, code: str) -> list[str]:
 		return [
 			str(subfield.get('value', ''))
 			for field in metadata['raw_marc_fields'] if field.get('tag') == tag
-			if tag != '214' or field.get('ind2') == '1'
+			if tag != '214' or field.get('ind2') == '0'
 			for subfield in field.get('subfields', []) if subfield.get('code') == code
 		]
 	if tag == '214':

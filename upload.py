@@ -36,8 +36,9 @@ from scan_identity import assess_scan_identity, flatten_mets
 from preservation import ArchiveStore, ArchiveWriteError, file_integrity
 from pdf_validation import InvalidPDFError, manifest_page_count, validate_pdf
 from publication_rights import evaluate_publication, publication_year
+from wikimedia_text import normalize_wikitext
 from catalog_validation import (
-	validate_access_json, validate_manifest, validate_marcxml, validate_mets_json,
+	validate_access_json, validate_manifest, validate_manifest_identity, validate_marcxml, validate_mets_json,
 	validate_record_html, validate_search_html, validate_toc_html,
 )
 
@@ -138,8 +139,8 @@ RELATED_RECORD_LABELS = {
 	'961': 'Связанная запись',
 }
 PARENT_IMPRINT_FIELDS = {
-	'places': 'Место издания (MARC 210$a)',
-	'publishers': 'Издатель (MARC 210$c)',
+	'places': 'Место издания (MARC 210$a / 214$a)',
+	'publishers': 'Издатель (MARC 210$c / 214$c)',
 }
 
 # Manufacture subfields are separate from publication places, publishers and dates.
@@ -415,6 +416,24 @@ def extract_cell_values(cell: Any) -> list[str]:
 	return values
 
 
+def extract_cell_links(cell: Any, marc_id: str) -> list[dict[str, str]]:
+	'''Preserve descriptive HTTP links while excluding transient holdings controls.'''
+	fragment = BeautifulSoup(str(cell), 'html.parser')
+	for control in fragment.select('script, style, button, .placehold, .moreHoldingItemsInfo, .btn'):
+		control.decompose()
+	links: list[dict[str, str]] = []
+	for anchor in fragment.find_all('a', href=True):
+		if anchor['href'].startswith('#'):
+			continue
+		url = urljoin(f'{ELIB_BASE_URL}/elib/Record/{marc_id}', anchor['href'])
+		if urlsplit(url).scheme not in {'http', 'https'}:
+			continue
+		link = {'url': url, 'text': re.sub(r'\s+', ' ', anchor.get_text(' ', strip=True)) or url}
+		if link not in links:
+			links.append(link)
+	return links
+
+
 def parse_record_html(html: str, marc_id: str) -> dict[str, Any]:
 	'''Extract metadata and catalog links from table cells, excluding sidebar suggestions.'''
 	soup = BeautifulSoup(html, 'html.parser')
@@ -437,7 +456,14 @@ def parse_record_html(html: str, marc_id: str) -> dict[str, Any]:
 				values = [f"{heading.get_text(' ', strip=True)}: {'; '.join(extract_cell_values(cell))}"
 					for heading, cell in zip(columns, cells) if extract_cell_values(cell)]
 				if values:
-					fields.append({'name': 'Хранение / экземпляр', 'value': '\n'.join(values), 'values': values})
+					field = {'name': 'Хранение / экземпляр', 'value': '\n'.join(values), 'values': values}
+					links = [
+						{**link, 'text': f"{heading.get_text(' ', strip=True)}: {link['text']}"}
+						for heading, cell in zip(columns, cells) for link in extract_cell_links(cell, marc_id)
+					]
+					if links:
+						field['links'] = links
+					fields.append(field)
 			continue
 		header = headers[0] if len(headers) == 1 else None
 		cell = cells[0] if len(cells) == 1 else None
@@ -453,17 +479,10 @@ def parse_record_html(html: str, marc_id: str) -> dict[str, Any]:
 			'values': values,
 		}
 		fields.append(field)
-		for anchor in cell.find_all('a', href=True):
-			if anchor['href'].startswith('#') or {'placehold', 'moreHoldingItemsInfo', 'btn'} & set(anchor.get('class', [])):
-				continue
-			absolute_url = urljoin(f'{ELIB_BASE_URL}/elib/Record/{marc_id}', anchor['href'])
+		for cell_link in extract_cell_links(cell, marc_id):
+			absolute_url = cell_link['url']
 			url = urlsplit(absolute_url)
-			if url.scheme not in {'http', 'https'}:
-				continue
-			field.setdefault('links', []).append({
-				'url': absolute_url,
-				'text': re.sub(r'\s+', ' ', anchor.get_text(' ', strip=True)) or absolute_url,
-			})
+			field.setdefault('links', []).append(cell_link)
 			if url.netloc and url.hostname != urlsplit(ELIB_BASE_URL).hostname:
 				continue
 			if url.scheme and url.scheme not in {'http', 'https'}:
@@ -473,7 +492,7 @@ def parse_record_html(html: str, marc_id: str) -> dict[str, Any]:
 				continue
 			link = {
 				'record_id': match.group(1),
-				'title': re.sub(r'\s+', ' ', anchor.get_text(' ', strip=True)),
+				'title': cell_link['text'],
 				'label': key,
 			}
 			if link not in record_links:
@@ -708,6 +727,33 @@ def parse_related_marc_field(tag: str, subfields: list[tuple[str, str]]) -> list
 	return links
 
 
+def format_imprint_statement(tag: str, ind1: str, ind2: str, subfields: list[tuple[str, str]]) -> str:
+	'''Keep each UNIMARC imprint's ordered place, organization and date together.
+
+	UNIMARC 214 uses indicator 2 value 0 for publication and 1 for production;
+	these differ from MARC 21 field 264. Unrecognized indicators stay explicit.
+	https://cdn.ifla.org/wp-content/uploads/files/assets/uca/unimarc_updates/BIBLIOGRAPHIC/u_b_214_update2019_online_final.pdf
+	'''
+	labels = MARC_SUBFIELD_LABELS[tag]
+	codes = 'abcd' if tag == '210' else 'abcdrs'
+	parts = [f'{labels.get(code, "Подполе")} (${code}): {value}' for code, value in subfields if code in codes]
+	if not parts:
+		return ''
+	sequence = {'0': 'Промежуточные сведения', '1': 'Текущие / последние сведения'}.get(ind1)
+	if ind1.strip() and sequence is None:
+		sequence = f'Последовательность сведений — индикатор 1: {ind1}'
+	if sequence:
+		parts.insert(0, sequence)
+	if tag == '214':
+		activity = {'0': 'Публикация', '1': 'Производство', '2': 'Распространение',
+			'3': 'Изготовление', '4': 'Авторское право / охрана'}.get(ind2)
+		parts.insert(0, activity or f'Тип сведений не установлен (индикатор 2: {ind2.strip() or "пустой"})')
+	elif ind2.strip():
+		# Keep a source qualifier without applying 214 or MARC 21 semantics to 210.
+		parts.insert(0, f'Индикатор 2: {ind2}')
+	return '; '.join(parts)
+
+
 def parse_marcxml(xml_text: str) -> dict[str, Any]:
 	'''Parse UNIMARC/BELMARC metadata, retaining contributor roles and copy associations.
 
@@ -726,6 +772,7 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 		'publication_terms': [],
 		'places': [],
 		'publishers': [],
+		'imprint_statements': [],
 		'manufacturing_statements': [],
 		'date': '',
 		'year': '',
@@ -872,6 +919,9 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 			if submap.get('a') and not result['edition']:
 				result['edition'] = ' '.join(submap['a'])
 		elif tag == '210':
+			statement = format_imprint_statement(tag, df.get('ind1', ''), df.get('ind2', ''), subfields)
+			if statement and {'tag': tag, 'text': statement} not in result['imprint_statements']:
+				result['imprint_statements'].append({'tag': tag, 'text': statement})
 			for place in submap.get('a', []):
 				if place not in result['places']:
 					result['places'].append(place)
@@ -886,9 +936,18 @@ def parse_marcxml(xml_text: str) -> dict[str, Any]:
 			)
 			if statement and statement not in result['manufacturing_statements']:
 				result['manufacturing_statements'].append(statement)
-		elif tag == '214' and df.get('ind2') == '1' and not result['date']:
-			# 214 distinguishes publication from production, distribution and copyright.
-			result['date'] = ', '.join(submap.get('d', []))
+		elif tag == '214':
+			statement = format_imprint_statement(tag, df.get('ind1', ''), df.get('ind2', ''), subfields)
+			if statement and {'tag': tag, 'text': statement} not in result['imprint_statements']:
+				result['imprint_statements'].append({'tag': tag, 'text': statement})
+			# UNIMARC 214 uses 0 for publication; 1 means production.
+			if df.get('ind2') == '0':
+				for code, key in (('a', 'places'), ('c', 'publishers')):
+					for value in submap.get(code, []):
+						if value not in result[key]:
+							result[key].append(value)
+				if not result['date']:
+					result['date'] = ', '.join(submap.get('d', []))
 		elif tag == '215':
 			main_parts = submap.get('a', []) + submap.get('c', []) + submap.get('d', [])
 			acc_parts = submap.get('e', [])
@@ -1180,8 +1239,8 @@ class RenderedWikitext(str):
 def escape_wikitext(value: str) -> str:
 	'''Render literal catalog text safely inside templates, lists and link labels.'''
 	if isinstance(value, RenderedWikitext):
-		return value
-	return value.translate(str.maketrans({
+		return RenderedWikitext(normalize_wikitext(value))
+	return normalize_wikitext(value).translate(str.maketrans({
 		'&': '&amp;', '<': '&lt;', '>': '&gt;', '[': '&#91;', ']': '&#93;',
 		'{': '&#123;', '}': '&#125;', '|': '{{!}}', "'": '&#39;',
 		'_': '&#95;', '~': '&#126;',
@@ -1316,7 +1375,8 @@ MARC_SUBFIELD_LABELS = {
 	'010': {'a': 'ISBN', 'b': 'Уточнение / переплет', 'd': 'Цена / условия приобретения', 'z': 'Ошибочный ISBN'},
 	'200': {'a': 'Заглавие', 'b': 'Вид материала', 'd': 'Параллельное заглавие', 'e': 'Подзаголовок', 'f': 'Ответственность', 'g': 'Другая ответственность', 'h': 'Обозначение части', 'i': 'Название части'},
 	'210': {'a': 'Место издания', 'b': 'Адрес издателя', 'c': 'Издатель', 'd': 'Дата издания', **UNIMARC_MANUFACTURING_LABELS},
-	'214': {'a': 'Место', 'b': 'Адрес', 'c': 'Организация', 'd': 'Дата'},
+	'214': {'a': 'Место', 'b': 'Адрес', 'c': 'Организация', 'd': 'Дата',
+		'r': 'Выходные данные с основного источника', 's': 'Выходные данные из колофона'},
 	'215': {'a': 'Объем', 'c': 'Иллюстрации', 'd': 'Размер', 'e': 'Сопроводительный материал'},
 	'615': {'a': 'Категория документа', 'n': 'Код категории'},
 	'801': {'a': 'Страна', 'b': 'Организация', 'c': 'Дата каталогизации', 'g': 'Правила каталогизации'},
@@ -1325,7 +1385,7 @@ MARC_SUBFIELD_LABELS = {
 }
 MARC_FORMATTED_CODES = {
 	'010': set('abdz'), '101': set('abcd'), '102': {'a'}, '200': set('aefg'),
-	'205': {'a'}, '210': set('acdefgh'), '215': set('acde'), '225': set('av'),
+	'205': {'a'}, '210': set('abcdefgh'), '214': set('abcdrs'), '215': set('acde'), '225': set('av'),
 	'327': {'a'}, '600': set('abcdfgjxyz'), '602': set('abcdfgjxyz'),
 	'605': set('abdfxyz'), '606': set('abdfjxyz'), '607': set('abdfjxyz'),
 	'608': set('axyz'), '620': set('abcd'), '675': {'a'}, '690': set('abdfxyz'),
@@ -1394,6 +1454,11 @@ def format_marc_supplement(marc_meta: dict[str, Any], rendered_metadata: str) ->
 				label = MARC_FIELD_LABELS.get(tag, 'Связанная запись')
 				entries.append(format_metadata_field(f'{label} (MARC {tag})', linked_details))
 			continue
+		if tag in {'210', '214'}:
+			statement = format_imprint_statement(tag, field.get('ind1', ''), field.get('ind2', ''), subfields)
+			if statement and not represented(statement):
+				# Individual values appearing elsewhere do not preserve their grouping.
+				entries.append(format_metadata_field(f'Выходные данные (MARC {tag})', [statement]))
 		formatted_codes = MARC_FORMATTED_CODES.get(tag, {'a', '5'} if tag.startswith('3') else set())
 		remaining = []
 		for code, value in subfields:
@@ -1481,7 +1546,7 @@ def build_commons_description(
 			'Дата издания по каталогу (исходная запись) / Catalog publication date (original notation)',
 			[date_statement],
 		))
-	seen_pairs: set[tuple[str, tuple[str, ...]]] = set()
+	seen_pairs: set[tuple] = set()
 	for field in record_meta.get('fields', []):
 		name = field.get('name', '').strip()
 		raw_values = field.get('values')
@@ -1491,7 +1556,7 @@ def build_commons_description(
 			values = [v.strip() for v in str(field.get('value', '')).splitlines() if v.strip()]
 		if not name or not values:
 			continue
-		pair = (name, tuple(values))
+		pair = (name, tuple(values), tuple((link['text'], link['url']) for link in field.get('links', [])))
 		if pair in seen_pairs:
 			continue
 		seen_pairs.add(pair)
@@ -1508,7 +1573,12 @@ def build_commons_description(
 		if links:
 			metadata_lines.append(format_metadata_field(f'{name} — ссылки в каталоге', list(dict.fromkeys(links))))
 
-	if marc_meta.get('places'):
+	imprints = marc_meta.get('imprint_statements', [])
+	if imprints:
+		metadata_lines.append(format_metadata_field('Выходные данные / Imprint', [
+			f"MARC {item['tag']} — {item['text']}" for item in imprints
+		]))
+	if marc_meta.get('places') and not imprints:
 		metadata_lines.append(format_metadata_field('Место издания (MARC 210$a)', marc_meta['places']))
 	if marc_meta.get('geo_places'):
 		places_normalized = {p.strip().lower() for p in marc_meta.get('places', [])}
@@ -1517,7 +1587,7 @@ def build_commons_description(
 			metadata_lines.append(format_metadata_field('Место издания (MARC 620)', new_geo))
 	if marc_meta.get('alternate_geo_places'):
 		metadata_lines.append(format_metadata_field('Варианты географических названий (MARC 926)', marc_meta['alternate_geo_places']))
-	if marc_meta.get('publishers'):
+	if marc_meta.get('publishers') and not imprints:
 		metadata_lines.append(format_metadata_field('Издатель (MARC 210$c)', marc_meta['publishers']))
 	for inherited in marc_meta.get('inherited_metadata', []):
 		reference = format_catalog_reference(inherited['record_id'], inherited['title'])
@@ -1613,6 +1683,22 @@ def build_commons_description(
 			metadata_lines.append(format_metadata_field('Шифр хранения (MARC 899)', new_shelfmarks))
 	if related_entries:
 		metadata_lines.append(format_metadata_field('Связанные записи по каталогу НББ', related_entries))
+	for hierarchy in record_meta.get('catalog_hierarchies', []):
+		labels = {}
+		for node in hierarchy['nodes']:
+			title = node['label']
+			if node.get('title') and node['title'] != title:
+				title += ' — ' + node['title']
+			labels[node['record_id']] = format_source_link(node['url'], f"{title} ({node['record_id']})")
+		entries = []
+		for node in hierarchy['nodes']:
+			label = labels[node['record_id']]
+			if node['parent_id']:
+				label = labels[node['parent_id']] + ' → ' + label
+			if node['record_id'] == marc_id:
+				label += ' — текущая запись / current record'
+			entries.append(RenderedWikitext(label))
+		metadata_lines.append(format_metadata_field('Иерархия записей каталога / Catalog hierarchy', entries))
 	supplement = format_marc_supplement(marc_meta, '\n'.join(metadata_lines) + '\n' + date_value)
 	if supplement:
 		metadata_lines.extend(["\n'''Дополнительные сведения каталога / Additional catalog details'''\n", *supplement])
@@ -1647,7 +1733,7 @@ def build_commons_description(
 	)
 
 	normalized_category = category.strip()
-	return (
+	return normalize_wikitext(
 		'=={{int:filedesc}}==\n'
 		'{{Information\n'
 		f'|description={{{{ru|1={description_body}}}}}\n'
@@ -1698,11 +1784,12 @@ def check_commons_by_hash(
 	file_path: Path,
 	session: requests.Session | None = None,
 ) -> tuple[str, list[str]]:
-	"""Hash the file once and query Commons directly, retrying transient failures.
+	'''Hash the file once and query Commons directly, retrying transient failures.
 
-	Timeouts, broken connections, invalid JSON and HTTP 500/502/503/504 receive
-	bounded retries. An inconclusive lookup raises instead of allowing an upload.
-	"""
+	Timeouts, broken connections, invalid JSON, rate limits and server failures
+	receive bounded retries, honoring maxlag and numeric Retry-After responses.
+	An inconclusive lookup raises instead of allowing an upload.
+	'''
 	digest = calculate_sha1(file_path)
 	http = session or requests
 	attempt = 1
@@ -1716,28 +1803,40 @@ def check_commons_by_hash(
 					'format': 'json',
 					'aisha1': digest,
 					'aiprop': 'sha1',
+					'maxlag': 5,
 				},
 				headers={'User-Agent': COMMONS_USER_AGENT},
 				timeout=30,
 			) as response:
 				response.raise_for_status()
-				return digest, parse_commons_allimages_response(response.json(), digest)
+				payload = response.json()
+				api_error = payload.get('error') if isinstance(payload, dict) else None
+				code = api_error.get('code') if isinstance(api_error, dict) else None
+				if code in {'maxlag', 'ratelimited'}:
+					raise requests.exceptions.RetryError(f'Commons hash lookup deferred: {code}', response=response)
+				return digest, parse_commons_allimages_response(payload, digest)
 		except (
 			requests.exceptions.Timeout,
 			requests.exceptions.ConnectionError,
 			requests.exceptions.ChunkedEncodingError,
 			requests.exceptions.JSONDecodeError,
 			requests.exceptions.HTTPError,
+			requests.exceptions.RetryError,
 		) as error:
 			if isinstance(error, requests.exceptions.SSLError):
 				raise
 			if isinstance(error, requests.exceptions.HTTPError) and (
-				error.response is None or error.response.status_code not in {500, 502, 503, 504}
+				error.response is None or error.response.status_code not in {429, 500, 502, 503, 504}
 			):
 				raise
 			if attempt >= HASH_CHECK_MAX_ATTEMPTS:
 				raise
 			delay = HASH_CHECK_RETRY_DELAY * 2 ** (attempt - 1)
+			if error.response is not None:
+				try:
+					delay = max(delay, int(error.response.headers.get('Retry-After', '0')))
+				except (ValueError, TypeError):
+					pass
 			log_progress(
 				f'[SHA-1 {digest}] Commons lookup attempt {attempt}/{HASH_CHECK_MAX_ATTEMPTS} '
 				f'failed ({type(error).__name__}: {error}); retrying in {delay} seconds'
@@ -1880,9 +1979,16 @@ class NlbClient:
 		return parse_search_results_html(response.text)
 
 	def fetch_record_metadata(self, marc_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
-		'''Validate and preserve the record HTML, MARCXML export, and separate contents tab.'''
+		'''Preserve record HTML, MARCXML, contents and any advertised catalog hierarchy.'''
+		from catalog_hierarchy import advertised_hierarchy, hierarchy_identifiers, parse_hierarchy
+
+		def validate_record(response: requests.Response) -> None:
+			'''Check both record identity and an advertised hierarchy's target before use.'''
+			validate_record_html(response, marc_id)
+			advertised_hierarchy(response, marc_id, ELIB_BASE_URL)
+
 		record_url = f'{ELIB_BASE_URL}/elib/Record/{marc_id}'
-		record_resp = self._get_catalog(record_url, validate=lambda response: validate_record_html(response, marc_id))
+		record_resp = self._get_catalog(record_url, validate=validate_record)
 		record_meta = parse_record_html(record_resp.text, marc_id)
 
 		marcxml_url = f'{ELIB_BASE_URL}/elib/Record/{marc_id}/Export?style=MARCXML'
@@ -1904,6 +2010,16 @@ class NlbClient:
 					for entry in extract_contents_entries(text):
 						if entry not in record_meta.setdefault('contents', []):
 							record_meta['contents'].append(entry)
+		hierarchy_url = advertised_hierarchy(record_resp, marc_id, ELIB_BASE_URL)
+		if hierarchy_url:
+			hierarchy_page = self._get_catalog(hierarchy_url,
+				validate=lambda response: hierarchy_identifiers(response, marc_id))
+			for hierarchy_id in hierarchy_identifiers(hierarchy_page, marc_id):
+				tree = self._get_catalog(f'{ELIB_BASE_URL}/elib/Hierarchy/GetTreeJSON',
+					params={'hierarchyID': hierarchy_id, 'id': marc_id},
+					validate=lambda response: parse_hierarchy(response, marc_id, hierarchy_id, ELIB_BASE_URL))
+				record_meta.setdefault('catalog_hierarchies', []).append(
+					parse_hierarchy(tree, marc_id, hierarchy_id, ELIB_BASE_URL))
 		self.inherit_parent_imprint(marc_id, marc_meta)
 		return record_meta, marc_meta
 
@@ -2021,12 +2137,13 @@ class NlbClient:
 		return list(by_id.values())
 
 	def fetch_scan_manifest(self, marc_id: str, file_id: str) -> dict[str, Any]:
-		'''Capture viewer metadata even when a scan already exists on Commons.'''
+		'''Capture identity-checked viewer metadata even for scans already on Commons.'''
 		self.ensure_viewer_session()
 		response = self._get_catalog(
 			f'{VIEWER_BASE_URL}/iiif/manifest',
 			params={'marcID': marc_id, 'fileId': file_id},
-			headers={'Authorization': VIEWER_BASIC_AUTH}, validate=validate_manifest,
+			headers={'Authorization': VIEWER_BASIC_AUTH},
+			validate=lambda response: validate_manifest(response, marc_id, file_id),
 		)
 		manifest = response.json()
 		if not hasattr(self, '_scan_manifests'):
@@ -2156,8 +2273,10 @@ class NlbClient:
 			if self.archive is not None:
 				self.archive.capture_response(manifest_resp)
 			manifest_resp.raise_for_status()
-			validate_manifest(manifest_resp)
+			validate_manifest(manifest_resp, marc_id, file_id)
 			manifest = manifest_resp.json()
+		else:
+			validate_manifest_identity(manifest, marc_id, file_id)
 
 		download_path = f'/iiif/file/{file_id}/bytes'
 		renderings = manifest.get('rendering') or []
@@ -2173,12 +2292,6 @@ class NlbClient:
 		parsed_download = urlsplit(download_url)
 		if parsed_download.netloc != urlsplit(VIEWER_BASE_URL).netloc or parsed_download.scheme != 'https':
 			raise InvalidPDFError('Manifest PDF URL is outside the NLB viewer')
-		# A structurally valid PDF and matching Commons hash cannot establish that
-		# a stale manifest selected the requested scan. Check NLB's known bytes route.
-		rendered_file = re.fullmatch(r'/iiif/file/([^/]+)/bytes/?', parsed_download.path)
-		if rendered_file and rendered_file.group(1) != str(file_id):
-			raise InvalidPDFError(f'Manifest rendering identifies file {rendered_file.group(1)} instead of requested file {file_id}')
-
 		self._record_viewer_event('PAGE_VIEWS', marc_id, file_id)
 		self._record_viewer_event('IIIF_DOWNLOAD_ATTEMPT', marc_id, file_id)
 
@@ -2421,7 +2534,7 @@ class CommonsUploader:
 		from pywikibot.site._upload import Uploader
 
 		pwb_config.socket_timeout = 200
-		pwb_config.put_throttle = 0
+		# Keep Pywikibot/operator throttling and maxlag defaults for Wikimedia writes.
 		patch_mime_multipart_from_mangling(pywikibot.data.api.CTEBinaryMIMEMultipart)
 		self.pywikibot = pywikibot
 		self._upload_driver_class = make_stash_retrying_uploader(Uploader, pywikibot.exceptions.APIError)
@@ -2587,28 +2700,32 @@ def process_single_scan(
 			manifest = client.fetch_scan_manifest(marc_id, file_id)
 			wikitext = preserve_description(with_viewer_metadata(record_meta, manifest))
 		except CatalogRetriesExhausted as error:
-			return finish('metadata_failed', pending=True, error=str(error), attempts=error.attempts)
+			# A fresh metadata outage does not erase an earlier publication or its
+			# binary identity. Keep it available for later verification and refresh.
+			base = {**previous, **base}
+			return finish('metadata_failed', pending=True, error=str(error), attempts=error.attempts,
+				previous_status=previous.get('previous_status', previous.get('status')))
 	if metadata_only:
 		if archive is not None:
 			archive.record_result(marc_id, file_id, {**previous, **base} if previous else {**base, 'status': 'metadata_ready'})
 		return 'metadata_ready'
-	if previous.get('status') in TERMINAL_STATUSES and previous.get('verification'):
-		state['items'][key] = {**previous, **base}
+	publication_status = previous.get('previous_status') if previous.get('status') in ('metadata_failed', 'metadata_review') else previous.get('status')
+	if publication_status in TERMINAL_STATUSES and previous.get('verification'):
+		state['items'][key] = {**previous, **base, 'status': publication_status}
+		for field in ('error', 'error_type', 'attempts', 'previous_status'):
+			state['items'][key].pop(field, None)
 		if archive is not None:
 			archive.record_result(marc_id, file_id, state['items'][key])
 		save_state(state_path, state)
 		return 'completed'
-	if not decision['eligible']:
-		log_progress(f'{prefix}[{key}] Deferring for rights review: {decision["reason"]}')
-		return finish('rights_review', pending=True, error=decision['reason'])
-
-	if (not dry_run and previous.get('status') == 'verification_failed'
+	if (not dry_run and publication_status == 'verification_failed'
 		and re.fullmatch(r'[0-9a-fA-F]{40}', str(previous.get('sha1', '')))
 		and type(previous.get('size_bytes')) is int and previous['size_bytes'] > 0
 		and str(previous.get('commons_title', '')).startswith('File:')):
 		# Publication succeeded or may have succeeded; recheck the saved identity
-		# before any download or upload. A mismatch remains pending for review.
-		base = {**{name: value for name, value in previous.items() if name not in ('error', 'attempts', 'error_type')}, **base}
+		# before any download or upload. This read does not grant publication rights;
+		# missing or mismatched files remain pending without falling through to upload.
+		base = {**{name: value for name, value in previous.items() if name not in ('error', 'attempts', 'error_type', 'previous_status')}, **base}
 		try:
 			info = uploader.file_info(previous['commons_title'])
 			if info['sha1'].lower() != previous['sha1'].lower() or info['size_bytes'] != previous['size_bytes']:
@@ -2617,6 +2734,10 @@ def process_single_scan(
 			return finish('verification_failed', pending=True, error=str(error))
 		log_progress(f'{prefix}[{key}] Recovered Commons verification without downloading the PDF.')
 		return finish('existing_title', commons_title=info.get('commons_title', previous['commons_title']), verification=info)
+
+	if not decision['eligible']:
+		log_progress(f'{prefix}[{key}] Deferring for rights review: {decision["reason"]}')
+		return finish('rights_review', pending=True, error=decision['reason'])
 
 	title_exists = False
 	if not dry_run:
@@ -2628,9 +2749,11 @@ def process_single_scan(
 	with tempfile.NamedTemporaryFile(dir=staging_dir, prefix='nlb-', suffix='.pdf', delete=False) as temporary:
 		temp_pdf = Path(temporary.name)
 	retain_staging_pdf = False
+	download_completed = False
 	try:
 		try:
 			size_bytes = client.download_pdf_scan(marc_id, file_id, temp_pdf)
+			download_completed = True
 		except ViewerSessionExpired as error:
 			finish('download_failed', pending=True, error=str(error), error_type=type(error).__name__)
 			raise
@@ -2648,13 +2771,6 @@ def process_single_scan(
 			if not isinstance(error, InvalidPDFError) and 'not a valid PDF' not in str(error):
 				raise
 			return finish('download_failed', pending=True, error=str(error), error_type=type(error).__name__)
-		except ArchiveWriteError:
-			# A failed quarantine/archive write must not erase the only local copy.
-			retain_staging_pdf = temp_pdf.exists()
-			if retain_staging_pdf:
-				log_progress(f'[{key}] Archive write failed; staging original retained at {temp_pdf}')
-			raise
-
 		with temp_pdf.open('rb') as source:
 			sha256 = hashlib.file_digest(source, 'sha256').hexdigest()
 		base.update(sha256=sha256, size_bytes=size_bytes)
@@ -2669,7 +2785,7 @@ def process_single_scan(
 		except (requests.RequestException, ValueError) as error:
 			if isinstance(error, requests.exceptions.SSLError):
 				raise
-			if isinstance(error, requests.HTTPError) and (error.response is None or error.response.status_code not in DOWNLOAD_TRANSIENT_STATUSES):
+			if isinstance(error, requests.HTTPError) and (error.response is None or error.response.status_code not in {*DOWNLOAD_TRANSIENT_STATUSES, 429}):
 				raise
 			return finish('verification_failed', pending=True, error=str(error))
 		base['sha1'] = sha1
@@ -2711,6 +2827,24 @@ def process_single_scan(
 		title = canonical_title
 		log_progress(f'{prefix}[{key}] Uploaded and verified:\nhttps://commons.wikimedia.org/wiki/{quote(title.replace(" ", "_"))}\n')
 		return finish(result['status'], commons_title=title, duplicates=duplicates, verification=info)
+	except OSError as error:
+		# Preserve completed originals after any local archive/state failure, not
+		# only quarantine failures raised during the download itself.
+		if isinstance(error, ArchiveWriteError) or (download_completed and not isinstance(error, requests.RequestException)):
+			retain_staging_pdf = temp_pdf.exists()
+			if retain_staging_pdf:
+				log_progress(f'[{key}] Preservation write failed; staging original retained at {temp_pdf}')
+				from preservation import atomic_json
+				try:
+					atomic_json(temp_pdf.with_suffix('.recovery.json'), {
+						**base, 'proposed_commons_title': f'File:{commons_filename}',
+						'source_url': viewer_url, 'pdf_path': str(temp_pdf.resolve()), 'error': str(error),
+					})
+				except OSError:
+					# The staging filesystem may also be full; the source key and
+					# exact retained path are still available in the progress log.
+					pass
+		raise
 	finally:
 		if not retain_staging_pdf:
 			temp_pdf.unlink(missing_ok=True)
@@ -2718,6 +2852,8 @@ def process_single_scan(
 
 def with_viewer_metadata(record_meta: dict[str, Any], manifest: dict[str, Any]) -> dict[str, Any]:
 	'''Include useful IIIF descriptive fields in the readable Commons record.'''
+	from viewer_outline import outline_entries
+
 	result = copy.deepcopy(record_meta)
 	fields = result.setdefault('fields', [])
 	def plain(value: Any) -> str:
@@ -2742,6 +2878,9 @@ def with_viewer_metadata(record_meta: dict[str, Any], manifest: dict[str, Any]) 
 	for key in ('label', 'description', 'summary', 'attribution', 'requiredStatement', 'rights', 'license', 'provider', 'seeAlso', 'homepage', 'partOf', 'within'):
 		if manifest.get(key):
 			fields.append({'name': f'IIIF — {key}', 'values': [plain(manifest[key])]})
+	outline = outline_entries(manifest, plain)
+	if outline:
+		fields.append({'name': 'Структура документа по IIIF / Viewer outline', 'values': outline})
 	return result
 
 
@@ -2887,12 +3026,17 @@ def iterate_and_upload(
 						log_progress(f'{progress_label} [{marc_id}] Skipping (restricted access): {record_url}')
 						for fid in direct_files or ['0']:
 							key = item_state_key(marc_id, fid)
+							previous = state['items'].get(key, {})
 							state['items'][key] = {
+								**previous,
 								'status': 'restricted',
+								'previous_status': previous.get('previous_status', previous.get('status')),
 								'marc_id': marc_id,
 								'file_id': fid,
 								'updated_at': datetime.now(timezone.utc).isoformat(),
 							}
+							if archive is not None:
+								archive.record_result(marc_id, fid, state['items'][key])
 						save_state(state_path, state)
 						counts['restricted'] += 1
 						clear_record_failure(marc_id)
@@ -3166,11 +3310,11 @@ def main(argv: list[str] | None = None) -> int:
 	'''Entry point for CLI execution.'''
 	parser = build_arg_parser()
 	args = parser.parse_args(argv)
+	if args.report and args.report.resolve() == args.state_file.resolve():
+		parser.error('--report must not overwrite the upload state file')
 	if args.refresh_uploaded_metadata:
 		if args.metadata_only or args.refresh_metadata or args.url or args.search_url or args.from_year is not None or args.until_year is not None or args.max_uploads:
 			parser.error('--refresh-uploaded-metadata uses saved associations; search filters, upload limits and other refresh modes do not apply')
-		if args.report and args.report.resolve() == args.state_file.resolve():
-			parser.error('--report must not overwrite the upload state file')
 
 	target_url = args.search_url or args.url
 	until_year = args.until_year
@@ -3180,6 +3324,15 @@ def main(argv: list[str] | None = None) -> int:
 			until_year = DEFAULT_UNTIL_YEAR
 
 	archive = ArchiveStore(args.archive_dir or args.state_file.parent / 'archive', keep_pdfs=args.keep_pdfs)
+	if args.refresh_uploaded_metadata and args.state_file.resolve() in {
+		(archive.root / 'metadata-refresh' / name).resolve() for name in ('archive-issues.json',)
+	}:
+		parser.error('Archive diagnostics must not overwrite the upload state file')
+	if args.report:
+		output = args.report.resolve()
+		protected = [archive.root / name for name in ('objects', 'records', 'quarantine', 'metadata-refresh/pages')]
+		if any(output.is_relative_to(path.resolve()) for path in protected):
+			parser.error('--report must not overwrite archived sources or receipts')
 	if args.refresh_uploaded_metadata and (args.report or archive.root / 'metadata-refresh' / 'report.json').resolve() == args.state_file.resolve():
 		parser.error('The metadata refresh report must not overwrite the upload state file')
 	client = NlbClient(viewer_cookies=args.viewer_cookies, archive=archive,
@@ -3189,7 +3342,12 @@ def main(argv: list[str] | None = None) -> int:
 
 	try:
 		if args.refresh_uploaded_metadata:
-			from metadata_refresh import apply_uploaded_metadata
+			from metadata_refresh import apply_uploaded_metadata, inspect_refresh_archive
+			issues = inspect_refresh_archive(archive.root)
+			if issues:
+				from preservation import atomic_json
+				atomic_json(archive.root / 'metadata-refresh' / 'archive-issues.json', issues)
+				log_progress(f'Archive preflight found {len(issues)} issues; affected Commons pages will be deferred. See archive-issues.json.')
 			counts = refresh_uploaded_metadata(client, args.state_file, args.staging_dir,
 				category=args.category, license_template=args.license or DEFAULT_LICENSE, explicit_license=args.license is not None)
 			report = apply_uploaded_metadata(archive.root, archive.snapshots.values(), dry_run=args.dry_run,

@@ -1528,6 +1528,18 @@ class TestCommonsHashLookup(unittest.TestCase):
 			self.assertEqual(upload_nlb.check_commons_by_hash(self.pdf_file, self.session), (self.digest, []))
 			sleep.assert_called_once_with(5)
 
+	def test_wikimedia_load_and_rate_limits_defer_the_lookup(self) -> None:
+		'''Respect server backoff without interpreting a throttled query as no duplicates.'''
+		for status, body in ((429, {}), (200, {'error': {'code': 'maxlag'}}), (200, {'error': {'code': 'ratelimited'}})):
+			with self.subTest(status=status, body=body):
+				busy = self.response(body, status)
+				busy.headers['Retry-After'] = '17'
+				self.session.get.side_effect = [busy, self.response({'query': {'allimages': []}})]
+				with mock.patch('upload.time.sleep') as sleep:
+					self.assertEqual(upload_nlb.check_commons_by_hash(self.pdf_file, self.session), (self.digest, []))
+					sleep.assert_called_once_with(17)
+				self.assertEqual(self.session.get.call_args.kwargs['params']['maxlag'], 5)
+
 	def test_permanent_errors_are_not_retried(self) -> None:
 		"""Reject permanent HTTP/API errors and bad certificates immediately."""
 		for response, error_type in (
@@ -1543,6 +1555,22 @@ class TestCommonsHashLookup(unittest.TestCase):
 					upload_nlb.check_commons_by_hash(self.pdf_file, self.session)
 				sleep.assert_not_called()
 				self.session.get.assert_called_once()
+
+	def test_exhausted_http_rate_limit_keeps_scan_pending_without_upload(self) -> None:
+		'''A persistent HTTP 429 follows bounded retries and does not stop the whole catalog.'''
+		self.session.get.return_value = self.response({}, status=429)
+		client = FakeNlbClient()
+		client.session = self.session
+		uploader = FakeCommonsUploader()
+		state = upload_nlb.default_state()
+		with mock.patch('upload.time.sleep'):
+			result = upload_nlb.process_single_scan(client, uploader, state,
+				self.tmp_path / 'state.json', self.tmp_path / 'staging',
+				'BY-NLB-rr111', '1001', '', {}, {'date': '1800'})
+		self.assertEqual(result, 'verification_failed')
+		self.assertEqual(self.session.get.call_count, upload_nlb.HASH_CHECK_MAX_ATTEMPTS)
+		self.assertEqual(uploader.uploads, [])
+		self.assertEqual(state['retry_from_page'], 1)
 
 	def test_exhausted_lookup_does_not_upload_and_can_resume(self) -> None:
 		'''Leave the item pending after lookup failure and skip it on a later match.'''
@@ -2714,6 +2742,7 @@ class TestEndToEndPipeline(unittest.TestCase):
 			kwargs = {
 				'client': client, 'uploader': FakeCommonsUploader(),
 				'state_path': state_path, 'staging_dir': tmp_path / 'staging',
+				'continue_run': True,
 			}
 			with self.assertRaises(KeyboardInterrupt):
 				upload_nlb.iterate_and_upload(**kwargs)

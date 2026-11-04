@@ -6,8 +6,8 @@
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
-[![Production code](https://img.shields.io/badge/production%20code-4%2C474%20lines-blue)](upload.py)
-[![Test code](https://img.shields.io/badge/test%20code-7%2C227%20lines-blue)](#running-tests)
+[![Production code](https://img.shields.io/badge/production%20code-5%2C095%20lines-blue)](upload.py)
+[![Test code](https://img.shields.io/badge/test%20code-8%2C202%20lines-blue)](#running-tests)
 
 [`upload.py`](upload.py) iterates over open-access digitized scans from the Electronic Library of the National Library of Belarus (`https://elib.nlb.by`), archives the source responses, and uploads eligible PDFs to Wikimedia Commons with their useful catalog metadata readable on the file page.
 
@@ -50,7 +50,11 @@
 
 Commons descriptions include the bibliographic details, contributors and their roles, subjects and variants, contents, copy and storage information, related works, and useful IIIF metadata. Remaining MARC values appear in a readable catalog supplement with field/subfield labels; unfamiliar codes retain their source codes instead of receiving guessed meanings. Embedded contributor names and dates in linked records also remain visible. Exact repeated display values are deduplicated without dropping distinct copy-specific statements.
 
+Publication statements retain their place, publisher, address and date together, including repeated MARC 210/214 statements. UNIMARC 214 distinguishes publication (`0`) from production (`1`), distribution, manufacturing and copyright dates; only publication statements supply publication-date evidence. Links in holdings tables retain their copy and column context. Advertised catalog hierarchies are also archived and displayed as linked parent/child relationships, without inferring authors, dates or scan identity from related records. Named IIIF outline sections retain their hierarchy; routine page-number lists and thumbnail navigation are omitted from the description.
+
 Literal catalog punctuation is escaped consistently: `[[...]]`, `{{...}}`, pipes and HTML cannot turn into unintended Commons links, templates or categories. Intentional catalog links remain links. A supplied catalog year such as `[1836]` displays as `1836` in the Commons Date field, with its original notation retained in the visible bibliographic details and archived metadata; brackets alone do not mean “circa.” Publication dates retain their original uncertainty and ranges, such as `[1850?]` or `1890–1910`; separate date evidence drives filtering and rights decisions. Arbitrary years in a title do not establish publication dates.
+
+Generated Commons text uses Unicode NFC and excludes forbidden control characters, matching MediaWiki's text requirements. Ownership comparisons also recognize this server normalization, so a canonically equivalent accented character does not become a false human-edit conflict. Original response bytes and parsed source values remain unchanged locally. Raw XML/JSON is not embedded in Commons descriptions.
 
 Every run writes an archive, defaulting to `archive/` beside the state file. It contains:
 
@@ -60,6 +64,8 @@ Every run writes an archive, defaulting to `archive/` beside the state file. It 
 - Original PDFs when `--keep-pdfs` is supplied. PDFs are copied without recompression or repair, verified against their SHA-256 digest before publishing the archive object, and checked again before reuse.
 
 Metadata archives are retained by default and grow with repeated snapshots; keeping successful PDFs or quarantined rejected PDFs requires substantially more storage. Choose `--archive-dir` on suitable storage and back up the whole directory, including `objects/`, `quarantine/` and `records/`, together with `state.json`. A local archive on the same disk is not an independent backup. Cookies, authorization headers and viewer-session creation responses are excluded. The default archive path is ignored by Git; exclude custom archive locations as appropriate.
+
+A metadata outage retains historical Commons titles, hashes and verification evidence. A local write failure after a complete PDF download retains the staging original and logs its exact path; a recovery sidecar is written when storage allows. Report paths cannot overwrite upload state or archived objects, record snapshots, receipts.
 
 The archive preserves the responses actually retrieved. It cannot reconstruct metadata absent from those responses or prove that the library scanned every physical leaf. Strict PDF parsing and a matching IIIF page count detect structural problems, but do not certify visual readability, image completeness or the correctness of catalog descriptions. A PDF requiring repair stays pending; the uploader does not rewrite it to make validation pass.
 
@@ -152,7 +158,10 @@ The log distinguishes each phase: `Collecting source metadata` saves NLB metadat
 
 For pages with a proven uploader-generated description, unchanged bibliographic fields in `Information` are updated in place. Human-edited fields and text outside the template, including licensing and categories, are preserved. A human-edited description, conflicting source association, missing file, or incomplete source response is skipped and reported automatically. Pages whose primary description is not owned by the uploader receive separate catalog metadata blocks; later runs update only those owned blocks. Existing human changes inside a block are preserved by skipping that page.
 
-Publication snapshots and receipts in `archive/metadata-refresh/pages/` establish ownership and allow safe reruns after interruption. The command checks the page revision and binary again immediately before each edit, skips already-current pages, and continues after per-page conflicts. Rerunning fetches fresh source metadata again. Reports default to `archive/metadata-refresh/report.json`; `--report PATH` changes that location. No separate approval or apply command is required.
+Publication snapshots and receipts in `archive/metadata-refresh/pages/` establish ownership and allow safe reruns after interruption. New receipts use stable Commons page IDs; older title receipts are recovered through verified aliases when a file has moved. The command checks the page revision and binary again immediately before each edit, skips already-current pages, and continues after per-page conflicts. Damaged historical metadata is reported and blocks affected pages while independent pages can continue. Reports default to `archive/metadata-refresh/report.json`; `--report PATH` changes that location. No separate approval or apply command is required.
+
+
+An archive preflight reports missing or corrupt metadata evidence before source collection; it does not verify every PDF or certify a complete backup. Explicit file/record IDs in IIIF manifests are checked before their descriptions are used, including metadata-only runs.
 
 The separate reconciliation command builds a reviewable plan from the latest snapshots with completed, hash-identified Commons associations and an eligible scan-identity check. Legacy or ambiguous associations require metadata refresh/review before planning. It reads current Commons pages anonymously, verifies the binary SHA-1, and includes a diff for each proposed edit. Items without an established matching Commons file are reported under `skipped`. An incomplete latest snapshot is reported there too; refresh that record before planning again. Earlier snapshots remain preserved in the archive.
 
@@ -166,6 +175,12 @@ python reconcile_metadata.py --apply metadata-plan.json --pywikibot-dir ~/.pywik
 
 This additive workflow does not repair an incorrect original volume/date field; those pages require a separate reviewed correction. Applying a plan checks the current binary hash, page revision and original text again. Changed files/pages require a fresh plan. Additions use a dedicated block for each NLB record/file pair, preserving the surrounding description and licensing. An already applied entry is skipped when resuming a partially applied plan. Generating a plan does not perform those edits.
 
+## Wikimedia operation
+
+The script respects Pywikibot's configured write throttling, supplies `maxlag` on direct Commons reads, backs off on load/rate-limit responses, and honors page-level bot exclusion before metadata edits. Refresh preserves existing licensing, categories and human changes; catalog access alone never establishes a free license.
+
+Operators must comply with [Commons bot policy](https://commons.wikimedia.org/wiki/Commons:Bots), including an approved account/task where required, and provide appropriate content categories under the same policy. The source category alone is not a substitute for content categorization. Software checks do not grant bot approval or establish every work's copyright status. See also [MediaWiki API etiquette](https://www.mediawiki.org/wiki/API:Etiquette) and [Commons licensing](https://commons.wikimedia.org/wiki/Commons:Licensing).
+
 ## Run reports and exit status
 
 The uploader prints a JSON count summary. `--report run-report.json` also writes the counts and completion time as JSON after a normal or partial run. Exit status `0` means the run reported no deferred/error/review outcomes; `2` means at least one search, metadata, download, upload, verification, title-conflict, metadata-review or rights-review outcome remains unresolved. These counts describe this selected run, not an independent completeness audit of the entire library. Unhandled errors still terminate the process; an immediate second interrupt exits with `130`.
@@ -178,7 +193,7 @@ The upload integration tests use Pywikibot's real request and chunk-upload code 
 
 ```bash
 python -m pip install pytest pytest-cov requests beautifulsoup4 'pywikibot>=11.6' 'pypdf>=6,<7' mwparserfromhell
-pytest -v --cov=upload --cov=metadata_refresh --cov=metadata_refresh_merge --cov=scan_identity --cov=commons_verification --cov=catalog_requests --cov=catalog_validation --cov=preservation --cov=publication_rights --cov=pdf_validation --cov=reconcile_metadata --cov-report=term-missing
+pytest -v --cov=upload --cov=viewer_outline --cov=wikimedia_text --cov=catalog_hierarchy --cov=metadata_refresh --cov=metadata_refresh_merge --cov=scan_identity --cov=commons_verification --cov=catalog_requests --cov=catalog_validation --cov=preservation --cov=publication_rights --cov=pdf_validation --cov=reconcile_metadata --cov-report=term-missing
 # or
 python3 -m unittest discover -v
 ```
@@ -187,6 +202,7 @@ python3 -m unittest discover -v
 
 - [Electronic Library of the National Library of Belarus (`elib.nlb.by`)](https://elib.nlb.by/)
 - [UNIMARC 210: publication and manufacturing metadata (IFLA)](https://www.ifla.org/files/assets/uca/unimarc_updates/BIBLIOGRAPHIC/u-b_210_update.pdf)
+- [UNIMARC 214: publication, production and other statement types (IFLA)](https://cdn.ifla.org/wp-content/uploads/files/assets/uca/unimarc_updates/BIBLIOGRAPHIC/u_b_214_update2019_online_final.pdf)
 - [UNIMARC linking fields: embedded records and standard subfields (IFLA)](https://cdn.ifla.org/wp-content/uploads/files/assets/uca/unimarc_updates/BIBLIOGRAPHIC/u-b_4-_linking_entry_block_update.pdf)
 - [VuFind Documentation](https://vufind.org/wiki/documentation)
 - [IIIF Presentation API 2.1](https://iiif.io/api/presentation/2.1/) and [3.0](https://iiif.io/api/presentation/3.0/)

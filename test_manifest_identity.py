@@ -35,7 +35,7 @@ class TestManifestIdentity(unittest.TestCase):
 				with mock.patch('upload.time.sleep'), mock.patch('sys.stdout', io.StringIO()):
 					with self.assertRaises(upload.DownloadRetriesExhausted) as raised:
 						client.download_pdf_scan('BY-NLB-one', '1001', target)
-				self.assertIsInstance(raised.exception.last_error, upload.InvalidPDFError)
+				self.assertIsInstance(raised.exception.last_error, upload.InvalidCatalogResponse)
 				self.assertIn('2002', str(raised.exception.last_error))
 				self.assertFalse(target.exists())
 				self.assertTrue(all(call.args[0].endswith('/iiif/manifest') for call in session.get.call_args_list))

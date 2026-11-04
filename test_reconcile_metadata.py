@@ -156,6 +156,14 @@ class TestReconcileMetadata(unittest.TestCase):
 		session.get.return_value.json.return_value = {'query': {'pages': [{'ns': 6, 'title': 'File:Shared.pdf', 'imageinfo': [{'sha1': SHA1}], 'revisions': [{'revid': 123, 'slots': {'main': {'content': ORIGINAL}}}]}]}}
 		self.assertEqual(read_commons_page('File:Shared.pdf', session=session), page())
 		self.assertEqual(session.get.call_args.kwargs['params']['prop'], 'revisions|imageinfo')
+		self.assertEqual(session.get.call_args.kwargs['params']['maxlag'], 5)
+		payload_page = session.get.return_value.json.return_value['query']['pages'][0]
+		payload_page['pageid'] = 42
+		self.assertEqual(read_commons_page('File:Shared.pdf', session=session)['page_id'], 42)
+		for invalid in (0, -1, True, '42'):
+			payload_page['pageid'] = invalid
+			with self.subTest(page_id=invalid), self.assertRaisesRegex(ValueError, 'Commons file identity'):
+				read_commons_page('File:Shared.pdf', session=session)
 
 	def test_anonymous_reader_rejects_api_errors_and_incomplete_file_records(self):
 		'''An API error, missing binary or suppressed revision is never editable evidence.'''
@@ -217,6 +225,7 @@ class TestReconcileMetadata(unittest.TestCase):
 		with mock.patch.object(pywikibot, 'Site', return_value=site), mock.patch.object(pywikibot, 'FilePage', return_value=file_page):
 			self.assertTrue(edit_commons_page(entry))
 		site.login.assert_called_once_with()
+		file_page.botMayEdit.assert_called_once_with()
 		params = site.simple_request.call_args.kwargs
 		self.assertEqual(params['baserevid'], 123)
 		self.assertEqual(params['text'], 'Reviewed text')
@@ -229,6 +238,17 @@ class TestReconcileMetadata(unittest.TestCase):
 		with mock.patch.object(pywikibot, 'Site', return_value=site), mock.patch.object(pywikibot, 'FilePage', return_value=file_page):
 			with self.assertRaises(EditConflictError):
 				edit_commons_page(entry)
+
+	def test_bot_exclusion_blocks_metadata_write_before_edit_request(self):
+		'''Respect Pywikibot's page exclusion decision, including Bots/Nobots templates.'''
+		with tempfile.TemporaryDirectory(prefix='nlb-reconcile-pywikibot-') as directory, mock.patch.dict('os.environ', {'PYWIKIBOT_DIR': directory, 'PYWIKIBOT_NO_USER_CONFIG': '2'}):
+			import pywikibot
+		site, file_page = mock.Mock(), mock.Mock()
+		file_page.botMayEdit.return_value = False
+		with mock.patch.object(pywikibot, 'Site', return_value=site), mock.patch.object(pywikibot, 'FilePage', return_value=file_page):
+			with self.assertRaisesRegex(ValueError, 'disallows automated'):
+				edit_commons_page({'title': 'File:Shared.pdf', 'new_text': 'Metadata', 'baserevid': 123})
+		site.editpage.assert_not_called()
 
 	def test_rejected_write_and_unknown_plan_schema_stop_application(self):
 		'''Write failures are reported; unsupported plan formats never reach the API.'''

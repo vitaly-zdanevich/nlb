@@ -21,6 +21,7 @@ import requests
 from metadata_refresh_merge import information, managed_blocks, merge_generated_metadata, merge_metadata_blocks
 from preservation import atomic_json
 from reconcile_metadata import _managed_block, _read_description, read_commons_page, edit_commons_page
+from wikimedia_text import normalize_wikitext
 
 
 SHA1 = re.compile(r'[0-9a-fA-F]{40}')
@@ -60,7 +61,10 @@ def read_refresh_page(title: str) -> dict:
 
 def _targets(item: dict) -> list[str]:
 	'''Retain all known actual Commons targets, including duplicate associations.'''
-	return list(dict.fromkeys(title for title in [item.get('commons_title'), *item.get('duplicates', [])]
+	duplicates = item.get('duplicates', [])
+	if not isinstance(duplicates, list):
+		raise ValueError('Invalid archived Commons duplicate titles')
+	return list(dict.fromkeys(title for title in [item.get('commons_title'), *duplicates]
 		if isinstance(title, str) and title.startswith('File:')))
 
 
@@ -72,13 +76,71 @@ def _binary(item: dict) -> tuple[str, int]:
 	return sha1.lower(), size
 
 
-def _publication_history(root: Path, binaries: set[tuple[str, int]]) -> dict:
-	'''Index true upload snapshots; copied uploaded statuses are not publication evidence.'''
-	history = defaultdict(list)
+def _archive_snapshots(root: Path) -> tuple[list[dict], list[dict]]:
+	'''Read refresh evidence independently, attaching damaged objects to their source records.
+
+	Only descriptions needed for metadata ownership are hashed here. Original PDF
+	and raw response integrity are separate from this bounded refresh preflight.
+	'''
+	snapshots, issues = [], []
+	checked: dict[tuple[str, str], str | Exception] = {}
 	for path in sorted((root / 'records').glob('*/snapshots/*/manifest.json')):
-		manifest = json.loads(path.read_text(encoding='utf-8'))
+		record_id = path.parents[2].name
+		try:
+			manifest = json.loads(path.read_text(encoding='utf-8'))
+			if not isinstance(manifest, dict) or manifest.get('record_id') != record_id or not isinstance(manifest.get('files'), dict):
+				raise ValueError('Invalid archive manifest identity or files mapping')
+		except (OSError, ValueError) as error:
+			issues.append({'path': str(path.relative_to(root)), 'record_id': record_id, 'error': str(error)})
+			continue
+		texts = {}
+		for fid, item in manifest['files'].items():
+			identity = {'path': str(path.relative_to(root)), 'record_id': record_id, 'key': record_id + ':' + fid}
+			try:
+				if not isinstance(item, dict):
+					raise ValueError('Invalid archived scan entry')
+				identity.update({name: item[name] for name in ('sha1', 'size_bytes', 'commons_title', 'duplicates') if name in item})
+				_targets(item)
+				if not item.get('description'):
+					continue
+				reference = item['description']
+				cache_key = (reference['path'], reference['sha256'])
+				if cache_key not in checked:
+					try:
+						checked[cache_key] = read_description(root, reference)
+					except (OSError, ValueError) as error:
+						checked[cache_key] = error
+				text = checked[cache_key]
+				if isinstance(text, Exception):
+					raise text
+				texts[fid] = text
+			except (KeyError, OSError, TypeError, ValueError) as error:
+				issues.append({**identity, 'error': str(error)})
+		# Source response lists and rights evidence can dwarf the ownership index.
+		fields = ('status', 'sha1', 'size_bytes', 'commons_title', 'duplicates', 'description', 'metadata_refresh', 'updated_at', 'verification')
+		files = {fid: {key: item[key] for key in fields if key in item} if isinstance(item, dict) else item
+			for fid, item in manifest['files'].items()}
+		snapshots.append({'manifest': {'record_id': record_id, 'captured_at': manifest.get('captured_at'), 'files': files}, 'texts': texts})
+	return snapshots, issues
+
+
+def inspect_refresh_archive(archive_dir: Path) -> list[dict]:
+	'''Report damaged metadata ownership evidence before a long source collection.
+
+	This is read-only and checks manifests and referenced descriptions, excluding
+	PDFs and raw catalog responses. Apply repeats the check before editing and
+	blocks affected pages while allowing independent pages to continue.
+	'''
+	return _archive_snapshots(Path(archive_dir))[1]
+
+
+def _publication_history(snapshots: list[dict], binaries: set[tuple[str, int]]) -> dict:
+	'''Index checked upload snapshots; copied statuses are not publication evidence.'''
+	history = defaultdict(list)
+	for snapshot in snapshots:
+		manifest = snapshot['manifest']
 		for fid, item in manifest.get('files', {}).items():
-			if item.get('status') not in ('uploaded', 'verification_failed') or not item.get('description') or item.get('metadata_refresh'):
+			if fid not in snapshot['texts'] or item.get('status') not in ('uploaded', 'verification_failed') or item.get('metadata_refresh'):
 				continue
 			try:
 				binary = _binary(item)
@@ -91,9 +153,152 @@ def _publication_history(root: Path, binaries: set[tuple[str, int]]) -> dict:
 			if binary not in binaries:
 				continue
 			history[binary].append({'key': manifest['record_id'] + ':' + fid,
-				'text': read_description(root, item['description']), 'titles': _targets(item),
+				'text': snapshot['texts'][fid], 'titles': _targets(item),
 				'exact_only': item['status'] != 'uploaded' or not item.get('verification')})
 	return history
+
+
+def _archive_conflicts(issues: list[dict], snapshots: list[dict], page: dict, candidates: list[dict]) -> list[dict]:
+	'''Conservatively associate broken evidence with its known records, files and aliases.'''
+	if not issues:
+		return []
+	keys = {item['key'] for item in candidates}
+	records = {key.split(':', 1)[0] for key in keys}
+	binary, titles = _binary(page), {page['title'], *page.get('aliases', [])}
+	for snapshot in snapshots:
+		manifest = snapshot['manifest']
+		for item in manifest['files'].values():
+			try:
+				if _binary(item) == binary or titles.intersection(_targets(item)):
+					records.add(manifest['record_id'])
+			except (AttributeError, TypeError, ValueError):
+				continue
+	result = []
+	for issue in issues:
+		try:
+			matching_binary = _binary(issue) == binary
+		except ValueError:
+			matching_binary = False
+		try:
+			matching_title = bool(titles.intersection(_targets(issue)))
+		except ValueError:
+			matching_title = isinstance(issue.get('commons_title'), str) and issue['commons_title'] in titles
+		if (matching_binary or issue.get('key') in keys or matching_title
+			or 'key' not in issue and issue.get('record_id') in records):
+			result.append(issue)
+	return result
+
+
+def _page_id(page: dict) -> int | None:
+	'''Return a stable positive Commons page identifier when supplied by the reader.'''
+	value = page.get('page_id')
+	return value if type(value) is int and value > 0 else None
+
+
+def _receipt_path(root: Path, page: dict) -> Path:
+	'''Use stable page IDs for new receipts, retaining compatibility with older readers.'''
+	identity = f'page-{_page_id(page)}' if _page_id(page) else text_hash(page['title'])
+	return root / 'metadata-refresh' / 'pages' / (identity + '.json')
+
+
+def _receipt_index(root: Path) -> dict[str, dict | Exception]:
+	'''Read receipts once; corrupt unrelated receipts must not abort all page updates.'''
+	result = {}
+	for path in (root / 'metadata-refresh' / 'pages').glob('*.json'):
+		try:
+			receipt = json.loads(path.read_text(encoding='utf-8'))
+			if not isinstance(receipt, dict):
+				raise ValueError('Invalid metadata receipt document')
+			result[path.name] = receipt
+		except (OSError, ValueError) as error:
+			result[path.name] = error
+	return result
+
+
+def _load_receipt(root: Path, page: dict, receipts: dict, reader: Callable) -> dict | None:
+	'''Recover ownership across moves using stable identity or verified legacy redirects.
+
+	A matching binary alone does not establish page ownership: two Commons pages
+	can contain the same file. Legacy titles must resolve to this canonical page.
+	'''
+	aliases = {page['title'], *page.get('aliases', [])}
+	stable_name = _receipt_path(root, page).name
+	names = {stable_name, *(text_hash(title) + '.json' for title in aliases)}
+	if stable_name in receipts:
+		# This is the latest authoritative receipt after a migration from title keys.
+		names = {stable_name}
+	matches = []
+	for name, receipt in receipts.items():
+		direct = name in names
+		if isinstance(receipt, Exception):
+			if direct:
+				raise ValueError(f'Damaged metadata update receipt {name}: {receipt}')
+			continue
+		try:
+			matching_binary = _binary(receipt) == _binary(page)
+		except ValueError:
+			if direct:
+				raise ValueError('Metadata update receipt has invalid binary identity')
+			continue
+		if not direct and (stable_name in receipts or not matching_binary):
+			continue
+		if not matching_binary:
+			raise ValueError('Metadata update receipt binary differs from Commons')
+		if 'page_id' in receipt and _page_id(receipt) is None:
+			raise ValueError('Metadata update receipt has invalid Commons page identity')
+		if name.startswith('page-') and name != f'page-{_page_id(receipt)}.json':
+			raise ValueError('Metadata update receipt filename disagrees with its Commons page identity')
+		if _page_id(receipt) is not None:
+			matches_page = _page_id(receipt) == _page_id(page)
+			if direct and not matches_page:
+				raise ValueError('Metadata update receipt belongs to a different Commons page')
+			if not matches_page:
+				continue
+		old_title = receipt.get('title')
+		if not isinstance(old_title, str) or not old_title.startswith('File:'):
+			if direct or _page_id(receipt) is not None:
+				raise ValueError('Invalid metadata update receipt title')
+			continue
+		if _page_id(receipt) is None and old_title not in aliases:
+			try:
+				resolved = reader(old_title)
+			except (requests.RequestException, KeyError, ValueError) as error:
+				if isinstance(error, requests.exceptions.SSLError):
+					raise
+				# An unresolved prior receipt must not silently reset ownership.
+				raise ValueError(f'Cannot verify prior metadata receipt title {old_title}: {error}') from error
+			if resolved['title'] != page['title'] or _binary(resolved) != _binary(page):
+				continue
+			if _page_id(page) is not None and _page_id(resolved) != _page_id(page):
+				continue
+		if (receipt.get('status') not in ('pending', 'applied') or receipt.get('mode') not in ('information', 'blocks')
+			or not isinstance(receipt.get('generated_text'), str) or not isinstance(receipt.get('baseline_text'), str)
+			or receipt.get('generated_sha256') != text_hash(receipt['generated_text'])
+			or not isinstance(receipt.get('expected_text_sha256'), str)
+			or re.fullmatch(r'[0-9a-f]{64}', receipt['expected_text_sha256']) is None
+			or 'primary_key' not in receipt
+			or receipt.get('mode') == 'information' and not isinstance(receipt.get('primary_key'), str)
+			or receipt.get('mode') == 'blocks' and receipt.get('primary_key') is not None
+			or not isinstance(receipt.get('aliases', []), list)
+			or any(not isinstance(title, str) or not title.startswith('File:') for title in receipt.get('aliases', []))):
+			raise ValueError('Metadata update receipt integrity mismatch')
+		try:
+			updated = datetime.fromisoformat(receipt['updated_at'])
+			if updated.tzinfo is None:
+				raise ValueError('Receipt time has no timezone')
+		except (KeyError, TypeError, ValueError) as error:
+			raise ValueError('Metadata update receipt has invalid update time') from error
+		matches.append((updated, receipt))
+	if not matches:
+		return None
+	matches.sort(key=lambda item: item[0], reverse=True)
+	if len(matches) > 1 and matches[0][0] == matches[1][0] and matches[0][1] != matches[1][1]:
+		raise ValueError('Conflicting metadata update receipts')
+	receipt = matches[0][1]
+	result = {**receipt, 'title': page['title'], 'aliases': sorted(aliases | {receipt['title']} | set(receipt.get('aliases', [])))}
+	if _page_id(page) is not None:
+		result['page_id'] = _page_id(page)
+	return result
 
 
 def _block(root: Path, candidate: dict) -> str:
@@ -138,7 +343,8 @@ def _proposal(root: Path, page: dict, candidates: list[dict], history: list[dict
 		owners = [item for item in history if aliases.intersection(item['titles'])]
 		# Post-upload verification failures may have an unpublished duplicate
 		# description. Only exact current template agreement can bootstrap them.
-		owners = [item for item in owners if not item['exact_only'] or str(information(item['text'])) == str(information(page['text']))]
+		owners = [item for item in owners if not item['exact_only']
+			or normalize_wikitext(str(information(item['text']))) == normalize_wikitext(str(information(page['text'])))]
 		if owners:
 			owner = owners[0]
 			baseline, primary_key, mode = owner['text'], owner['key'], 'information'
@@ -151,7 +357,7 @@ def _proposal(root: Path, page: dict, candidates: list[dict], history: list[dict
 	if mode == 'information':
 		matches = [item for item in candidates if item['key'] == primary_key]
 		if not matches:
-			if len({str(information(item['text'])) for item in candidates}) != 1:
+			if len({normalize_wikitext(str(information(item['text']))) for item in candidates}) != 1:
 				raise ValueError('Conflicting replacement catalog associations for the primary description')
 			matches = candidates[:1]
 		primary = matches[0]
@@ -163,7 +369,8 @@ def _proposal(root: Path, page: dict, candidates: list[dict], history: list[dict
 			new_block = _block(root, candidate)
 			generated += '\n' + new_block
 			if key in present_blocks and key not in old_blocks:
-				if present_blocks[key] != new_block and present_blocks[key] not in archived_blocks[key]:
+				if (normalize_wikitext(present_blocks[key]) != normalize_wikitext(new_block)
+					and normalize_wikitext(present_blocks[key]) not in {normalize_wikitext(block) for block in archived_blocks[key]}):
 					raise ValueError('Human-edited or unowned metadata block: ' + key)
 				baseline += '\n' + present_blocks[key]
 	# A failed or unselected source refresh cannot delete an earlier source's
@@ -175,7 +382,7 @@ def _proposal(root: Path, page: dict, candidates: list[dict], history: list[dict
 	proposed = merger(page['text'], baseline, generated)
 	preserved = []
 	if mode == 'information':
-		current_fields, old_fields, new_fields = [{item.name.strip(): str(item.value).strip() for item in information(text).params}
+		current_fields, old_fields, new_fields = [{item.name.strip(): normalize_wikitext(str(item.value).strip()) for item in information(text).params}
 			for text in (page['text'], baseline, generated)]
 		preserved = [name for name in old_fields if name != 'permission'
 			and current_fields.get(name) != old_fields.get(name) and current_fields.get(name) != new_fields.get(name)]
@@ -212,9 +419,19 @@ def apply_uploaded_metadata(
 		path = Path(snapshot).resolve()
 		if not path.is_relative_to(root.resolve() / 'records'):
 			raise ValueError('Refresh snapshot is outside the archive records')
-		manifest = json.loads(path.read_text(encoding='utf-8'))
+		try:
+			manifest = json.loads(path.read_text(encoding='utf-8'))
+			if (not isinstance(manifest, dict) or manifest.get('record_id') != path.parents[2].name
+				or not isinstance(manifest.get('files'), dict)):
+				raise ValueError('Invalid fresh metadata manifest identity or files mapping')
+		except (OSError, ValueError) as error:
+			outcome('metadata_source_skipped', key=path.parents[2].name, error=str(error))
+			continue
 		for fid, item in manifest.get('files', {}).items():
 			key = manifest['record_id'] + ':' + fid
+			if not isinstance(item, dict):
+				outcome('metadata_source_skipped', key=key, error='Invalid fresh scan metadata entry')
+				continue
 			if item.get('metadata_refresh', {}).get('status') != 'metadata_ready' or (item.get('scan_identity') or {}).get('eligible') is not True:
 				outcome('metadata_source_skipped', key=key, error=item.get('error', 'Incomplete or ambiguous source refresh'))
 				continue
@@ -244,15 +461,23 @@ def apply_uploaded_metadata(
 			if isinstance(error, requests.exceptions.SSLError):
 				raise
 	print('Reading archived publication records to preserve human edits.', flush=True)
-	history = _publication_history(root, {_binary(group['page']) for group in groups.values()})
+	archive_snapshots, archive_issues = _archive_snapshots(root)
+	report['archive_issues'] = archive_issues
+	history = _publication_history(archive_snapshots, {_binary(group['page']) for group in groups.values()})
+	receipts = _receipt_index(root)
 	preparation = 'metadata preview' if dry_run else 'metadata changes'
 	for position, (title, group) in enumerate(groups.items(), 1):
 		print(f'[Commons page {position}/{len(groups)}] Preparing {preparation}: {title}', flush=True)
-		page = group['page']
-		receipt_path = root / 'metadata-refresh' / 'pages' / (text_hash(title) + '.json')
+		page = {**group['page'], 'aliases': group['aliases']}
+		candidates = list(group['candidates'].values())
+		receipt_path = _receipt_path(root, page)
 		try:
-			receipt = json.loads(receipt_path.read_text()) if receipt_path.exists() else None
-			new_text, ownership = _proposal(root, {**page, 'aliases': group['aliases']}, list(group['candidates'].values()), history[_binary(page)], receipt)
+			issues = _archive_conflicts(archive_issues, archive_snapshots, page, candidates)
+			if issues:
+				outcome('metadata_conflict', title=title, error='Damaged archived metadata evidence', archive_issues=issues)
+				continue
+			receipt = _load_receipt(root, page, receipts, reader)
+			new_text, ownership = _proposal(root, page, candidates, history[_binary(page)], receipt)
 			if new_text == page['text']:
 				if not dry_run and receipt and receipt['status'] == 'pending' and text_hash(page['text']) == receipt['expected_text_sha256']:
 					atomic_json(receipt_path, {**receipt, 'status': 'applied'})
@@ -263,11 +488,14 @@ def apply_uploaded_metadata(
 				outcome('metadata_preview', title=title, diff=diff)
 				continue
 			current = reader(title)
-			if any(current.get(key) != page.get(key) for key in ('title', 'sha1', 'size_bytes', 'revid', 'text')):
+			if any(current.get(key) != page.get(key) for key in ('title', 'page_id', 'sha1', 'size_bytes', 'revid', 'text')):
 				raise ValueError('Commons page or binary changed during metadata refresh')
 			checkpoint = {**ownership, 'title': title, 'sha1': page['sha1'], 'size_bytes': page['size_bytes'],
 				'status': 'pending', 'expected_text_sha256': text_hash(new_text), 'baserevid': page['revid'],
+				'aliases': sorted(set(receipt.get('aliases', []) if receipt else []) | group['aliases'] | {title}),
 				'updated_at': datetime.now(timezone.utc).isoformat()}
+			if _page_id(page) is not None:
+				checkpoint['page_id'] = _page_id(page)
 			atomic_json(receipt_path, checkpoint)
 			print(f'Applying metadata update: {title}', flush=True)
 			if not writer({'title': title, 'new_text': new_text, 'baserevid': page['revid'], 'sha1': page['sha1'],

@@ -133,7 +133,7 @@ class TestMetadataPreservation(unittest.TestCase):
 		'''Display an exact supplied year plainly while keeping its catalog notation visible.'''
 		cases = (
 			(record(field('210', ('d', '[1836]'))), {}),
-			(record(field('214', ('d', '[1836]'), indicators=(' ', '1'))), {}),
+			(record(field('214', ('d', '[1836]'), indicators=(' ', '0'))), {}),
 			(record(), {'fields': [{'name': 'Дата издания', 'values': ['[1836]']}]}),
 		)
 		for xml, html in cases:
@@ -175,8 +175,68 @@ class TestMetadataPreservation(unittest.TestCase):
 
 	def test_publication_field_214_keeps_date_uncertainty(self) -> None:
 		'''Only publication dates from 214 are used in the structured date display.'''
-		_, wikitext = render(record(field('214', ('d', '[1890?]'), indicators=(' ', '1'))))
+		_, wikitext = render(record(field('214', ('d', '[1890?]'), indicators=(' ', '0'))))
 		self.assertIn('|date=[1890?]\n', unescape(wikitext))
+
+	def test_publication_statements_keep_place_publisher_address_and_date_together(self) -> None:
+		'''Repeated complete imprints retain pairings, source order and edition sequence.'''
+		first = field('210', ('a', 'Paris'), ('b', 'Rue du Livre'), ('c', 'Publisher A'), ('d', '1850'))
+		metadata, wikitext = render(record(first,
+			field('210', ('a', 'London'), ('c', 'Publisher B'), ('d', '1850'), indicators=('1', ' ')), first))
+		statements = metadata['imprint_statements']
+		self.assertEqual(len(statements), 2)
+		for expected in ('Paris', 'Rue du Livre', 'Publisher A', '1850'):
+			self.assertIn(expected, statements[0]['text'])
+		self.assertNotIn('Publisher B', statements[0]['text'])
+		self.assertIn('Текущие / последние', statements[1]['text'])
+		self.assertIn('London', statements[1]['text'])
+		self.assertIn('Publisher B', statements[1]['text'])
+		self.assertNotIn('Paris', statements[1]['text'])
+		self.assertIn(statements[0]['text'], wikitext)
+		self.assertIn(statements[1]['text'], wikitext)
+		self.assertEqual(wikitext.count('Publisher A'), 1)
+		self.assertEqual(wikitext.count('Rue du Livre'), 1)
+
+	def test_214_activity_and_colophon_stay_with_their_own_statement(self) -> None:
+		'''UNIMARC publication0 alone supplies the publication date and imprint fallback.'''
+		metadata, wikitext = render(record(
+			field('214', ('a', 'Production city'), ('c', 'Producer'), ('d', '1840'), indicators=(' ', '1')),
+			field('214', ('a', 'Publication city'), ('c', 'Publisher'), ('d', '[1850]'), ('s', 'Original colophon'), indicators=(' ', '0')),
+			field('214', ('c', 'Manufacturer'), ('d', '1849'), indicators=(' ', '3')),
+		))
+		self.assertEqual(metadata['date'], '[1850]')
+		self.assertEqual(metadata['places'], ['Publication city'])
+		self.assertEqual(metadata['publishers'], ['Publisher'])
+		self.assertTrue(metadata['imprint_statements'][0]['text'].startswith('Производство;'))
+		self.assertTrue(metadata['imprint_statements'][1]['text'].startswith('Публикация;'))
+		self.assertTrue(metadata['imprint_statements'][2]['text'].startswith('Изготовление;'))
+		self.assertIn('Original colophon', metadata['imprint_statements'][1]['text'])
+		self.assertNotIn('Original colophon', metadata['imprint_statements'][0]['text'])
+		self.assertIn('|date=1850\n', wikitext)
+		for value in ('Production city', 'Producer', 'Manufacturer', 'Original colophon'):
+			self.assertIn(value, wikitext)
+
+	def test_production_only_214_cannot_become_publication_date(self) -> None:
+		'''An unpublished production statement stays visible without supplying a date field.'''
+		metadata, wikitext = render(record(field('214', ('d', '1850'), indicators=(' ', '1'))))
+		self.assertEqual(metadata['date'], '')
+		self.assertIn('Производство;', wikitext)
+		self.assertNotIn('|date=1850\n', wikitext)
+
+	def test_holdings_links_keep_copy_and_column_context(self) -> None:
+		'''Copies with matching text but different destinations retain both safe links.'''
+		html = '''<h1>Title</h1><table><tr><th>Шифр</th><th>История</th></tr>
+		<tr><td>Copy</td><td><a href="https://example.org/copy-a">History</a><span class="placehold"><a href="/Hold?hashKey=private">Order</a></span></td></tr>
+		<tr><td>Copy</td><td><a href="https://example.org/copy-b">History</a><a class="placehold" href="javascript:alert(1)">Order</a></td></tr>
+		</table>'''
+		metadata = upload.parse_record_html(html, 'BY-NLB-test')
+		self.assertEqual(metadata['fields'][0]['values'], metadata['fields'][1]['values'])
+		self.assertEqual(metadata['fields'][0]['links'], [{'url': 'https://example.org/copy-a', 'text': 'История: History'}])
+		wikitext = upload.build_commons_description(metadata, {}, 'BY-NLB-test', '123')
+		self.assertIn('[https://example.org/copy-a История: History]', wikitext)
+		self.assertIn('[https://example.org/copy-b История: History]', wikitext)
+		self.assertNotIn('hashKey', wikitext)
+		self.assertNotIn('javascript:', wikitext)
 
 	def test_filename_separates_date_and_record_suffix(self) -> None:
 		'''The date gets a space while the stable NLB/file IDs keep names unique.'''

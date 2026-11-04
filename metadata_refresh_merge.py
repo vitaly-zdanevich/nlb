@@ -10,6 +10,8 @@ from typing import Any
 
 import mwparserfromhell
 
+from wikimedia_text import normalize_wikitext
+
 
 MARKER = re.compile(r'<!-- NLB-METADATA:([A-Za-z0-9_-]+:[A-Za-z0-9_-]+):(BEGIN|END) -->')
 
@@ -56,8 +58,8 @@ def merge_generated_metadata(current_text: str, baseline_text: str, generated_te
 	fields = [{item.name.strip(): item for item in template.params} for template in (current, baseline, generated)]
 	present, old, new = fields
 	def value(parameters: dict, key: str) -> str | None:
-		'''Compare content independently of surrounding template-field whitespace.'''
-		return str(parameters[key].value).strip() if key in parameters else None
+		'''Allow MediaWiki canonical text and outer field whitespace, preserving other edits.'''
+		return normalize_wikitext(str(parameters[key].value).strip()) if key in parameters else None
 	if 'description' not in old or 'description' not in new or value(present, 'description') not in (value(old, 'description'), value(new, 'description')):
 		raise ValueError('Human-edited or missing Information description')
 	before = str(current)
@@ -66,13 +68,13 @@ def merge_generated_metadata(current_text: str, baseline_text: str, generated_te
 			continue
 		if name in old and value(present, name) == value(old, name):
 			if name in new:
-				present[name].value = str(new[name].value)
+				present[name].value = normalize_wikitext(str(new[name].value))
 			else:
 				current.remove(present[name])
 	# Preserve generator order when appending genuinely new parameters.
 	for name, parameter in new.items():
 		if name != 'permission' and name not in old and name not in present:
-			current.add(str(parameter.name), str(parameter.value), preserve_spacing=False)
+			current.add(str(parameter.name), normalize_wikitext(str(parameter.value)), preserve_spacing=False)
 	result = current_text.replace(before, str(current), 1)
 	return merge_metadata_blocks(result, baseline_text, generated_text)
 
@@ -84,15 +86,15 @@ def merge_metadata_blocks(current_text: str, baseline_text: str, generated_text:
 	for key, old_block in old_blocks.items():
 		if key not in present_blocks:
 			continue  # A human removed this section.
-		if present_blocks[key] not in (old_block, new_blocks.get(key)):
+		if normalize_wikitext(present_blocks[key]) not in (normalize_wikitext(old_block), normalize_wikitext(new_blocks.get(key, ''))):
 			raise ValueError('Human-edited metadata block: ' + key)
-		result = result.replace(present_blocks[key], new_blocks.get(key, ''), 1)
+		result = result.replace(present_blocks[key], normalize_wikitext(new_blocks.get(key, '')), 1)
 	for key, new_block in new_blocks.items():
 		if key in old_blocks:
 			continue
 		if key in present_blocks:
-			if present_blocks[key] != new_block:
+			if normalize_wikitext(present_blocks[key]) != normalize_wikitext(new_block):
 				raise ValueError('Unowned metadata block: ' + key)
 		else:
-			result += '\n' + new_block
+			result += '\n' + normalize_wikitext(new_block)
 	return result

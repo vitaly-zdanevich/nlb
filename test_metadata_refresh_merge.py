@@ -55,6 +55,39 @@ class TestMetadataRefreshMerge(unittest.TestCase):
 		generated = description('Updated description', date='1838')
 		self.assertEqual(merge_generated_metadata(current, baseline, generated), generated)
 
+	def test_mediawiki_unicode_and_control_normalization_is_not_a_human_edit(self):
+		'''Compare canonical display text without losing exact archived source bytes.'''
+		baseline = description('Cafe\u0301\x01 catalog', author='René\u0301', date='1836')
+		current = description('Café catalog', author='René\u0301', date='1836')
+		generated = description('Updated Cafe\u0301 catalog', author='New author', date='1837')
+		self.assertEqual(merge_generated_metadata(current, baseline, generated), description('Updated Café catalog', author='New author', date='1837'))
+		self.assertIn('\x01', baseline)
+		self.assertIn('Cafe\u0301', baseline)
+		for changed in ('Café corrected catalog', 'Café  catalog', 'Café\ncatalog', 'Café\tcatalog'):
+			with self.subTest(description=changed), self.assertRaisesRegex(ValueError, 'description'):
+				merge_generated_metadata(description(changed, date='1836'), baseline, generated)
+
+	def test_canonical_author_comparison_still_preserves_a_real_human_change(self):
+		'''Only canonical Unicode equivalence is accepted, not spelling or punctuation changes.'''
+		baseline = description(author='Rene\u0301', date='1836')
+		generated = description('Updated description', author='Catalog correction', date='1837')
+		current = description(author='René', date='1836')
+		self.assertEqual(merge_generated_metadata(current, baseline, generated), generated)
+		current = description(author='René, corrected by a human', date='1836')
+		self.assertEqual(merge_generated_metadata(current, baseline, generated), description('Updated description', author='René, corrected by a human', date='1837'))
+
+	def test_normalized_owned_blocks_refresh_without_normalizing_surrounding_human_text(self):
+		'''Apply server-equivalent comparisons only to owned fields and metadata blocks.'''
+		from metadata_refresh_merge import merge_metadata_blocks
+		baseline = block('Cafe\u0301\x02 catalog')
+		prefix = 'Human introduction with Cafe\u0301\n'
+		current = prefix + block('Café catalog')
+		generated = block('New Cafe\u0301 catalog')
+		self.assertEqual(merge_metadata_blocks(current, baseline, generated), prefix + block('New Café catalog'))
+		with self.assertRaisesRegex(ValueError, 'Human-edited metadata block'):
+			merge_metadata_blocks(prefix + block('Café human correction'), baseline, generated)
+		self.assertEqual(merge_metadata_blocks(block('Café catalog'), '', baseline), block('Café catalog'))
+
 	def test_permission_is_preserved_even_when_old_generated_value_matches(self):
 		'''Metadata refresh never changes the Information permission/license assertion.'''
 		baseline = description(permission='{{PD-old-70}}')

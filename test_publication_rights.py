@@ -171,10 +171,11 @@ class TestPublicationRights(unittest.TestCase):
 
 	def test_214_only_publication_activity_supplies_publication_dates(self) -> None:
 		'''Production, distribution and copyright years cannot stand in for publication.'''
-		for indicator in ('0', '1', '2', '3', '4'):
+		# UNIMARC 214 differs from MARC 21 264: 0 is publication, 1 production.
+		for indicator in (' ', '0', '1', '2', '3', '4'):
 			with self.subTest(indicator=indicator):
 				meta = {'raw_marc_fields': [{'tag': '214', 'ind2': indicator, 'subfields': [{'code': 'd', 'value': '1890'}]}]}
-				self.assertEqual(self.evaluate(meta)['eligible'], indicator == '1')
+				self.assertEqual(self.evaluate(meta)['eligible'], indicator == '0')
 
 	def test_unresolved_roles_and_imprecise_lifespans_are_reviewed(self) -> None:
 		'''Unknown roles and nonauthor name dates cannot silently establish expiry.'''

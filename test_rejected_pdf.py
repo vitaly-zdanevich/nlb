@@ -154,8 +154,10 @@ class TestQuarantinePipeline(unittest.TestCase):
 			client.download_pdf_scan = fail_archive
 			with self.assertRaisesRegex(OSError, 'disk full'):
 				upload.process_single_scan(client, mock.Mock(), upload.default_state(), root / 'state.json', root / 'scans', 'BY-NLB-one', '1', '', {'title': 'Book'}, {'date': '1800'})
-			path, = (root / 'scans').iterdir()
+			path, = (root / 'scans').glob('*.pdf')
 			self.assertEqual(path.read_bytes(), payload)
+			recovery = json.loads(path.with_suffix('.recovery.json').read_text())
+			self.assertEqual((recovery['marc_id'], recovery['file_id']), ('BY-NLB-one', '1'))
 
 
 if __name__ == '__main__':

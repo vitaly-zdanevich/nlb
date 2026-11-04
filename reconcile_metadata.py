@@ -39,7 +39,7 @@ def read_commons_page(title: str, *, session: Any = None) -> dict[str, Any]:
 	if not title.startswith('File:'):
 		raise ValueError('Reconciliation targets must be File: pages')
 	response = (session or requests).get(API_URL, params={
-		'action': 'query', 'format': 'json', 'formatversion': '2',
+		'action': 'query', 'format': 'json', 'formatversion': '2', 'maxlag': 5,
 		'titles': title, 'prop': 'revisions|imageinfo',
 		'rvprop': 'ids|content', 'rvslots': 'main', 'iiprop': 'sha1|size', 'redirects': True,
 	}, headers={'User-Agent': USER_AGENT}, timeout=60)
@@ -57,6 +57,10 @@ def read_commons_page(title: str, *, session: Any = None) -> dict[str, Any]:
 		if not valid or type(revision['revid']) is not int or revision['revid'] <= 0:
 			raise ValueError('Invalid file revision')
 		result = {'title': page['title'], 'revid': revision['revid'], 'text': text, 'sha1': sha1.lower()}
+		if 'pageid' in page:
+			if type(page['pageid']) is not int or page['pageid'] <= 0:
+				raise ValueError('Invalid Commons page ID')
+			result['page_id'] = page['pageid']
 		if 'size' in page['imageinfo'][0]:
 			result['size_bytes'] = page['imageinfo'][0]['size']
 		return result
@@ -176,11 +180,13 @@ def generate_plan(archive_dir: Path, fetch_page: Callable[[str], dict[str, Any]]
 
 
 def edit_commons_page(entry: dict[str, Any]) -> bool:
-	'''Apply an explicitly selected plan through Pywikibot with revision protection.'''
+	'''Honor page bot restrictions before a revision-protected Pywikibot edit.'''
 	import pywikibot
 	site = pywikibot.Site('commons', 'commons')
 	site.login()
 	page = pywikibot.FilePage(site, entry['title'])
+	if not page.botMayEdit():
+		raise ValueError('Commons page disallows automated metadata edits')
 	return site.editpage(page, text=entry['new_text'], baserevid=entry['baserevid'], nocreate=True, recreate=False, summary=entry.get('summary', 'Preserve additional National Library of Belarus catalog metadata'), minor=False)
 
 
