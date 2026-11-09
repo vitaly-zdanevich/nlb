@@ -107,7 +107,9 @@ class TestCatalogHierarchy(unittest.TestCase):
 	def test_wrong_or_external_advertised_tab_is_never_followed(self) -> None:
 		'''An untrusted navigation target causes a retryable record error before another GET.'''
 		for href in ('https://example.org/elib/Record/' + RECORD + '/HierarchyTree',
-			'/elib/Record/BY-NLB-other/HierarchyTree', f'/elib/Record/{RECORD}/HierarchyTree?recordID=BY-NLB-other'):
+			'/elib/Record/BY-NLB-other/HierarchyTree', f'/elib/Record/{RECORD}/HierarchyTree?recordID=BY-NLB-other',
+			'https://example.org/elib/Collection/' + RECORD + '/HierarchyTree',
+			'/elib/Collection/BY-NLB-other/HierarchyTree', f'/elib/Collection/{RECORD}/HierarchyTree?recordID=BY-NLB-other'):
 			with self.subTest(href=href):
 				self.html = HTML.replace(f'/elib/Record/{RECORD}/HierarchyTree#tabnav', href)
 				self.session.get.reset_mock()
@@ -175,6 +177,89 @@ class TestCatalogHierarchy(unittest.TestCase):
 		self.assertNotIn('[[Category:Injected]]', text)
 		self.assertNotIn('{{Injected}}', text)
 		self.assertIn('|date=1778\n', text)
+
+
+class TestObservedHierarchyVariants(unittest.TestCase):
+	'''Replay sanitized real catalog trees that were rejected by the first validator.'''
+
+	def setUp(self) -> None:
+		'''Keep retry timing local while exercising the real validation and capture paths.'''
+		self.sleep = mock.patch('catalog_requests.time.sleep').start()
+		self.addCleanup(mock.patch.stopall)
+
+	def test_collection_cnb_and_untitled_nodes_survive_the_full_capture_pipeline(self) -> None:
+		'''Keep all observed records and edges without confusing collection context or inventing titles.'''
+		fixtures = json.loads((FIXTURE.parent / 'hierarchy-catalog-variants.json').read_text())
+		for fixture in fixtures:
+			with self.subTest(record=fixture['record_id']), tempfile.TemporaryDirectory() as directory:
+				rid, context, tree = fixture['record_id'], fixture['context'], fixture['tree']
+				record_url = BASE + '/elib/Record/' + rid
+				tab_url = BASE + f'/elib/{context}/{rid}/HierarchyTree'
+				html = f'''<div class="record"><div class="mainbody"><h1>Catalog record</h1>
+<input class="hiddenId" value="{rid}"><table><tr><th>Название</th><td>Catalog record</td></tr></table><ul class="nav-tabs">
+<li><a href="{tab_url}#tabnav">Структура документа</a></li></ul></div></div>'''
+				tab = f'''<div id="hierarchyTree"><input class="hiddenRecordId" value="{rid}">
+<input class="hiddenHierarchyId" value="{tree['id']}"><input class="hiddenContext" value="{context}"></div>'''
+				def get(url: str, **kwargs: object) -> requests.Response:
+					'''Allow only the record's advertised route and explicitly identified JSON tree.'''
+					if url == record_url:
+						return response(url, html)
+					if url == record_url + '/Export?style=MARCXML':
+						return response(url, 'No export', 404)
+					if url == record_url + '/TOC':
+						return response(url, '<div class="tab-pane toc-tab"></div>')
+					if url == tab_url:
+						return response(url, tab)
+					if url == BASE + '/elib/Hierarchy/GetTreeJSON':
+						self.assertEqual(kwargs.get('params'), {'hierarchyID': tree['id'], 'id': rid})
+						return response(url, json.dumps(tree, ensure_ascii=False))
+					raise AssertionError(f'Unexpected request: {url}')
+				session = mock.Mock(spec=requests.Session)
+				session.headers, session.get.side_effect = {}, get
+				archive = ArchiveStore(Path(directory))
+				archive.begin_record(rid)
+				client = upload.NlbClient(session=session, archive=archive, metadata_reads_only=True)
+				record, marc = client.fetch_record_metadata(rid)
+				archive.save_record(rid, record, marc)
+				parsed = record['catalog_hierarchies'][0]
+				self.assertEqual(parsed['hierarchy_id'], tree['id'])
+				expected, pending = [], [(tree, None)]
+				while pending:
+					node, parent = pending.pop()
+					expected.append((node['id'], parent, node['text'] or node['id']))
+					pending.extend((child, node['id']) for child in reversed(node.get('children', [])))
+				self.assertEqual([(node['record_id'], node['parent_id'], node['label']) for node in parsed['nodes']], expected)
+				self.assertIn(rid, [node['record_id'] for node in parsed['nodes']])
+				text = upload.build_commons_description(record, marc, rid, '1')
+				self.assertEqual(text.count(' → '), len(expected) - 1)
+				for node in parsed['nodes']:
+					self.assertIn(upload.escape_wikitext(node['label']), text)
+				captured = archive.manifests[rid]['sources']
+				self.assertEqual(len(captured), 5)
+				self.assertEqual(json.loads((archive.root / captured[-1]['path']).read_text()), tree)
+				session.post.assert_not_called()
+		self.sleep.assert_not_called()
+
+	def test_collection_context_and_cnb_ids_still_require_exact_identity(self) -> None:
+		'''A supported route or namespace cannot authorize a different record or malformed ID.'''
+		from catalog_hierarchy import hierarchy_identifiers, parse_hierarchy
+		from catalog_requests import InvalidCatalogResponse
+		url = BASE + f'/elib/Collection/{RECORD}/HierarchyTree'
+		tab = TAB.replace('value="Record"', 'value="Collection"')
+		for invalid_url, body in ((url, TAB), (url.replace(RECORD, 'BY-NLB-other'), tab),
+			(url, tab.replace(RECORD, 'BY-NLB-other')), (url, tab.replace(PARENT, 'BY-CNB-../unsafe'))):
+			with self.subTest(url=invalid_url, body=body), self.assertRaises(InvalidCatalogResponse):
+				hierarchy_identifiers(response(invalid_url, body), RECORD)
+		for label in (None, {'ru': ['Unexpected shape']}, '<span></span>'):
+			invalid = copy.deepcopy(TREE)
+			invalid['children'][0]['text'] = label
+			with self.subTest(label=label), self.assertRaises(InvalidCatalogResponse):
+				parse_hierarchy(response(BASE + '/elib/Hierarchy/GetTreeJSON', json.dumps(invalid)), RECORD, PARENT, BASE)
+		invalid = copy.deepcopy(TREE)
+		invalid['children'][0]['id'] = 'BY-CNB-../unsafe'
+		invalid['children'][0]['li_attr']['data-recordid'] = 'BY-CNB-../unsafe'
+		with self.assertRaises(InvalidCatalogResponse):
+			parse_hierarchy(response(BASE + '/elib/Hierarchy/GetTreeJSON', json.dumps(invalid)), RECORD, PARENT, BASE)
 
 
 if __name__ == '__main__':

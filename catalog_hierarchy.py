@@ -16,7 +16,8 @@ import requests
 from catalog_requests import InvalidCatalogResponse
 
 
-RECORD_ID = re.compile(r'BY-NLB-[A-Za-z0-9_-]+')
+# The same public catalog also hosts Central Scientific Library (BY-CNB) records.
+RECORD_ID = re.compile(r'BY-(?:NLB|CNB)-[A-Za-z0-9_-]+')
 
 
 def reject(response: requests.Response, reason: str) -> None:
@@ -33,7 +34,8 @@ def advertised_hierarchy(response: requests.Response, record_id: str, base_url: 
 		url = urlsplit(urljoin(base_url, anchor['href']))
 		if not url.path.rstrip('/').endswith('/HierarchyTree'):
 			continue
-		if url.scheme != base.scheme or url.netloc != base.netloc or url.path.rstrip('/') != f'/elib/Record/{record_id}/HierarchyTree':
+		path = re.fullmatch(r'/elib/(Record|Collection)/([^/]+)/HierarchyTree/?', url.path)
+		if url.scheme != base.scheme or url.netloc != base.netloc or not path or path[2] != record_id:
 			reject(response, 'Hierarchy tab does not belong to the requested catalog record')
 		if any(value != record_id for value in parse_qs(url.query).get('recordID', [])):
 			reject(response, 'Hierarchy tab recordID does not match the requested record')
@@ -42,7 +44,10 @@ def advertised_hierarchy(response: requests.Response, record_id: str, base_url: 
 
 
 def hierarchy_identifiers(response: requests.Response, record_id: str) -> list[str]:
-	'''Read the JavaScript tree's declared identity from the expected Record tab.'''
+	'''Match declared tree identity and context to its Record or Collection tab route.'''
+	path = re.fullmatch(r'/elib/(Record|Collection)/([^/]+)/HierarchyTree/?', urlsplit(response.url).path)
+	if not path or path[2] != record_id:
+		reject(response, 'Hierarchy tab route does not match the requested record')
 	soup = BeautifulSoup(response.text, 'html.parser')
 	tree = soup.select_one('#hierarchyTree')
 	if tree is None:
@@ -50,7 +55,7 @@ def hierarchy_identifiers(response: requests.Response, record_id: str) -> list[s
 	def values(selector: str) -> list[str]:
 		'''Read all values from one declared tree identity input class.'''
 		return [str(node.get('value', '')).strip() for node in tree.select(selector)]
-	if values('input.hiddenRecordId') != [record_id] or values('input.hiddenContext') != ['Record']:
+	if values('input.hiddenRecordId') != [record_id] or values('input.hiddenContext') != [path[1]]:
 		reject(response, 'Hierarchy tab record or context does not match the requested record')
 	identifiers = values('input.hiddenHierarchyId')
 	if not identifiers or any(not RECORD_ID.fullmatch(identifier) for identifier in identifiers):
@@ -90,11 +95,16 @@ def parse_hierarchy(response: requests.Response, record_id: str, hierarchy_id: s
 		if url.scheme != base.scheme or url.netloc != base.netloc or not path or path[2] != identifier:
 			reject(response, 'Hierarchy node links outside its identified catalog record')
 		label = node.get('text')
-		if not isinstance(label, str) or not label.strip():
+		if not isinstance(label, str):
 			reject(response, 'Hierarchy node lacks a descriptive title')
-		label = BeautifulSoup(label, 'html.parser').get_text(' ', strip=True)
-		if not label:
-			reject(response, 'Hierarchy node title contains no text')
+		if label.strip():
+			label = BeautifulSoup(label, 'html.parser').get_text(' ', strip=True)
+			if not label:
+				reject(response, 'Hierarchy node title contains no text')
+		else:
+			# Observed trees include explicitly untitled nodes. Keep their identity
+			# and parent edge visible rather than inventing a title or dropping them.
+			label = identifier
 		title = link.get('title', '')
 		if not isinstance(title, str):
 			reject(response, 'Hierarchy node has a non-text title qualifier')

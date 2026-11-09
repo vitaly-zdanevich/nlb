@@ -6,8 +6,8 @@
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
-[![Production code](https://img.shields.io/badge/production%20code-5%2C248%20lines-blue)](upload.py)
-[![Test code](https://img.shields.io/badge/test%20code-8%2C408%20lines-blue)](#running-tests)
+[![Production code](https://img.shields.io/badge/production%20code-5%2C258%20lines-blue)](upload.py)
+[![Test code](https://img.shields.io/badge/test%20code-8%2C488%20lines-blue)](#running-tests)
 
 [`upload.py`](upload.py) iterates over open-access digitized scans from the Electronic Library of the National Library of Belarus (`https://elib.nlb.by`), archives the source responses, and uploads eligible PDFs to Wikimedia Commons with their useful catalog metadata readable on the file page.
 

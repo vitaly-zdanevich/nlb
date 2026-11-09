@@ -1,0 +1,200 @@
+[
+	{
+		"record_id": "BY-NLB-br0000140541",
+		"context": "Collection",
+		"tree": {
+			"id": "BY-NLB-br0000140541",
+			"text": "Menologium Bazyliańskie, to iest żywoty śwętych pańskich oboiey płci z zakony Ś. Bazylego W.",
+			"li_attr": {
+				"data-recordid": "BY-NLB-br0000140541"
+			},
+			"a_attr": {
+				"href": "/elib/Collection/BY-NLB-br0000140541/HierarchyTree?recordID=BY-NLB-br0000140541#tabnav",
+				"title": "Menologium Bazyliańskie, to iest żywoty śwętych pańskich oboiey płci z zakony Ś. Bazylego W."
+			},
+			"type": "collection",
+			"children": [
+				{
+					"id": "BY-NLB-br0000140589",
+					"text": "Cz. 1 : Która zamyka w sobie miesiąc styczeń, luty, marzec, kwiecień, may, i czerwiec",
+					"li_attr": {
+						"data-recordid": "BY-NLB-br0000140589"
+					},
+					"a_attr": {
+						"href": "/elib/Record/BY-NLB-br0000140589/HierarchyTree?recordID=BY-NLB-br0000140589#tree-BY-NLB-br0000140589",
+						"title": "Cz. 1 : Która zamyka w sobie miesiąc styczeń, luty, marzec, kwiecień, may, i czerwiec"
+					},
+					"type": "record"
+				},
+				{
+					"id": "BY-NLB-br0000142903",
+					"text": "Cz. 2 : Drugie sześc miesięcy, to iest: lipiec, sierpień, wrzesień, pazdziernik, listopad i grudzień",
+					"li_attr": {
+						"data-recordid": "BY-NLB-br0000142903"
+					},
+					"a_attr": {
+						"href": "/elib/Record/BY-NLB-br0000142903/HierarchyTree?recordID=BY-NLB-br0000142903#tree-BY-NLB-br0000142903",
+						"title": "Cz. 2 : Drugie sześc miesięcy, to iest: lipiec, sierpień, wrzesień, pazdziernik, listopad i grudzień"
+					},
+					"type": "record"
+				},
+				{
+					"id": "BY-NLB-br0001680721",
+					"text": "Cz. 1 : Która zamyka w sobie miesiąc styczeń, luty, marzec, kwiecień, may, i czerwiec",
+					"li_attr": {
+						"data-recordid": "BY-NLB-br0001680721"
+					},
+					"a_attr": {
+						"href": "/elib/Record/BY-NLB-br0001680721/HierarchyTree?recordID=BY-NLB-br0001680721#tree-BY-NLB-br0001680721",
+						"title": "Cz. 1 : Która zamyka w sobie miesiąc styczeń, luty, marzec, kwiecień, may, i czerwiec"
+					},
+					"type": "record"
+				}
+			]
+		}
+	},
+	{
+		"record_id": "BY-CNB-br438418",
+		"context": "Record",
+		"tree": {
+			"id": "BY-CNB-IN-BOOK-06-41739",
+			"text": "Illustrowane dzieje literatury polskiej",
+			"li_attr": {
+				"data-recordid": "BY-CNB-IN-BOOK-06-41739"
+			},
+			"a_attr": {
+				"href": "/elib/Collection/BY-CNB-IN-BOOK-06-41739/HierarchyTree?recordID=BY-CNB-IN-BOOK-06-41739#tabnav",
+				"title": "Illustrowane dzieje literatury polskiej"
+			},
+			"type": "collection",
+			"children": [
+				{
+					"id": "BY-CNB-br438418",
+					"text": "T. 3 : Odrodzenie. Okres zygmuntowski",
+					"li_attr": {
+						"data-recordid": "BY-CNB-br438418"
+					},
+					"a_attr": {
+						"href": "/elib/Record/BY-CNB-br438418/HierarchyTree?recordID=BY-CNB-br438418#tree-BY-CNB-br438418",
+						"title": "T. 3 : Odrodzenie. Okres zygmuntowski"
+					},
+					"type": "record"
+				},
+				{
+					"id": "BY-NLB-br0001800396",
+					"text": "T. 2 : Literatura średniowieczna. Okres jagieloński",
+					"li_attr": {
+						"data-recordid": "BY-NLB-br0001800396"
+					},
+					"a_attr": {
+						"href": "/elib/Record/BY-NLB-br0001800396/HierarchyTree?recordID=BY-NLB-br0001800396#tree-BY-NLB-br0001800396",
+						"title": "T. 2 : Literatura średniowieczna. Okres jagieloński"
+					},
+					"type": "record"
+				}
+			]
+		}
+	},
+	{
+		"record_id": "BY-NLB-br0000058446",
+		"context": "Record",
+		"tree": {
+			"id": "BY-NLB-br0000162285",
+			"text": "Сборник Археологического института",
+			"li_attr": {
+				"data-recordid": "BY-NLB-br0000162285"
+			},
+			"a_attr": {
+				"href": "/elib/Collection/BY-NLB-br0000162285/HierarchyTree?recordID=BY-NLB-br0000162285#tabnav",
+				"title": "Сборник Археологического института"
+			},
+			"type": "collection",
+			"children": [
+				{
+					"id": "BY-NLB-br0000058445",
+					"text": "Кн. 3",
+					"li_attr": {
+						"data-recordid": "BY-NLB-br0000058445"
+					},
+					"a_attr": {
+						"href": "/elib/Record/BY-NLB-br0000058445/HierarchyTree?recordID=BY-NLB-br0000058445#tree-BY-NLB-br0000058445",
+						"title": "Кн. 3"
+					},
+					"type": "record"
+				},
+				{
+					"id": "BY-NLB-br0000058446",
+					"text": "Кн. 4",
+					"li_attr": {
+						"data-recordid": "BY-NLB-br0000058446"
+					},
+					"a_attr": {
+						"href": "/elib/Record/BY-NLB-br0000058446/HierarchyTree?recordID=BY-NLB-br0000058446#tree-BY-NLB-br0000058446",
+						"title": "Кн. 4"
+					},
+					"type": "record"
+				},
+				{
+					"id": "BY-NLB-br0000061459",
+					"text": "Кн. 1",
+					"li_attr": {
+						"data-recordid": "BY-NLB-br0000061459"
+					},
+					"a_attr": {
+						"href": "/elib/Record/BY-NLB-br0000061459/HierarchyTree?recordID=BY-NLB-br0000061459#tree-BY-NLB-br0000061459",
+						"title": "Кн. 1"
+					},
+					"type": "record"
+				},
+				{
+					"id": "BY-NLB-br0000061460",
+					"text": "Кн. 2",
+					"li_attr": {
+						"data-recordid": "BY-NLB-br0000061460"
+					},
+					"a_attr": {
+						"href": "/elib/Record/BY-NLB-br0000061460/HierarchyTree?recordID=BY-NLB-br0000061460#tree-BY-NLB-br0000061460",
+						"title": "Кн. 2"
+					},
+					"type": "record"
+				},
+				{
+					"id": "BY-NLB-rr26182700003",
+					"text": "",
+					"li_attr": {
+						"data-recordid": "BY-NLB-rr26182700003"
+					},
+					"a_attr": {
+						"href": "/elib/Record/BY-NLB-rr26182700003/HierarchyTree?recordID=BY-NLB-rr26182700003#tree-BY-NLB-rr26182700003",
+						"title": ""
+					},
+					"type": "record"
+				},
+				{
+					"id": "BY-NLB-rr26182710003",
+					"text": "Кн. 5, половина 1",
+					"li_attr": {
+						"data-recordid": "BY-NLB-rr26182710003"
+					},
+					"a_attr": {
+						"href": "/elib/Record/BY-NLB-rr26182710003/HierarchyTree?recordID=BY-NLB-rr26182710003#tree-BY-NLB-rr26182710003",
+						"title": "Кн. 5, половина 1"
+					},
+					"type": "record"
+				},
+				{
+					"id": "BY-NLB-rr26182710004",
+					"text": "Кн. 5, пол. 2",
+					"li_attr": {
+						"data-recordid": "BY-NLB-rr26182710004"
+					},
+					"a_attr": {
+						"href": "/elib/Record/BY-NLB-rr26182710004/HierarchyTree?recordID=BY-NLB-rr26182710004#tree-BY-NLB-rr26182710004",
+						"title": "Кн. 5, пол. 2"
+					},
+					"type": "record"
+				}
+			]
+		}
+	}
+]
