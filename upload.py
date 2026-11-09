@@ -1485,6 +1485,19 @@ def format_source_link(url: str, text: str) -> RenderedWikitext:
 	return RenderedWikitext(f'[{quote(url, safe=":/?&=#+%~")} {escape_wikitext(text)}]')
 
 
+def is_circulation_field(label: str) -> bool:
+	'''Identify NLB's temporary copy status and inventory/availability summary labels.
+
+	Apply only to HTML field names or explicitly labeled holdings columns. The
+	original parsed fields and response bytes stay in the archive, and the same
+	words in titles, notes, rights statements or other catalog values stay visible.
+	'''
+	label = ' '.join(label.split()).rstrip(':').strip().casefold()
+	return label == 'статус экземпляра' or re.fullmatch(
+		r'всего\s*:\s*[0-9]+(?:\s*,\s*доступно\s*:\s*[0-9]+)?', label,
+	) is not None
+
+
 def build_commons_description(
 	record_meta: dict[str, Any],
 	marc_meta: dict[str, Any],
@@ -1549,19 +1562,25 @@ def build_commons_description(
 	seen_pairs: set[tuple] = set()
 	for field in record_meta.get('fields', []):
 		name = field.get('name', '').strip()
+		if is_circulation_field(name):
+			continue
 		raw_values = field.get('values')
 		if isinstance(raw_values, list):
 			values = [str(v).strip() for v in raw_values if str(v).strip()]
 		else:
 			values = [v.strip() for v in str(field.get('value', '')).splitlines() if v.strip()]
+		field_links = field.get('links', [])
+		if name == 'Хранение / экземпляр':
+			values = [value for value in values if not is_circulation_field(value.partition(':')[0])]
+			field_links = [link for link in field_links if not is_circulation_field(link['text'].partition(':')[0])]
 		if not name or not values:
 			continue
-		pair = (name, tuple(values), tuple((link['text'], link['url']) for link in field.get('links', [])))
+		pair = (name, tuple(values), tuple((link['text'], link['url']) for link in field_links))
 		if pair in seen_pairs:
 			continue
 		seen_pairs.add(pair)
 		links_by_text: dict[str, set[str]] = {}
-		for link in field.get('links', []):
+		for link in field_links:
 			links_by_text.setdefault(link['text'], set()).add(link['url'])
 		inline_texts = {value for value in values if len(links_by_text.get(value, set())) == 1}
 		display_values = [
@@ -1569,7 +1588,7 @@ def build_commons_description(
 			for value in values
 		]
 		metadata_lines.append(format_metadata_field(name, display_values))
-		links = [format_source_link(link['url'], link['text']) for link in field.get('links', []) if link['text'] not in inline_texts]
+		links = [format_source_link(link['url'], link['text']) for link in field_links if link['text'] not in inline_texts]
 		if links:
 			metadata_lines.append(format_metadata_field(f'{name} — ссылки в каталоге', list(dict.fromkeys(links))))
 

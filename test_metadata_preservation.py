@@ -2,10 +2,16 @@
 '''Preserve useful catalog details and render source text literally on Commons.'''
 
 from html import unescape
+import json
 from pathlib import Path
+import tempfile
 import unittest
 from xml.sax.saxutils import escape
 
+import requests
+
+from metadata_refresh_merge import merge_generated_metadata
+from preservation import ArchiveStore
 import upload
 
 
@@ -172,6 +178,96 @@ class TestMetadataPreservation(unittest.TestCase):
 		self.assertIn('Reading room B', wikitext)
 		self.assertNotIn('session', wikitext)
 		self.assertNotIn('Заказать', wikitext)
+
+	def test_circulation_status_is_archived_but_omitted_from_commons(self) -> None:
+		'''Real NLB labels stay in source evidence while stable copy details remain readable.'''
+		html = '''<h1>Title</h1><table>
+		<tr><th>Всего : 1 , доступно: 1</th><td>Доступно</td></tr>
+		<tr><td colspan="2"><table><tr><th>Шифр</th><th>Фонд</th><th>Место нахождения</th><th>Статус экземпляра</th><th>Примечание</th></tr>
+		<tr><td>094/3424</td><td>Старопечатные издания</td><td>08:2:Radz.</td><td><a href="https://example.org/current-status">СВОБОДЕН</a></td><td>Экслибрис владельца</td></tr>
+		</table></td></tr></table>'''
+		metadata = upload.parse_record_html(html, 'BY-NLB-test')
+		original = json.dumps(metadata, ensure_ascii=False)
+		with tempfile.TemporaryDirectory() as directory:
+			archive = ArchiveStore(Path(directory))
+			archive.begin_record('BY-NLB-test')
+			response = requests.Response()
+			response.status_code, response.url = 200, 'https://elib.nlb.by/elib/Record/BY-NLB-test'
+			response._content = html.encode('utf-8')
+			archive.capture_response(response)
+			archive.save_record('BY-NLB-test', metadata, {})
+			wikitext = upload.build_commons_description(metadata, {}, 'BY-NLB-test', '123')
+			manifest = archive.manifests['BY-NLB-test']
+			self.assertEqual((archive.root / manifest['sources'][0]['path']).read_bytes(), html.encode('utf-8'))
+			parsed = json.loads((archive.root / manifest['parsed']['path']).read_text())
+			self.assertEqual(parsed['html'], metadata)
+			self.assertIn('Статус экземпляра: СВОБОДЕН', original)
+			self.assertIn('Всего : 1 , доступно: 1', original)
+			self.assertEqual(json.dumps(metadata, ensure_ascii=False), original)
+		for value in ('094/3424', 'Старопечатные издания', '08:2:Radz.', 'Экслибрис владельца'):
+			self.assertIn(value, wikitext)
+		for value in ('Статус экземпляра', 'СВОБОДЕН', 'Всего', 'Доступно', 'current-status'):
+			self.assertNotIn(value, wikitext)
+
+	def test_circulation_fields_and_status_only_copy_do_not_leave_empty_headings(self) -> None:
+		'''Dedicated status fields and older multiline holdings values follow the display rule.'''
+		for fields in (
+			[{'name': 'Статус экземпляра', 'values': ['ВЫДАН']}],
+			[{'name': '  СТАТУС\u00a0экземпляра : ', 'value': 'СВОБОДЕН'}],
+			[{'name': 'Всего : 1 , доступно: 0', 'values': ['Недоступно']}],
+			[{'name': 'Всего: 2', 'values': ['Доступно']}],
+			[{'name': 'Хранение / экземпляр', 'value': 'Статус экземпляра : СВОБОДЕН',
+				'links': [{'text': 'Статус экземпляра: СВОБОДЕН', 'url': 'https://example.org/current-status'}]}],
+		):
+			with self.subTest(fields=fields):
+				wikitext = upload.build_commons_description({'fields': fields}, {}, 'BY-NLB-test', '123')
+				for label in ('Статус', 'СТАТУС', 'Всего', 'Хранение / экземпляр', 'current-status'):
+					self.assertNotIn(label, wikitext)
+
+	def test_availability_words_in_bibliographic_and_copy_notes_remain_visible(self) -> None:
+		'''Status-like text outside an identified circulation column is not discarded.'''
+		html = '''<h1>Свободен</h1><table>
+		<tr><th>Примечание</th><td>Статус экземпляра: СВОБОДЕН — надпись владельца</td></tr>
+		<tr><th>Всего</th><td>200 страниц</td></tr>
+		<tr><th>Права доступа</th><td>Доступно для чтения</td></tr>
+		<tr><th>Справочник</th><td><a href="https://example.org/reference">Доступно</a></td></tr>
+		</table><table><tr><th>Шифр</th><th>Примечание</th></tr>
+		<tr><td>Свободен-1</td><td>Статус экземпляра: СВОБОДЕН — помета</td></tr></table>'''
+		metadata = upload.parse_record_html(html, 'BY-NLB-test')
+		wikitext = upload.build_commons_description(metadata, {}, 'BY-NLB-test', '123')
+		for value in ('Свободен-1', 'СВОБОДЕН — надпись владельца', 'СВОБОДЕН — помета', '200 страниц', 'Доступно для чтения'):
+			self.assertIn(value, wikitext)
+		self.assertIn('[https://example.org/reference Доступно]', wikitext)
+
+	def test_owned_description_refresh_removes_status_without_changing_human_metadata(self) -> None:
+		'''A later automatic refresh removes stale circulation values while preserving human edits.'''
+		baseline = '''{{Information
+|description=Catalog title
+* Всего : 1 , доступно: 1: Доступно
+* Хранение / экземпляр:
+** Место нахождения: 08:2:Radz.
+** Статус экземпляра: СВОБОДЕН
+|author=Catalog author
+|date=1800
+|source=Catalog
+|permission={{PD-old-100}}
+}}
+== {{int:license-header}} ==
+{{PD-old-100}}
+[[Category:Human-selected category]]
+'''
+		current = baseline.replace('|author=Catalog author', '|author=Human-researched author')
+		generated = upload.build_commons_description({'title': 'Catalog title', 'fields': [
+			{'name': 'Всего : 1 , доступно: 1', 'values': ['Доступно']},
+			{'name': 'Хранение / экземпляр', 'values': ['Место нахождения: 08:2:Radz.', 'Статус экземпляра: СВОБОДЕН']},
+		]}, {}, 'BY-NLB-test', '123')
+		refreshed = merge_generated_metadata(current, baseline, generated)
+		self.assertNotIn('СВОБОДЕН', refreshed)
+		self.assertNotIn('Доступно', refreshed)
+		self.assertIn('08:2:Radz.', refreshed)
+		self.assertIn('|author=Human-researched author', refreshed)
+		self.assertIn('|permission={{PD-old-100}}', refreshed)
+		self.assertEqual(refreshed.split('== {{int:license-header}} ==', 1)[1], current.split('== {{int:license-header}} ==', 1)[1])
 
 	def test_publication_field_214_keeps_date_uncertainty(self) -> None:
 		'''Only publication dates from 214 are used in the structured date display.'''

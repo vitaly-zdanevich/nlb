@@ -6,8 +6,8 @@
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
-[![Production code](https://img.shields.io/badge/production%20code-5%2C232%20lines-blue)](upload.py)
-[![Test code](https://img.shields.io/badge/test%20code-8%2C317%20lines-blue)](#running-tests)
+[![Production code](https://img.shields.io/badge/production%20code-5%2C248%20lines-blue)](upload.py)
+[![Test code](https://img.shields.io/badge/test%20code-8%2C408%20lines-blue)](#running-tests)
 
 [`upload.py`](upload.py) iterates over open-access digitized scans from the Electronic Library of the National Library of Belarus (`https://elib.nlb.by`), archives the source responses, and uploads eligible PDFs to Wikimedia Commons with their useful catalog metadata readable on the file page.
 
@@ -51,6 +51,8 @@
 Commons descriptions include the bibliographic details, contributors and their roles, subjects and variants, contents, copy and storage information, related works, and useful IIIF metadata. Remaining MARC values appear in a readable catalog supplement with field/subfield labels; unfamiliar codes retain their source codes instead of receiving guessed meanings. Embedded contributor names and dates in linked records also remain visible. Exact repeated display values are deduplicated without dropping distinct copy-specific statements.
 
 Publication statements retain their place, publisher, address and date together, including repeated MARC 210/214 statements. UNIMARC 214 distinguishes publication (`0`) from production (`1`), distribution, manufacturing and copyright dates; only publication statements supply publication-date evidence. Links in holdings tables retain their copy and column context. Advertised catalog hierarchies are also archived and displayed as linked parent/child relationships, without inferring authors, dates or scan identity from related records. Named IIIF outline sections retain their hierarchy; routine page-number lists and thumbnail navigation are omitted from the description.
+
+Temporary borrowing status (`Статус экземпляра: СВОБОДЕН`) and current availability summaries (`Всего : 1 , доступно: 1: Доступно`) stay in the archived HTML and parsed metadata but are omitted from Commons descriptions. Shelfmarks, holding locations, provenance and copy-specific notes remain visible.
 
 Literal catalog punctuation is escaped consistently: `[[...]]`, `{{...}}`, pipes and HTML cannot turn into unintended Commons links, templates or categories. Intentional catalog links remain links. A supplied catalog year such as `[1836]` displays as `1836` in the Commons Date field, with its original notation retained in the visible bibliographic details and archived metadata; brackets alone do not mean “circa.” Publication dates retain their original uncertainty and ranges, such as `[1850?]` or `1890–1910`; separate date evidence drives filtering and rights decisions. Arbitrary years in a title do not establish publication dates.
 
