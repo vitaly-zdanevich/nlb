@@ -71,7 +71,7 @@ class TestScanIdentity(unittest.TestCase):
 		'''A direct viewer link cannot bypass a conflicting METS association.'''
 		from scan_identity import assess_scan_identity
 		client = upload.NlbClient.__new__(upload.NlbClient)
-		client.fetch_mets_files = lambda _: upload.extract_files_from_mets_structure({'nodes': [node('TEXT', 'Том II'), node('FILE', 'Ч. 1', 1)]})
+		client.fetch_mets_files = lambda _, **kwargs: upload.extract_files_from_mets_structure({'nodes': [node('TEXT', 'Том II'), node('FILE', 'Ч. 1', 1)]})
 		entry, = client.resolve_record_files({'file_ids': ['1'], 'mets_ids': ['1']}, {})
 		self.assertIn('mets_contexts', entry)
 		self.assertFalse(assess_scan_identity(entry, {'title': 'Book T. 1'}, {})['eligible'])

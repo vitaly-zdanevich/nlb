@@ -2,12 +2,15 @@
 """Offline integration coverage for NlbClient's catalog retry boundaries."""
 
 import json
+from pathlib import Path
+import tempfile
 import unittest
 from unittest import mock
 
 import requests
 
 from catalog_requests import CatalogRetriesExhausted
+from preservation import ArchiveStore
 import upload as upload_nlb
 from test_upload import MOCK_MARCXML_111, MOCK_METS_STRUCTURE_555, MOCK_RECORD_HTML_111, MOCK_SEARCH_HTML_PAGE_1
 
@@ -167,6 +170,99 @@ class TestNlbCatalogClient(unittest.TestCase):
 		self.session.post.assert_called_once()
 		self.session.get.assert_not_called()
 		self.sleep.assert_not_called()
+
+	def test_shared_mets_outage_counts_catalog_records_instead_of_structures(self) -> None:
+		'''Several volumes in one broken viewer must still trigger the batch outage limit.'''
+		self.session.get.side_effect = lambda url, **_: self.response(404, url=url)
+		for record_id in ('BY-NLB-one', 'BY-NLB-two'):
+			with self.assertRaises(requests.HTTPError):
+				self.client.resolve_record_files({}, {'marc_id': record_id, 'mets_ids': ['555']})
+		with self.assertRaises(upload_nlb.ViewerAPIUnavailable):
+			self.client.resolve_record_files({}, {'marc_id': 'BY-NLB-three', 'mets_ids': ['555']})
+		self.assertEqual(self.session.get.call_count, 3)
+
+	def test_session_creation_missing_is_fatal_before_metadata_deferral(self) -> None:
+		'''Session POST failures cannot be mislabeled as retryable catalog GET failures.'''
+		for status in (404, 410):
+			with self.subTest(status=status), tempfile.TemporaryDirectory() as directory:
+				root = Path(directory)
+				client = upload_nlb.NlbClient(session=self.session)
+				client.fetch_search_page = mock.Mock(return_value={'total_results': 2, 'records': [
+					{'marc_id': self.marc_id, 'file_ids': ['1001']},
+					{'marc_id': 'BY-NLB-second', 'file_ids': ['2001']},
+				]})
+				client.fetch_record_metadata = mock.Mock(return_value=({'title': 'Book'}, {'date': '1800'}))
+				self.session.post.reset_mock()
+				self.session.post.return_value = self.response(status, url=f'{upload_nlb.VIEWER_BASE_URL}/stats/session')
+				with self.assertRaises(requests.HTTPError) as raised:
+					upload_nlb.iterate_and_upload(client, mock.Mock(), root / 'state.json', root / 'staging')
+				self.assertNotIsInstance(raised.exception, upload_nlb.CatalogResourceMissing)
+				self.assertEqual(client.fetch_record_metadata.call_count, 1)
+				self.session.post.assert_called_once()
+				self.session.get.assert_not_called()
+				state = json.loads((root / 'state.json').read_text())
+				self.assertFalse(state.get('record_failures'))
+
+	def test_multiple_structures_in_one_record_do_not_imply_a_global_outage(self) -> None:
+		'''A record with several missing METS structures counts as one affected source.'''
+		self.session.get.side_effect = lambda url, **_: self.response(404, url=url)
+		for mets_id in ('111', '222', '333', '444'):
+			with self.assertRaises(requests.HTTPError):
+				self.client.fetch_mets_files(mets_id, marc_id=self.marc_id)
+
+	def test_upload_and_metadata_only_runs_preserve_identity_and_stop_viewer_outages(self) -> None:
+		'''Access and manifest outages stop ordinary runs without binary or Commons actions.'''
+		for operation in ('access', 'manifest'):
+			for metadata_only in (False, True):
+				with self.subTest(operation=operation, metadata_only=metadata_only), tempfile.TemporaryDirectory() as directory:
+					root = Path(directory)
+					records = [f'BY-NLB-record-{number}' for number in range(4)]
+					state_path = root / 'state.json'
+					state = upload_nlb.default_state()
+					previous = {'status': 'uploaded', 'commons_title': 'File:Historical.pdf',
+						'sha1': 'a' * 40, 'size_bytes': 123, 'verification': {'sha1': 'a' * 40}}
+					state['items'] = {f'{record}:1': dict(previous) for record in records}
+					upload_nlb.save_state(state_path, state)
+					before = state_path.read_bytes()
+					session = mock.Mock(headers={})
+					session.post.return_value = self.response()
+
+					def get(url, **kwargs):
+						'''Fail one advertised operation while leaving unrelated operations available.'''
+						status = 404 if url.endswith('/' + operation) else 200
+						body = {'status': 404, 'error': 'Not Found'} if status == 404 else {'publicAccess': True}
+						return self.response(status, json.dumps(body), url)
+
+					session.get.side_effect = get
+					client = upload_nlb.NlbClient(session=session, archive=ArchiveStore(root / 'archive'), metadata_reads_only=metadata_only)
+					client.fetch_search_page = mock.Mock(return_value={
+						'total_results': len(records), 'records': [{'marc_id': record, 'file_ids': ['1']} for record in records],
+					})
+					client.fetch_record_metadata = mock.Mock(side_effect=lambda record: (
+						{'marc_id': record, 'title': 'Book', 'file_ids': ['1']}, {'date': '1800'},
+					))
+					client.download_pdf_scan = mock.Mock()
+					uploader = mock.Mock()
+					with self.assertRaises(upload_nlb.ViewerAPIUnavailable):
+						upload_nlb.iterate_and_upload(client, uploader, state_path, root / 'staging', metadata_only=metadata_only)
+					self.assertEqual(client.fetch_record_metadata.call_count, 3)
+					client.download_pdf_scan.assert_not_called()
+					self.assertEqual(uploader.mock_calls, [])
+					self.assertFalse((root / 'staging').exists())
+					after = json.loads(state_path.read_text())
+					for item in after['items'].values():
+						for key in ('commons_title', 'sha1', 'size_bytes', 'verification'):
+							self.assertEqual(item[key], previous[key])
+					if metadata_only:
+						self.assertEqual(state_path.read_bytes(), before)
+					else:
+						self.assertEqual(after['retry_from_page'], 1)
+						if operation == 'access':
+							self.assertEqual(set(after['record_failures']), set(records[:3]))
+							self.assertEqual(after['items'], state['items'])
+						else:
+							self.assertEqual([after['items'][f'{record}:1']['status'] for record in records],
+								['metadata_failed', 'metadata_failed', 'metadata_failed', 'uploaded'])
 
 
 if __name__ == '__main__':

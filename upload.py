@@ -37,6 +37,7 @@ from preservation import ArchiveStore, ArchiveWriteError, file_integrity
 from pdf_validation import InvalidPDFError, manifest_page_count, validate_pdf
 from publication_rights import evaluate_publication, publication_year
 from wikimedia_text import normalize_wikitext
+from viewer_api import ViewerAPIHealth, ViewerAPIUnavailable
 from catalog_validation import (
 	validate_access_json, validate_manifest, validate_manifest_identity, validate_marcxml, validate_mets_json,
 	validate_record_html, validate_search_html, validate_toc_html,
@@ -1928,6 +1929,14 @@ class ViewerSessionExpired(RuntimeError):
 		)
 
 
+class CatalogResourceMissing(requests.HTTPError):
+	'''A required catalog or viewer metadata GET returned HTTP 404 or 410.'''
+
+
+class CatalogRecordMissing(CatalogResourceMissing):
+	'''The primary catalog record itself returned HTTP 404 or 410.'''
+
+
 class NlbClient:
 	'''HTTP client for browsing elib.nlb.by metadata and downloading IIIF PDF scans.'''
 
@@ -1947,6 +1956,7 @@ class NlbClient:
 		self.metadata_reads_only = metadata_reads_only
 		self._viewer_session_initialized = False
 		self._viewer_cookies_imported = viewer_cookies is not None
+		self._viewer_api_health = ViewerAPIHealth()
 		self._parent_metadata_cache: dict[str, dict[str, Any]] = {}
 		self._parent_response_cache: dict[str, requests.Response] = {}
 		if viewer_cookies is not None:
@@ -1963,7 +1973,24 @@ class NlbClient:
 		except requests.HTTPError as error:
 			if optional and error.response is not None and error.response.status_code == 404:
 				return error.response
+			if error.response is not None and error.response.status_code in (404, 410):
+				raise CatalogResourceMissing(str(error), response=error.response, request=error.request) from error
 			raise
+
+	def _get_viewer(self, operation: str, record_id: str, url: str, **kwargs: Any) -> requests.Response:
+		'''Stop a widespread viewer outage after preserving each failed HTTP response.
+
+		One missing record or scan remains a retryable metadata failure. Repeated
+		failures across distinct records stop the batch; unrelated working viewer
+		operations cannot reset the failing endpoint's health counter.
+		'''
+		try:
+			response = self._get_catalog(url, **kwargs)
+		except (CatalogRetriesExhausted, requests.RequestException) as error:
+			self._viewer_api_health.failed(operation, record_id, getattr(error, 'last_error', error))
+			raise
+		self._viewer_api_health.succeeded(operation)
+		return response
 
 	def fetch_search_page(
 		self,
@@ -2007,7 +2034,12 @@ class NlbClient:
 			advertised_hierarchy(response, marc_id, ELIB_BASE_URL)
 
 		record_url = f'{ELIB_BASE_URL}/elib/Record/{marc_id}'
-		record_resp = self._get_catalog(record_url, validate=validate_record)
+		try:
+			record_resp = self._get_catalog(record_url, validate=validate_record)
+		except requests.HTTPError as error:
+			if error.response is not None and error.response.status_code in (404, 410):
+				raise CatalogRecordMissing(str(error), response=error.response, request=error.request) from error
+			raise
 		record_meta = parse_record_html(record_resp.text, marc_id)
 
 		marcxml_url = f'{ELIB_BASE_URL}/elib/Record/{marc_id}/Export?style=MARCXML'
@@ -2108,10 +2140,10 @@ class NlbClient:
 		resp.raise_for_status()
 		self._viewer_session_initialized = True
 
-	def fetch_mets_files(self, mets_id: str) -> list[dict[str, str]]:
-		'''Fetch the METS structure for a multi-part record and return its file entries.'''
+	def fetch_mets_files(self, mets_id: str, *, marc_id: str | None = None) -> list[dict[str, str]]:
+		'''Fetch METS files, attributing shared viewer failures to the catalog record.'''
 		self.ensure_viewer_session()
-		resp = self._get_catalog(
+		resp = self._get_viewer('METS structure', marc_id or mets_id,
 			f'{VIEWER_BASE_URL}/mets//structure/state?id={mets_id}',
 			headers={'Authorization': VIEWER_BASIC_AUTH},
 			validate=lambda response: validate_mets_json(response, mets_id),
@@ -2121,7 +2153,7 @@ class NlbClient:
 	def check_doc_access(self, marc_id: str) -> dict[str, Any]:
 		'''Query /iiif/access to determine whether a record is open-access.'''
 		self.ensure_viewer_session()
-		resp = self._get_catalog(
+		resp = self._get_viewer('IIIF access', marc_id,
 			f'{VIEWER_BASE_URL}/iiif/access',
 			params={'marcID': marc_id},
 			headers={'Authorization': VIEWER_BASIC_AUTH},
@@ -2139,7 +2171,7 @@ class NlbClient:
 		all_volumes: set[int] = set()
 		unresolved = False
 		for mets_id in dict.fromkeys([*search_entry.get('mets_ids', []), *record_meta.get('mets_ids', [])]):
-			for item in self.fetch_mets_files(mets_id):
+			for item in self.fetch_mets_files(mets_id, marc_id=record_meta.get('marc_id') or search_entry.get('marc_id')):
 				entry = by_id.setdefault(item['file_id'], {'file_id': item['file_id'], 'part_label': ''})
 				for key in ('part_label', 'file_location'):
 					if item.get(key) and not entry.get(key):
@@ -2158,7 +2190,7 @@ class NlbClient:
 	def fetch_scan_manifest(self, marc_id: str, file_id: str) -> dict[str, Any]:
 		'''Capture identity-checked viewer metadata even for scans already on Commons.'''
 		self.ensure_viewer_session()
-		response = self._get_catalog(
+		response = self._get_viewer('IIIF manifest', marc_id,
 			f'{VIEWER_BASE_URL}/iiif/manifest',
 			params={'marcID': marc_id, 'fileId': file_id},
 			headers={'Authorization': VIEWER_BASIC_AUTH},
@@ -2718,12 +2750,15 @@ def process_single_scan(
 		try:
 			manifest = client.fetch_scan_manifest(marc_id, file_id)
 			wikitext = preserve_description(with_viewer_metadata(record_meta, manifest))
-		except CatalogRetriesExhausted as error:
+		except (CatalogRetriesExhausted, ViewerAPIUnavailable, CatalogResourceMissing) as error:
 			# A fresh metadata outage does not erase an earlier publication or its
 			# binary identity. Keep it available for later verification and refresh.
 			base = {**previous, **base}
-			return finish('metadata_failed', pending=True, error=str(error), attempts=error.attempts,
+			status = finish('metadata_failed', pending=True, error=str(error), attempts=getattr(error, 'attempts', 1),
 				previous_status=previous.get('previous_status', previous.get('status')))
+			if isinstance(error, ViewerAPIUnavailable):
+				raise
+			return status
 	if metadata_only:
 		if archive is not None:
 			archive.record_result(marc_id, file_id, {**previous, **base} if previous else {**base, 'status': 'metadata_ready'})
@@ -3081,11 +3116,12 @@ def iterate_and_upload(
 					file_entries = client.resolve_record_files(search_entry, record_meta)
 					if not file_entries:
 						raise CatalogRetriesExhausted(InvalidCatalogResponse('Open digitized record has no downloadable file entries'), 1)
-				except CatalogRetriesExhausted as error:
-					last_response = getattr(error.last_error, 'response', None)
+				except (CatalogRetriesExhausted, ViewerAPIUnavailable, CatalogResourceMissing) as error:
+					last_error = getattr(error, 'last_error', error)
+					last_response = getattr(last_error, 'response', None)
 					state.setdefault('record_failures', {})[marc_id] = {
-						'status': 'metadata_failed', 'attempts': error.attempts,
-						'error_type': type(error.last_error).__name__, 'error': str(error),
+						'status': 'metadata_failed', 'attempts': getattr(error, 'attempts', 1),
+						'error_type': type(last_error).__name__, 'error': str(error),
 						'http_status': last_response.status_code if last_response is not None else None,
 						'updated_at': datetime.now(timezone.utc).isoformat(),
 					}
@@ -3093,6 +3129,8 @@ def iterate_and_upload(
 					save_state(state_path, state)
 					counts['metadata_failed'] += 1
 					log_progress(f'{progress_label} [{marc_id}] Deferring record until the next run: {error}')
+					if isinstance(error, ViewerAPIUnavailable):
+						raise
 					continue
 				clear_record_failure(marc_id)
 				for file_entry in file_entries:
@@ -3218,18 +3256,21 @@ def refresh_uploaded_metadata(
 				checkpoint_record(marc_id, before)
 				continue
 			files = {item['file_id']: item for item in client.resolve_record_files({}, record_meta)}
-		except CatalogRetriesExhausted as error:
+		except (CatalogRetriesExhausted, ViewerAPIUnavailable) as error:
 			for fid, previous in items.items():
 				failure(marc_id, fid, previous, 'metadata_failed', str(error))
 			checkpoint_record(marc_id, before)
+			if isinstance(error, ViewerAPIUnavailable):
+				raise
 			continue
 		except requests.HTTPError as error:
-			status = 'source_missing' if error.response is not None and error.response.status_code in (404, 410) else 'metadata_failed'
+			status = 'source_missing' if isinstance(error, CatalogRecordMissing) else 'metadata_failed'
 			for fid, previous in items.items():
 				failure(marc_id, fid, previous, status, str(error))
 			checkpoint_record(marc_id, before)
 			continue
-		for fid, previous in items.items():
+		file_items = list(items.items())
+		for file_index, (fid, previous) in enumerate(file_items):
 			if fid not in files:
 				failure(marc_id, fid, previous, 'source_missing', 'Previously uploaded file ID is absent from the current record', current_file_ids=list(files))
 				continue
@@ -3244,6 +3285,12 @@ def refresh_uploaded_metadata(
 				status = process_single_scan(client, None, isolated, state_path, staging_dir,
 					marc_id, fid, entry.get('part_label', ''), record_meta, marc_meta,
 					category, license_template, metadata_only=True, explicit_license=explicit_license, file_entry=entry)
+			except ViewerAPIUnavailable as error:
+				# Finish the record boundary without letting unvisited scans appear ready.
+				for pending_id, pending_item in file_items[file_index:]:
+					failure(marc_id, pending_id, pending_item, 'metadata_failed', str(error))
+				checkpoint_record(marc_id, before)
+				raise
 			except requests.HTTPError as error:
 				failure(marc_id, fid, previous, 'metadata_failed', str(error))
 				continue
@@ -3433,6 +3480,12 @@ def main(argv: list[str] | None = None) -> int:
 			'search_failed', 'metadata_failed', 'download_failed', 'download_rejected',
 			'upload_failed', 'verification_failed', 'title_conflict', 'rights_review', 'metadata_review',
 		)) else 0
+	except ViewerAPIUnavailable as error:
+		print(f'Stopped: {error}')
+		if args.refresh_uploaded_metadata:
+			print('No Commons edits were attempted in this refresh. Source collection remains incomplete; '
+				'after the library API recovers, rerun with --refresh-uploaded-metadata --continue.')
+		return 2
 	except ViewerSessionExpired as error:
 		print(f'Stopped: {error}')
 		return 2

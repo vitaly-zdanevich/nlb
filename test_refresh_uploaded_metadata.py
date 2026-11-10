@@ -7,6 +7,9 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest import mock
+from urllib.parse import urlsplit
+
+import requests
 
 from catalog_requests import CatalogRetriesExhausted, InvalidCatalogResponse
 from preservation import ArchiveStore
@@ -21,7 +24,7 @@ class RefreshCatalog(upload.NlbClient):
 		self.archive = ArchiveStore(root)
 		self.fetch_record_metadata = mock.Mock(side_effect=lambda key: copy.deepcopy(records[key]))
 		self.check_doc_access = mock.Mock(return_value={'publicAccess': True})
-		self.fetch_mets_files = mock.Mock(side_effect=lambda key: copy.deepcopy((mets or {})[key]))
+		self.fetch_mets_files = mock.Mock(side_effect=lambda key, **_: copy.deepcopy((mets or {})[key]))
 		self.fetch_scan_manifest = mock.Mock(side_effect=lambda record, file_id: {
 			'metadata': [{'label': 'Scan note', 'value': f'Fresh viewer note {file_id}'}],
 		})
@@ -114,7 +117,7 @@ class TestRefreshUploadedMetadata(unittest.TestCase):
 		)}, {'viewer': mets})
 		counts = self.collect(client)
 		self.assertEqual((counts['metadata_ready'], counts['metadata_review']), (1, 1))
-		client.fetch_mets_files.assert_called_once_with('viewer')
+		client.fetch_mets_files.assert_called_once_with('viewer', marc_id=None)
 		client.fetch_scan_manifest.assert_called_once_with('BY-NLB-book', '1')
 		blocked = client.archive.manifests['BY-NLB-book']['files']['2']
 		self.assertEqual(blocked['status'], 'metadata_review')
@@ -188,24 +191,162 @@ class TestRefreshUploadedMetadata(unittest.TestCase):
 		self.assertFalse(entry['scan_identity']['eligible'])
 		self.assertEqual(self.state_path.read_bytes(), before)
 
+	def test_unclassified_http_failures_never_claim_the_record_is_missing(self):
+		'''Only a typed primary-record failure can declare a historical source missing.'''
+		for stage in ('fetch_record_metadata', 'check_doc_access', 'fetch_mets_files', 'fetch_scan_manifest'):
+			for status in (404, 410):
+				with self.subTest(stage=stage, status=status):
+					before = self.write_state({'BY-NLB-book:1': association()})
+					client = RefreshCatalog(self.root / 'archive', {'BY-NLB-book': (
+						{'title': 'Book', 'file_ids': ['1'], 'mets_ids': ['viewer']}, {'date': '1800'},
+					)}, {'viewer': []})
+					response = requests.Response()
+					response.status_code = status
+					getattr(client, stage).side_effect = requests.HTTPError('Not found', response=response)
+					counts = self.collect(client)
+					self.assertEqual(counts['metadata_failed'], 1)
+					self.assertEqual(counts['source_missing'], 0)
+					entry = client.archive.manifests['BY-NLB-book']['files']['1']
+					self.assertEqual(entry['status'], 'metadata_failed')
+					self.assertEqual(entry['sha1'], 'a' * 40)
+					self.assertEqual(entry['size_bytes'], 123)
+					self.assertEqual(entry['commons_title'], 'File:Actual old target.pdf')
+					self.assertEqual(self.state_path.read_bytes(), before)
 
-	def test_permanent_record_and_manifest_failures_remain_pending(self):
-		'''A removed record or manifest does not discard historical identity or stop the batch.'''
-		import requests
-		for stage in ('record', 'manifest'):
-			with self.subTest(stage=stage):
-				before = self.write_state({'BY-NLB-book:1': association()})
-				client = RefreshCatalog(self.root / 'archive', {'BY-NLB-book': ({'title': 'Book', 'file_ids': ['1']}, {'date': '1800'})})
-				response = requests.Response()
-				response.status_code = 404
-				error = requests.HTTPError('Not found', response=response)
-				if stage == 'record':
-					client.fetch_record_metadata.side_effect = error
-				else:
-					client.fetch_scan_manifest.side_effect = error
+	def http_client(self, operation, status=404):
+		'''Mock only HTTP transport, retaining parsing, validation, capture and API health checks.'''
+		session = mock.Mock()
+		session.headers = {}
+		failure = {'operation': operation, 'status': status}
+
+		def get(url, **kwargs):
+			'''Serve identity-checked source documents and realistic upstream error responses.'''
+			path = urlsplit(url).path
+			params = kwargs.get('params', {})
+			if '/elib/Record/' in path:
+				marc_id = path.split('/elib/Record/', 1)[1].split('/')[0]
+			else:
+				marc_id = params.get('marcID') or url.split('id=', 1)[-1]
+			file_id = str(1000 + int(marc_id.rsplit('br', 1)[-1]))
+			if path.endswith('/Export'):
+				stage = 'export'
+				body = (
+					'<record xmlns="http://www.loc.gov/MARC21/slim">'
+					f'<controlfield tag="001">{marc_id}</controlfield>'
+					'<datafield tag="200"><subfield code="a">Preserved book</subfield></datafield>'
+					'<datafield tag="210"><subfield code="d">1800</subfield></datafield></record>'
+				)
+			elif path.endswith('/TOC'):
+				stage, body = 'contents', '<ul class="toc"></ul>'
+			elif path.endswith('/HierarchyTree'):
+				stage, body = 'hierarchy', ''
+			elif '/elib/Record/' in path:
+				stage = 'record'
+				hierarchy = (f'<ul class="nav-tabs"><li><a href="/elib/Record/{marc_id}/HierarchyTree">Hierarchy</a></li></ul>'
+					if failure['operation'] == 'hierarchy' else '')
+				body = (
+					f'<div class="record"><input class="hiddenId" value="{marc_id}"><h1>Preserved book</h1>'
+					'<table><tr><th>Дата издания:</th><td>1800</td></tr></table>'
+					f'<a href="{upload.VIEWER_BASE_URL}/viewer?markID={marc_id}&amp;fileID={file_id}&amp;metsID={marc_id}">Scan</a>'
+					f'{hierarchy}</div>'
+				)
+			elif path == '/iiif/access':
+				stage, body = 'access', {'publicAccess': True}
+			elif path == '/iiif/manifest':
+				stage, body = 'manifest', {'rendering': [], 'metadata': [{'label': 'Scan note', 'value': 'Recovered viewer metadata'}]}
+			elif path == '/mets//structure/state':
+				stage, body = 'mets', {'nodes': [{'data': {'nodeType': 'FILE', 'file': {'id': file_id}}}]}
+			else:
+				raise AssertionError(f'Unexpected HTTP request: {url}')
+			response = requests.Response()
+			response.status_code = failure['status'] if stage == failure['operation'] else 200
+			response.url = requests.Request('GET', url, params=params).prepare().url
+			response.encoding = 'utf-8'
+			if response.status_code != 200:
+				body = {'timestamp': '2026-11-10T04:09:46.119+00:00', 'status': response.status_code,
+					'error': 'Not Found', 'path': path}
+			response.headers['Content-Type'] = 'application/json' if isinstance(body, dict) else 'text/html'
+			response._content = (json.dumps(body) if isinstance(body, dict) else body).encode()
+			response.close = mock.Mock()
+			return response
+
+		session.get.side_effect = get
+		client = upload.NlbClient(session=session, archive=ArchiveStore(self.root / 'archive'), metadata_reads_only=True)
+		client.fetch_search_page = mock.Mock(side_effect=AssertionError('Unexpected full catalog search'))
+		client.download_pdf_scan = mock.Mock(side_effect=AssertionError('Unexpected PDF download'))
+		return client, session, failure
+
+	def test_only_primary_record_http_missing_is_classified_as_source_missing(self):
+		'''Real subordinate hierarchy/export failures cannot impersonate a deleted primary record.'''
+		for stage, status in (('record', 404), ('record', 410), ('hierarchy', 404), ('hierarchy', 410), ('export', 410)):
+			with self.subTest(stage=stage, status=status):
+				marc_id = 'BY-NLB-br0000000001'
+				before = self.write_state({f'{marc_id}:1001': association()})
+				client, session, _ = self.http_client(stage, status)
 				counts = self.collect(client)
-				self.assertEqual(counts['source_missing' if stage == 'record' else 'metadata_failed'], 1)
+				self.assertEqual(counts['source_missing'], int(stage == 'record'))
+				self.assertEqual(counts['metadata_failed'], int(stage != 'record'))
+				entry = client.archive.manifests[marc_id]['files']['1001']
+				self.assertFalse(entry['scan_identity']['eligible'])
 				self.assertEqual(self.state_path.read_bytes(), before)
+				session.post.assert_not_called()
+
+	def test_viewer_outage_stops_before_commons_and_continue_retries_failed_records(self):
+		'''A shared outage bounds source traffic, preserves evidence, and recovers through --continue.'''
+		for stage in ('access', 'mets', 'manifest'):
+			with self.subTest(stage=stage):
+				items = {f'BY-NLB-br{number:010d}:{1000 + number}': association() for number in range(1, 5)}
+				before = self.write_state(items)
+				client, session, _ = self.http_client(stage)
+				args = ['--refresh-uploaded-metadata', '--state-file', str(self.state_path),
+					'--archive-dir', str(client.archive.root), '--staging-dir', str(self.root / 'staging')]
+				with mock.patch('upload.NlbClient', return_value=client), mock.patch('upload.CommonsUploader') as uploader, \
+					mock.patch('metadata_refresh.apply_uploaded_metadata') as apply:
+					self.assertEqual(upload.main(args), 2)
+					apply.assert_not_called()
+					uploader.assert_not_called()
+				self.assertEqual(self.state_path.read_bytes(), before)
+				self.assertEqual(set(client.archive.manifests), {f'BY-NLB-br{number:010d}' for number in range(1, 4)})
+				failed_path = '/mets//structure/state' if stage == 'mets' else f'/iiif/{stage}'
+				failed_calls = [call for call in session.get.call_args_list if urlsplit(call.args[0]).path == failed_path]
+				self.assertEqual(len(failed_calls), 3)
+				session.post.assert_not_called()
+				for number in range(1, 4):
+					marc_id, file_id = f'BY-NLB-br{number:010d}', str(1000 + number)
+					manifest = client.archive.manifests[marc_id]
+					entry = manifest['files'][file_id]
+					self.assertEqual(entry['status'], 'metadata_failed')
+					for field in ('sha1', 'size_bytes', 'commons_title'):
+						self.assertEqual(entry[field], items[f'{marc_id}:{file_id}'][field])
+					self.assertFalse(entry['scan_identity']['eligible'])
+					self.assertEqual(entry['metadata_refresh']['status'], 'metadata_failed')
+					# A partial catalog description may be archived for preservation;
+					# the failed refresh and ineligible identity prevent its publication.
+					if stage == 'manifest':
+						self.assertTrue((client.archive.root / entry['description']['path']).is_file())
+					failed_sources = [source for source in manifest['sources'] if source['http_status'] == 404]
+					self.assertEqual(len(failed_sources), 1)
+					payload = json.loads((client.archive.root / failed_sources[0]['path']).read_text())
+					self.assertEqual(payload['path'], failed_path)
+				checkpoint = json.loads(client.refresh_checkpoint.path.read_text())
+				self.assertFalse(checkpoint['complete'])
+				started = checkpoint['started_at']
+
+				recovered, recovered_session, _ = self.http_client(None)
+				with mock.patch('upload.NlbClient', return_value=recovered), \
+					mock.patch('metadata_refresh.apply_uploaded_metadata', return_value={'counts': {'metadata_updated': 4}, 'items': []}) as apply:
+					self.assertEqual(upload.main([*args, '--continue']), 0)
+					apply.assert_called_once()
+				self.assertEqual(self.state_path.read_bytes(), before)
+				checkpoint = json.loads(recovered.refresh_checkpoint.path.read_text())
+				self.assertEqual(checkpoint['started_at'], started)
+				self.assertTrue(checkpoint['complete'])
+				self.assertEqual(len(checkpoint['records']), 4)
+				access_calls = [call for call in recovered_session.get.call_args_list if call.args[0].endswith('/iiif/access')]
+				self.assertEqual(len(access_calls), 4)
+				for manifest in recovered.archive.manifests.values():
+					self.assertEqual(next(iter(manifest['files'].values()))['metadata_refresh']['status'], 'metadata_ready')
+				recovered_session.post.assert_not_called()
 
 	def test_missing_state_is_an_error_without_creating_progress(self):
 		'''A misspelled state path must not silently create an empty refresh run.'''

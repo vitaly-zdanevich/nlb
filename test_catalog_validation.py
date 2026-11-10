@@ -175,7 +175,7 @@ class TestCatalogValidation(unittest.TestCase):
 			{'file_ids': ['2001'], 'mets_ids': ['555']}, {'file_ids': ['2001'], 'mets_ids': ['555']},
 		)
 		self.assertEqual(files, [{'file_id': '2001', 'part_label': 'Том 1 / Часть 1'}])
-		self.client.fetch_mets_files.assert_called_once_with('555')
+		self.client.fetch_mets_files.assert_called_once_with('555', marc_id=None)
 
 	def test_archive_observes_invalid_and_missing_responses_before_validation(self) -> None:
 		'''Capture error evidence and optional 404s as well as successful source bytes.'''
