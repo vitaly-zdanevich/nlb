@@ -38,7 +38,7 @@ from pdf_validation import InvalidPDFError, manifest_page_count, validate_pdf
 from publication_rights import evaluate_publication, publication_year
 from publication_history import publication_evidence, retain_publication, with_publication_evidence
 from wikimedia_text import normalize_wikitext
-from viewer_api import ViewerAPIHealth, ViewerAPIUnavailable
+from viewer_api import SourceAuthorizationError, ViewerAPIHealth, ViewerAPIUnavailable, authorization_failure
 from catalog_validation import (
 	validate_access_json, validate_manifest, validate_manifest_identity, validate_marcxml, validate_mets_json,
 	validate_record_html, validate_search_html, validate_toc_html,
@@ -3275,6 +3275,8 @@ def refresh_uploaded_metadata(
 			for fid, previous in items.items():
 				failure(marc_id, fid, previous, status, str(error))
 			checkpoint_record(marc_id, before)
+			if authorization_failure(error):
+				raise SourceAuthorizationError(error.response.status_code) from error
 			continue
 		file_items = list(items.items())
 		for file_index, (fid, previous) in enumerate(file_items):
@@ -3299,6 +3301,11 @@ def refresh_uploaded_metadata(
 				checkpoint_record(marc_id, before)
 				raise
 			except requests.HTTPError as error:
+				if authorization_failure(error):
+					for pending_id, pending_item in file_items[file_index:]:
+						failure(marc_id, pending_id, pending_item, 'metadata_failed', str(error))
+					checkpoint_record(marc_id, before)
+					raise SourceAuthorizationError(error.response.status_code) from error
 				failure(marc_id, fid, previous, 'metadata_failed', str(error))
 				continue
 			if status != 'metadata_ready':
@@ -3485,7 +3492,7 @@ def main(argv: list[str] | None = None) -> int:
 			'search_failed', 'metadata_failed', 'download_failed', 'download_rejected',
 			'upload_failed', 'verification_failed', 'title_conflict', 'rights_review', 'metadata_review',
 		)) else 0
-	except ViewerAPIUnavailable as error:
+	except (ViewerAPIUnavailable, SourceAuthorizationError) as error:
 		print(f'Stopped: {error}')
 		if args.refresh_uploaded_metadata:
 			print('No Commons edits were attempted in this refresh. Source collection remains incomplete; '

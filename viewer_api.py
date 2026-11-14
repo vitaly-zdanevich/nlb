@@ -6,6 +6,20 @@ import requests
 UNAVAILABLE_HTTP_STATUSES = frozenset({404, 410, 500, 502, 503, 504})
 
 
+class SourceAuthorizationError(RuntimeError):
+	'''Stop a source collection whose authentication or permission check failed.'''
+
+	def __init__(self, status: int) -> None:
+		'''Provide a safe diagnostic without revealing request tokens or cookies.'''
+		super().__init__(f'NLB refused source access (HTTP {status}). Check the viewer session and library access; '
+			'collection remains incomplete. Retry with --continue after access is restored.')
+
+
+def authorization_failure(error: requests.HTTPError) -> bool:
+	'''Identify explicit access denials separately from missing sources or outages.'''
+	return error.response is not None and error.response.status_code in (401, 403)
+
+
 class ViewerAPIUnavailable(RuntimeError):
 	'''A viewer operation has failed for several distinct records without recovery.'''
 

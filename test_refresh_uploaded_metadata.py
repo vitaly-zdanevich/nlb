@@ -356,6 +356,29 @@ class TestRefreshUploadedMetadata(unittest.TestCase):
 		self.assertFalse(self.state_path.exists())
 		client.fetch_record_metadata.assert_not_called()
 
+	def test_authorization_denial_stops_collection_and_keeps_retryable_checkpoint(self):
+		'''401/403 must stop before walking more records or applying collected metadata.'''
+		for stage in ('record', 'access', 'mets', 'manifest'):
+			for status in (401, 403):
+				with self.subTest(stage=stage, status=status):
+					items = {f'BY-NLB-br{number:010d}:{1000 + number}': association() for number in range(1, 5)}
+					before = self.write_state(items)
+					client, session, _ = self.http_client(stage, status)
+					args = ['--refresh-uploaded-metadata', '--state-file', str(self.state_path), '--archive-dir', str(client.archive.root)]
+					with mock.patch('upload.NlbClient', return_value=client), mock.patch('metadata_refresh.apply_uploaded_metadata') as apply:
+						self.assertEqual(upload.main(args), 2)
+						apply.assert_not_called()
+					self.assertEqual(set(client.archive.manifests), {'BY-NLB-br0000000001'})
+					self.assertEqual(self.state_path.read_bytes(), before)
+					checkpoint = json.loads(client.refresh_checkpoint.path.read_text())
+					self.assertFalse(checkpoint['complete'])
+					self.assertEqual(checkpoint['records']['BY-NLB-br0000000001']['counts']['metadata_failed'], 1)
+					session.post.assert_not_called()
+					recovered, _, _ = self.http_client(None)
+					with mock.patch('upload.NlbClient', return_value=recovered), mock.patch('metadata_refresh.apply_uploaded_metadata', return_value={'counts': {}, 'items': []}):
+						self.assertEqual(upload.main([*args, '--continue']), 0)
+					self.assertTrue(json.loads(recovered.refresh_checkpoint.path.read_text())['complete'])
+
 
 class TestRefreshMetadataCLI(unittest.TestCase):
 	'''The new flag applies automatically and never enters the binary upload loop.'''
