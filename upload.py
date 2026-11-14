@@ -36,6 +36,7 @@ from scan_identity import assess_scan_identity, flatten_mets
 from preservation import ArchiveStore, ArchiveWriteError, file_integrity
 from pdf_validation import InvalidPDFError, manifest_page_count, validate_pdf
 from publication_rights import evaluate_publication, publication_year
+from publication_history import publication_evidence, retain_publication, with_publication_evidence
 from wikimedia_text import normalize_wikitext
 from viewer_api import ViewerAPIHealth, ViewerAPIUnavailable
 from catalog_validation import (
@@ -2712,7 +2713,7 @@ def process_single_scan(
 	key = item_state_key(marc_id, file_id)
 	prefix = f'{progress_label} ' if progress_label else ''
 	archive = getattr(client, 'archive', None)
-	previous = dict(state.get('items', {}).get(key, {}))
+	previous = with_publication_evidence(state.get('items', {}).get(key, {}))
 	state['current_record_id'], state['current_item_key'] = marc_id, key
 	save_state(state_path, state)
 	decision = evaluate_publication(record_meta, marc_meta, license_template, explicit_license=explicit_license)
@@ -2723,7 +2724,7 @@ def process_single_scan(
 
 	def finish(status: str, *, pending: bool = False, **details: Any) -> str:
 		'''Persist an outcome and its archive relationship without losing pending work.'''
-		entry = {**base, **details, 'status': status, 'updated_at': datetime.now(timezone.utc).isoformat()}
+		entry = retain_publication(previous, {**base, **details, 'status': status, 'updated_at': datetime.now(timezone.utc).isoformat()})
 		state['items'][key] = entry
 		if pending:
 			page = max(1, int(state.get('current_page') or 1))
@@ -2768,16 +2769,17 @@ def process_single_scan(
 		if archive is not None:
 			archive.record_result(marc_id, file_id, {**previous, **base} if previous else {**base, 'status': 'metadata_ready'})
 		return 'metadata_ready'
-	publication_status = previous.get('previous_status') if previous.get('status') in ('metadata_failed', 'metadata_review') else previous.get('status')
+	publication = publication_evidence(previous)
+	publication_status = publication.get('status', previous.get('status'))
 	if publication_status in TERMINAL_STATUSES and previous.get('verification'):
-		state['items'][key] = {**previous, **base, 'status': publication_status}
+		state['items'][key] = retain_publication(previous, {**previous, **base, 'status': publication_status})
 		for field in ('error', 'error_type', 'attempts', 'previous_status'):
 			state['items'][key].pop(field, None)
 		if archive is not None:
 			archive.record_result(marc_id, file_id, state['items'][key])
 		save_state(state_path, state)
 		return 'completed'
-	if (not dry_run and publication_status == 'verification_failed'
+	if (not dry_run and publication
 		and re.fullmatch(r'[0-9a-fA-F]{40}', str(previous.get('sha1', '')))
 		and type(previous.get('size_bytes')) is int and previous['size_bytes'] > 0
 		and str(previous.get('commons_title', '')).startswith('File:')):
@@ -2837,7 +2839,7 @@ def process_single_scan(
 		if validation is not None:
 			base['pdf_validation'] = validation
 		if archive is not None:
-			archive.preserve_pdf(marc_id, file_id, temp_pdf)
+			base.update(archive.preserve_pdf(marc_id, file_id, temp_pdf))
 		log_progress(f'{prefix}[{key}] Checking SHA-1 hash on Commons: {viewer_url}')
 		try:
 			sha1, existing_titles = check_commons_by_hash(temp_pdf, session=client.session)
@@ -3086,14 +3088,14 @@ def iterate_and_upload(
 						for fid in direct_files or ['0']:
 							key = item_state_key(marc_id, fid)
 							previous = state['items'].get(key, {})
-							state['items'][key] = {
+							state['items'][key] = retain_publication(previous, {
 								**previous,
 								'status': 'restricted',
 								'previous_status': previous.get('previous_status', previous.get('status')),
 								'marc_id': marc_id,
 								'file_id': fid,
 								'updated_at': datetime.now(timezone.utc).isoformat(),
-							}
+							})
 							if archive is not None:
 								archive.record_result(marc_id, fid, state['items'][key])
 						save_state(state_path, state)
@@ -3209,10 +3211,11 @@ def refresh_uploaded_metadata(
 	archive = client.archive
 	counts = dict.fromkeys(('metadata_ready', 'metadata_review', 'metadata_failed', 'source_missing', 'source_changed', 'restricted', 'skipped'), 0)
 	groups: dict[str, dict[str, dict]] = {}
-	published = {'uploaded', 'existing_title', 'duplicate_sha1', 'verification_failed'}
 	for key, item in state.get('items', {}).items():
+		publication = publication_evidence(item)
+		item = with_publication_evidence(item)
 		titles = [item.get('commons_title'), *item.get('duplicates', [])]
-		if (item.get('status') not in published and item.get('previous_status') not in published
+		if (not publication
 			or not re.fullmatch(r'[0-9a-fA-F]{40}', str(item.get('sha1', '')))
 			or type(item.get('size_bytes')) is not int or item['size_bytes'] <= 0
 			or not any(isinstance(title, str) and title.startswith('File:') for title in titles)):

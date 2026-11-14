@@ -135,8 +135,17 @@ class ArchiveStore:
 		atomic_json(self.snapshots[record_id], self.manifests[record_id])
 
 	def record_result(self, record_id: str, file_id: str, result: dict[str, Any]) -> None:
-		'''Associate binary identity, outcome and verification with the archived metadata.'''
-		self.manifests[record_id]['files'].setdefault(file_id, {}).update(result)
+		'''Associate results without merging a failed attempt into an older publication.
+
+		A durable publication outcome supplies the complete available binary evidence;
+		missing fields must not be filled by a different PDF captured earlier this run.
+		'''
+		entry = self.manifests[record_id]['files'].setdefault(file_id, {})
+		if 'publication' in result:
+			from publication_history import BINARY_FIELDS
+			for field in BINARY_FIELDS:
+				entry.pop(field, None)
+		entry.update(result)
 		atomic_json(self.snapshots[record_id], self.manifests[record_id])
 
 	def _copy_pdf(self, path: Path, integrity: dict[str, Any], directory: str) -> str:
