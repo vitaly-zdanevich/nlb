@@ -3375,6 +3375,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 		help='Permanent source metadata archive (default: archive/ beside the state file).',
 	)
 	parser.add_argument('--keep-pdfs', action='store_true', help='Also retain original PDFs in the archive after verification.')
+	parser.add_argument('--backfill-pdfs', action='store_true', help='Archive missing PDFs for saved Commons uploads, verifying their original hashes; no Commons changes. With --dry-run, only inspect local files.')
 	parser.add_argument('--metadata-only', action='store_true', help='Revisit all selected records and archive Commons metadata without uploading or changing upload progress.')
 	parser.add_argument('--refresh-uploaded-metadata', action='store_true', help='Refresh saved Commons associations and automatically update their bibliographic metadata; no PDF uploads. Combine with --dry-run for an optional preview.')
 	parser.add_argument('--continue', dest='continue_run', action='store_true', help='Resume saved catalog progress or an interrupted metadata collection; otherwise start from the beginning while retaining upload history.')
@@ -3399,7 +3400,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 	parser.add_argument(
 		'--dry-run',
 		action='store_true',
-		help='Preview without Commons writes; ordinary upload previews download/hash-check PDFs, metadata refresh previews do not.',
+		help='Preview without Commons writes; ordinary previews download/check PDFs, metadata previews only read sources, PDF backfill previews only inspect local files.',
 	)
 	return parser
 
@@ -3415,6 +3416,9 @@ def main(argv: list[str] | None = None) -> int:
 		parser.error('--report must not overwrite the upload state file')
 	if args.continue_run and args.metadata_only:
 		parser.error('--metadata-only does not save catalog progress; use it without --continue')
+	if args.backfill_pdfs and (args.metadata_only or args.refresh_uploaded_metadata or args.continue_run
+		or args.url or args.search_url or args.from_year is not None or args.until_year is not None or args.max_uploads):
+		parser.error('--backfill-pdfs uses saved uploads; rerun it without search filters, --continue or other modes')
 	if args.refresh_uploaded_metadata:
 		if args.metadata_only or args.url or args.search_url or args.from_year is not None or args.until_year is not None or args.max_uploads:
 			parser.error('--refresh-uploaded-metadata uses saved associations; search filters, upload limits and other refresh modes do not apply')
@@ -3426,7 +3430,7 @@ def main(argv: list[str] | None = None) -> int:
 		if until_year is None:
 			until_year = DEFAULT_UNTIL_YEAR
 
-	archive = ArchiveStore(args.archive_dir or args.state_file.parent / 'archive', keep_pdfs=args.keep_pdfs)
+	archive = ArchiveStore(args.archive_dir or args.state_file.parent / 'archive', keep_pdfs=args.keep_pdfs or args.backfill_pdfs)
 	if args.refresh_uploaded_metadata and args.state_file.resolve() in {
 		(archive.root / 'metadata-refresh' / name).resolve() for name in ('collection.json', 'archive-issues.json')
 	}:
@@ -3440,6 +3444,10 @@ def main(argv: list[str] | None = None) -> int:
 			parser.error('--report must not overwrite archived sources, receipts or collection checkpoints')
 	if args.refresh_uploaded_metadata and (args.report or archive.root / 'metadata-refresh' / 'report.json').resolve() == args.state_file.resolve():
 		parser.error('The metadata refresh report must not overwrite the upload state file')
+	if args.backfill_pdfs and args.state_file.resolve().is_relative_to((archive.root / 'pdf-backfill').resolve()):
+		parser.error('PDF backfill evidence must not overwrite the upload state file')
+	if args.report and args.report.resolve() == (archive.root / 'pdf-backfill' / 'index.json').resolve():
+		parser.error('--report must not overwrite the PDF backfill index')
 	locks = {args.state_file.resolve().with_name(args.state_file.resolve().name + '.lock'), (archive.root / '.nlb-run.lock').resolve()}
 	if args.state_file.resolve() in locks or args.state_file.name.endswith('.lock') or (args.report and (args.report.resolve() in locks or args.report.name.endswith('.lock'))):
 		parser.error('State and report paths must not overwrite run lock files')
@@ -3458,9 +3466,23 @@ def run_locked(args: argparse.Namespace, archive: ArchiveStore, target_url: str 
 	client = NlbClient(viewer_cookies=args.viewer_cookies, archive=archive,
 		metadata_reads_only=args.metadata_only or args.refresh_uploaded_metadata)
 	client.archive = archive
-	uploader = None if args.dry_run or args.metadata_only or args.refresh_uploaded_metadata else CommonsUploader(pywikibot_dir=args.pywikibot_dir)
+	uploader = None if args.dry_run or args.metadata_only or args.refresh_uploaded_metadata or args.backfill_pdfs else CommonsUploader(pywikibot_dir=args.pywikibot_dir)
 
 	try:
+		if args.backfill_pdfs:
+			from pdf_backfill import backfill_pdfs
+			try:
+				report = backfill_pdfs(client, args.state_file, args.staging_dir,
+					license_template=args.license or DEFAULT_LICENSE, explicit_license=args.license is not None, dry_run=args.dry_run)
+			except ValueError as error:
+				print(f'Stopped: {error}')
+				return 2
+			if args.report:
+				from preservation import atomic_json
+				atomic_json(args.report, report)
+			print(json.dumps(report['counts'], ensure_ascii=False))
+			return 2 if any(value for key, value in report['counts'].items()
+				if key not in ('archived', 'already_archived', 'skipped', 'missing_pdf')) else 0
 		if args.refresh_uploaded_metadata:
 			from metadata_refresh import apply_uploaded_metadata, inspect_refresh_archive
 			issues = inspect_refresh_archive(archive.root)

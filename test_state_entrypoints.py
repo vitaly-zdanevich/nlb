@@ -33,7 +33,7 @@ class TestStateEntrypoints(unittest.TestCase):
 
 	def test_malformed_history_stops_all_modes_before_clients_and_preserves_bytes(self):
 		'''Schema and JSON failures cannot clear history or begin any remote operation.'''
-		for mode in ([], ['--dry-run'], ['--metadata-only'], ['--refresh-uploaded-metadata']):
+		for mode in ([], ['--dry-run'], ['--metadata-only'], ['--refresh-uploaded-metadata'], ['--backfill-pdfs']):
 			for body in ('{"items":[]}', '{"items":{"BY-NLB-one:1":null}}', '{"items":'):
 				with self.subTest(mode=mode, body=body):
 					self.state.write_text(body)
@@ -60,7 +60,7 @@ class TestStateEntrypoints(unittest.TestCase):
 		'''Competing CLI runs stop before they authenticate, collect sources or edit Commons.'''
 		self.state.write_text('{"items":{}}')
 		before = self.state.read_bytes()
-		for mode in ([], ['--dry-run'], ['--metadata-only'], ['--refresh-uploaded-metadata']):
+		for mode in ([], ['--dry-run'], ['--metadata-only'], ['--refresh-uploaded-metadata'], ['--backfill-pdfs']):
 			for state, archive in ((self.state, None), (None, self.archive)):
 				with self.subTest(mode=mode, resource='state' if state else 'archive'), exclusive_run(state, archive):
 					with mock.patch('upload.NlbClient') as client, mock.patch('upload.CommonsUploader') as uploader, mock.patch('upload.run_locked') as run, mock.patch('sys.stdout', io.StringIO()) as output:

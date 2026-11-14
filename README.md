@@ -6,8 +6,8 @@
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
-[![Production code](https://img.shields.io/badge/production%20code-5%2C355%20lines-blue)](upload.py)
-[![Test code](https://img.shields.io/badge/test%20code-8%2C811%20lines-blue)](#running-tests)
+[![Production code](https://img.shields.io/badge/production%20code-5%2C992%20lines-blue)](upload.py)
+[![Test code](https://img.shields.io/badge/test%20code-9%2C809%20lines-blue)](#running-tests)
 
 [`upload.py`](upload.py) iterates over open-access digitized scans from the Electronic Library of the National Library of Belarus (`https://elib.nlb.by`), archives the source responses, and uploads eligible PDFs to Wikimedia Commons with their useful catalog metadata readable on the file page.
 
@@ -149,6 +149,17 @@ A metadata-only run starts at page 1 of the selected catalog, captures metadata 
 
 Ordinary runs already revisit completed files to archive their current metadata; verified completed PDFs skip another transfer. They also process new/pending uploads; `--continue` resumes saved catalog progress. The unused `--refresh-metadata` flag has been removed. Ordinary and metadata-only runs do not edit existing Commons descriptions.
 
+To add missing originals to the local archive for files already uploaded to Commons:
+
+```bash
+./upload.py --backfill-pdfs --viewer-cookies nlb-cookies.txt
+
+# Inspect local PDF completeness without downloading or contacting either website
+./upload.py --backfill-pdfs --dry-run
+```
+
+This mode leaves upload state and Commons unchanged. It selects saved uploads with a known hash, byte size and Commons target, checks existing local PDFs, and downloads missing originals only after fresh access, rights and scan-association checks. Downloaded bytes must match the saved upload. Changed source PDFs are quarantined; corrupt archived objects are reported without overwriting them. Rerun the command to retry missing files; verified local PDFs are reused. `--keep-pdfs` is implied. Reports and a reusable PDF index live in `archive/pdf-backfill/`. Ordinary `--keep-pdfs` runs retain new downloads but do not backfill completed uploads.
+
 The uploader validates saved state before using or rewriting it and holds process locks for the state and archive throughout each run. A second writer stops with a diagnostic; read-only inspection remains available. Locks release when the process exits, including after a crash; do not delete their files. Historical Commons targets, hashes and sizes survive later failed attempts, while evidence for different downloaded bytes is stored separately.
 
 To refresh the metadata of every hash-identified Commons association saved in `state.json` and **apply updates automatically**:
@@ -199,7 +210,7 @@ Operators must comply with [Commons bot policy](https://commons.wikimedia.org/wi
 
 The uploader prints a JSON count summary. `--report run-report.json` also writes the counts and completion time as JSON after a normal or partial run. Exit status `0` means the run reported no deferred/error/review outcomes; `2` means at least one search, metadata, download, upload, verification, title-conflict, metadata-review or rights-review outcome remains unresolved. These counts describe this selected run, not an independent completeness audit of the entire library. Unhandled errors still terminate the process; an immediate second interrupt exits with `130`.
 
-Dry runs and metadata-only runs can create archive snapshots and reports, but do not change the production state file. They require network access to the catalog; dry runs also download eligible PDFs and perform anonymous Commons hash lookups.
+Dry runs and metadata-only runs can create archive snapshots and reports, but do not change the production state file. Ordinary upload previews read the catalog, download eligible PDFs and perform anonymous Commons hash lookups. Metadata previews read source metadata without downloading PDFs. PDF backfill previews only inspect local files and require no network access.
 
 ## Running Tests
 
@@ -207,7 +218,7 @@ The upload integration tests use Pywikibot's real request and chunk-upload code 
 
 ```bash
 python -m pip install pytest pytest-cov requests beautifulsoup4 'pywikibot>=11.6' 'pypdf>=6,<7' mwparserfromhell
-pytest -v --cov=upload --cov=refresh_checkpoint --cov=viewer_outline --cov=wikimedia_text --cov=catalog_hierarchy --cov=metadata_refresh --cov=metadata_refresh_merge --cov=scan_identity --cov=commons_verification --cov=catalog_requests --cov=catalog_validation --cov=preservation --cov=publication_rights --cov=pdf_validation --cov=reconcile_metadata --cov-report=term-missing
+pytest -v --cov=upload --cov=publication_history --cov=state_storage --cov=pdf_backfill --cov=viewer_api --cov=refresh_checkpoint --cov=viewer_outline --cov=wikimedia_text --cov=catalog_hierarchy --cov=metadata_refresh --cov=metadata_refresh_merge --cov=scan_identity --cov=commons_verification --cov=catalog_requests --cov=catalog_validation --cov=preservation --cov=publication_rights --cov=pdf_validation --cov=reconcile_metadata --cov-report=term-missing
 # or
 python3 -m unittest discover -v
 ```
