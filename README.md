@@ -141,13 +141,13 @@ A metadata-only run starts at page 1 of the selected catalog, captures metadata 
 ./upload.py --metadata-only --archive-dir archive --report run-report.json
 
 # Revisit page 1 while also processing eligible pending/new uploads
-./upload.py --refresh-metadata --archive-dir archive
+./upload.py --archive-dir archive
 
 # Optionally keep the original verified PDFs as well as metadata
 ./upload.py --keep-pdfs --archive-dir /path/to/nlb-archive
 ```
 
-`--refresh-metadata` revisits completed files to archive their current metadata; verified completed PDFs can skip another transfer. It is a normal upload run and can upload new/pending items; `--continue` resumes its saved catalog progress. Neither refresh mode edits existing Commons descriptions.
+Ordinary runs already revisit completed files to archive their current metadata; verified completed PDFs skip another transfer. They also process new/pending uploads; `--continue` resumes saved catalog progress. The unused `--refresh-metadata` flag has been removed. Ordinary and metadata-only runs do not edit existing Commons descriptions.
 
 To refresh the metadata of every hash-identified Commons association saved in `state.json` and **apply updates automatically**:
 

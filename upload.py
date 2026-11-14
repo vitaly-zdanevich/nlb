@@ -2957,7 +2957,6 @@ def iterate_and_upload(
 	dry_run: bool = False,
 	explicit_license: bool = False,
 	metadata_only: bool = False,
-	refresh_metadata: bool = False,
 	continue_run: bool = False,
 ) -> dict[str, int]:
 	'''Scan from page one by default; explicit continuation resumes pending progress.'''
@@ -3370,7 +3369,6 @@ def build_arg_parser() -> argparse.ArgumentParser:
 	)
 	parser.add_argument('--keep-pdfs', action='store_true', help='Also retain original PDFs in the archive after verification.')
 	parser.add_argument('--metadata-only', action='store_true', help='Revisit all selected records and archive Commons metadata without uploading or changing upload progress.')
-	parser.add_argument('--refresh-metadata', action='store_true', help='Archive updated metadata for completed files during the upload run; starts at page 1 unless --continue is given.')
 	parser.add_argument('--refresh-uploaded-metadata', action='store_true', help='Refresh saved Commons associations and automatically update their bibliographic metadata; no PDF uploads. Combine with --dry-run for an optional preview.')
 	parser.add_argument('--continue', dest='continue_run', action='store_true', help='Resume saved catalog progress or an interrupted metadata collection; otherwise start from the beginning while retaining upload history.')
 	parser.add_argument('--report', type=Path, help='Write a machine-readable run summary to this JSON file.')
@@ -3408,7 +3406,7 @@ def main(argv: list[str] | None = None) -> int:
 	if args.continue_run and args.metadata_only:
 		parser.error('--metadata-only does not save catalog progress; use it without --continue')
 	if args.refresh_uploaded_metadata:
-		if args.metadata_only or args.refresh_metadata or args.url or args.search_url or args.from_year is not None or args.until_year is not None or args.max_uploads:
+		if args.metadata_only or args.url or args.search_url or args.from_year is not None or args.until_year is not None or args.max_uploads:
 			parser.error('--refresh-uploaded-metadata uses saved associations; search filters, upload limits and other refresh modes do not apply')
 
 	target_url = args.search_url or args.url
@@ -3474,7 +3472,6 @@ def main(argv: list[str] | None = None) -> int:
 			dry_run=args.dry_run,
 			explicit_license=args.license is not None,
 			metadata_only=args.metadata_only,
-			refresh_metadata=args.refresh_metadata,
 			continue_run=args.continue_run,
 		)
 		print(json.dumps(counts, ensure_ascii=False))
