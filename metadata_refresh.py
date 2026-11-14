@@ -279,6 +279,11 @@ def _load_receipt(root: Path, page: dict, receipts: dict, reader: Callable) -> d
 			or 'primary_key' not in receipt
 			or receipt.get('mode') == 'information' and not isinstance(receipt.get('primary_key'), str)
 			or receipt.get('mode') == 'blocks' and receipt.get('primary_key') is not None
+			or 'baseline_primary_key' in receipt and (
+				receipt.get('mode') == 'information' and not isinstance(receipt['baseline_primary_key'], str)
+				or receipt.get('mode') == 'blocks' and receipt['baseline_primary_key'] is not None)
+			or not isinstance(receipt.get('preserved_fields', []), list)
+			or any(not isinstance(name, str) or not name.strip() for name in receipt.get('preserved_fields', []))
 			or not isinstance(receipt.get('aliases', []), list)
 			or any(not isinstance(title, str) or not title.startswith('File:') for title in receipt.get('aliases', []))):
 			raise ValueError('Metadata update receipt integrity mismatch')
@@ -325,7 +330,29 @@ def _historical_blocks(root: Path, page: dict, candidates: list[dict]) -> dict[s
 	return result
 
 
-def _proposal(root: Path, page: dict, candidates: list[dict], history: list[dict], receipt: dict | None) -> tuple[str, dict]:
+def _proven_wrong_primary(page: dict, outcomes: list[dict]) -> bool:
+	'''Require fresh, explicit volume disagreement before replacing an established source.
+
+	Read failures, missing files, access changes and uncertain identity assessments
+	do not prove that the published catalog association was wrong.
+	'''
+	if not outcomes:
+		return False
+	for item in outcomes:
+		identity = item.get('scan_identity') or {}
+		if (item.get('metadata_refresh', {}).get('status') != 'metadata_review'
+			or identity.get('eligible') is not False
+			or identity.get('reason') != 'Viewer volume differs from the catalog record'):
+			return False
+		try:
+			if _binary(item) != _binary(page) or not {page['title'], *page.get('aliases', [])}.intersection(_targets(item)):
+				return False
+		except ValueError:
+			return False
+	return True
+
+
+def _proposal(root: Path, page: dict, candidates: list[dict], history: list[dict], receipt: dict | None, source_outcomes: dict) -> tuple[str, dict]:
 	'''Choose a proven primary owner, or update separate source blocks on an unowned page.'''
 	baseline = None
 	primary_key = None
@@ -338,6 +365,8 @@ def _proposal(root: Path, page: dict, candidates: list[dict], history: list[dict
 		else:
 			baseline = receipt['baseline_text']
 		primary_key, mode = receipt['primary_key'], receipt['mode']
+		if receipt['status'] == 'pending' and text_hash(page['text']) != receipt['expected_text_sha256']:
+			primary_key = receipt.get('baseline_primary_key', primary_key)
 	else:
 		aliases = {page['title'], *page.get('aliases', [])}
 		owners = [item for item in history if aliases.intersection(item['titles'])]
@@ -350,6 +379,7 @@ def _proposal(root: Path, page: dict, candidates: list[dict], history: list[dict
 			baseline, primary_key, mode = owner['text'], owner['key'], 'information'
 	if baseline is None:
 		baseline = ''
+	baseline_primary_key = primary_key
 	present_blocks = managed_blocks(page['text'])
 	old_blocks = managed_blocks(baseline)
 	archived_blocks = _historical_blocks(root, page, candidates) if present_blocks else {}
@@ -357,6 +387,8 @@ def _proposal(root: Path, page: dict, candidates: list[dict], history: list[dict
 	if mode == 'information':
 		matches = [item for item in candidates if item['key'] == primary_key]
 		if not matches:
+			if not _proven_wrong_primary(page, source_outcomes.get(primary_key, [])):
+				raise ValueError('Established primary source is not ready; keeping its published metadata: ' + primary_key)
 			if len({normalize_wikitext(str(information(item['text']))) for item in candidates}) != 1:
 				raise ValueError('Conflicting replacement catalog associations for the primary description')
 			matches = candidates[:1]
@@ -378,16 +410,21 @@ def _proposal(root: Path, page: dict, candidates: list[dict], history: list[dict
 	for key, old_block in old_blocks.items():
 		if key not in {item['key'] for item in candidates}:
 			generated += '\n' + old_block
-	merger = merge_generated_metadata if mode == 'information' else merge_metadata_blocks
-	proposed = merger(page['text'], baseline, generated)
 	preserved = []
 	if mode == 'information':
-		current_fields, old_fields, new_fields = [{item.name.strip(): normalize_wikitext(str(item.value).strip()) for item in information(text).params}
-			for text in (page['text'], baseline, generated)]
-		preserved = [name for name in old_fields if name != 'permission'
-			and current_fields.get(name) != old_fields.get(name) and current_fields.get(name) != new_fields.get(name)]
+		current_fields, old_fields = [{item.name.strip(): normalize_wikitext(str(item.value).strip()) for item in information(text).params}
+			for text in (page['text'], baseline)]
+		# Ownership is durable, including added fields and deliberate removals.
+		# A later catalog value equal to a human value cannot reclaim that field.
+		preserved = sorted((set(receipt.get('preserved_fields', []) if receipt else [])
+			| {name for name in old_fields.keys() | current_fields.keys() if current_fields.get(name) != old_fields.get(name)})
+			- {'permission', 'description'})
+		proposed = merge_generated_metadata(page['text'], baseline, generated, preserved_fields=preserved)
+	else:
+		proposed = merge_metadata_blocks(page['text'], baseline, generated)
 	return proposed, {'mode': mode, 'primary_key': primary_key, 'baseline_text': baseline,
-		'generated_text': generated, 'generated_sha256': text_hash(generated), 'preserved_fields': preserved}
+		'baseline_primary_key': baseline_primary_key, 'generated_text': generated,
+		'generated_sha256': text_hash(generated), 'preserved_fields': preserved}
 
 
 def apply_uploaded_metadata(
@@ -414,7 +451,7 @@ def apply_uploaded_metadata(
 		report['items'].append({'status': status, **details})
 		atomic_json(output, report)
 		print(f'[{details.get("title", details.get("key", "metadata"))}] {status}: {details.get("error", "")}', flush=True)
-	requested = defaultdict(list)
+	requested, source_outcomes = defaultdict(list), defaultdict(list)
 	for snapshot in snapshots:
 		path = Path(snapshot).resolve()
 		if not path.is_relative_to(root.resolve() / 'records'):
@@ -432,6 +469,7 @@ def apply_uploaded_metadata(
 			if not isinstance(item, dict):
 				outcome('metadata_source_skipped', key=key, error='Invalid fresh scan metadata entry')
 				continue
+			source_outcomes[key].append(item)
 			if item.get('metadata_refresh', {}).get('status') != 'metadata_ready' or (item.get('scan_identity') or {}).get('eligible') is not True:
 				outcome('metadata_source_skipped', key=key, error=item.get('error', 'Incomplete or ambiguous source refresh'))
 				continue
@@ -477,11 +515,19 @@ def apply_uploaded_metadata(
 				outcome('metadata_conflict', title=title, error='Damaged archived metadata evidence', archive_issues=issues)
 				continue
 			receipt = _load_receipt(root, page, receipts, reader)
-			new_text, ownership = _proposal(root, page, candidates, history[_binary(page)], receipt)
+			new_text, ownership = _proposal(root, page, candidates, history[_binary(page)], receipt, source_outcomes)
+			checkpoint = {**ownership, 'title': title, 'sha1': page['sha1'], 'size_bytes': page['size_bytes'],
+				'status': 'pending', 'expected_text_sha256': text_hash(new_text), 'baserevid': page['revid'],
+				'aliases': sorted(set(receipt.get('aliases', []) if receipt else []) | group['aliases'] | {title}),
+				'updated_at': datetime.now(timezone.utc).isoformat()}
+			if _page_id(page) is not None:
+				checkpoint['page_id'] = _page_id(page)
 			if new_text == page['text']:
-				if not dry_run and receipt and receipt['status'] == 'pending' and text_hash(page['text']) == receipt['expected_text_sha256']:
-					atomic_json(receipt_path, {**receipt, 'status': 'applied'})
-				outcome('metadata_unchanged', title=title)
+				# Even a no-op can discover a human edit or removal. Save ownership
+				# before a later source value happens to match that contribution.
+				if not dry_run:
+					atomic_json(receipt_path, {**checkpoint, 'status': 'applied'})
+				outcome('metadata_unchanged', title=title, preserved_fields=ownership['preserved_fields'])
 				continue
 			if dry_run:
 				diff = ''.join(difflib.unified_diff(page['text'].splitlines(keepends=True), new_text.splitlines(keepends=True), fromfile=title, tofile=title + ' (refreshed)'))
@@ -490,12 +536,6 @@ def apply_uploaded_metadata(
 			current = reader(title)
 			if any(current.get(key) != page.get(key) for key in ('title', 'page_id', 'sha1', 'size_bytes', 'revid', 'text')):
 				raise ValueError('Commons page or binary changed during metadata refresh')
-			checkpoint = {**ownership, 'title': title, 'sha1': page['sha1'], 'size_bytes': page['size_bytes'],
-				'status': 'pending', 'expected_text_sha256': text_hash(new_text), 'baserevid': page['revid'],
-				'aliases': sorted(set(receipt.get('aliases', []) if receipt else []) | group['aliases'] | {title}),
-				'updated_at': datetime.now(timezone.utc).isoformat()}
-			if _page_id(page) is not None:
-				checkpoint['page_id'] = _page_id(page)
 			atomic_json(receipt_path, checkpoint)
 			print(f'Applying metadata update: {title}', flush=True)
 			if not writer({'title': title, 'new_text': new_text, 'baserevid': page['revid'], 'sha1': page['sha1'],

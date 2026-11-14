@@ -33,11 +33,11 @@ class TestAutomaticMetadataRefresh(unittest.TestCase):
 			return True
 		self.writer = mock.Mock(side_effect=edit)
 
-	def snapshot(self, text, *, fresh=True, key='BY-NLB-one', eligible=True, actual_upload=True):
+	def snapshot(self, text, *, fresh=True, key='BY-NLB-one', eligible=True, actual_upload=True, identity_reason=''):
 		'''Write immutable generated descriptions, distinguishing publication from copied state.'''
 		archive = ArchiveStore(self.root)
 		archive.save_record(key, {}, {})
-		archive.save_scan(key, '1', text, self.title, scan_identity={'eligible': eligible})
+		archive.save_scan(key, '1', text, self.title, scan_identity={'eligible': eligible, 'reason': identity_reason})
 		entry = {'status': 'uploaded', 'sha1': 'a' * 40, 'size_bytes': 123, 'verification': {'page_id': 1},
 			'updated_at': datetime.now(timezone.utc).isoformat() if actual_upload and not fresh else '2000-01-01T00:00:00+00:00'}
 		if fresh:
@@ -70,6 +70,60 @@ class TestAutomaticMetadataRefresh(unittest.TestCase):
 		self.page['text'] = self.old.replace('Original catalog description', 'Human corrected description')
 		self.assertEqual(self.run_refresh()['counts']['metadata_conflict'], 1)
 		self.writer.assert_not_called()
+
+	def test_human_author_stays_protected_when_catalog_values_converge_then_diverge(self):
+		'''Persist ownership through complete refresh runs, including a coincident catalog value.'''
+		self.page['text'] = self.old.replace('Catalog author', 'Human author')
+		self.assertEqual(self.run_refresh()['counts']['metadata_updated'], 1)
+		for author in ('Human author', 'Later catalog author'):
+			self.fresh = self.snapshot(self.new.replace('New author', author))
+			result = self.run_refresh()
+			self.assertEqual(result['counts']['metadata_unchanged'], 1)
+			self.assertEqual(result['items'][0]['preserved_fields'], ['author'])
+			self.assertIn('|author=Human author\n', self.page['text'])
+		self.writer.assert_called_once()
+
+	def test_noop_refresh_records_human_added_fields_before_catalog_convergence(self):
+		'''An unchanged page still saves ownership before later generators adopt its field.'''
+		self.page['text'] = self.old.replace('}}\n{{License}}', '|other_fields=Human note\n}}\n{{License}}')
+		original = self.page['text']
+		for fields in ({}, {'other_fields': 'Human note'}, {'other_fields': 'Catalog replacement'}):
+			self.fresh = self.snapshot(description(date='1836', author='Catalog author', **fields))
+			result = self.run_refresh()
+			self.assertEqual(result['counts']['metadata_unchanged'], 1)
+			self.assertEqual(result['items'][0]['preserved_fields'], ['other_fields'])
+			self.assertEqual(self.page['text'], original)
+		self.writer.assert_not_called()
+		receipt, = (self.root / 'metadata-refresh/pages').glob('*.json')
+		self.assertEqual(json.loads(receipt.read_text())['preserved_fields'], ['other_fields'])
+
+	def test_human_removal_survives_catalog_removal_and_reintroduction(self):
+		'''Deleting a field remains deliberate even while a later catalog also omits it.'''
+		self.page['text'] = self.old.replace('|date=1836\n', '')
+		self.assertEqual(self.run_refresh()['counts']['metadata_updated'], 1)
+		for fields in ({}, {'date': '1840'}):
+			self.fresh = self.snapshot(description('Expanded source description', author='New author', **fields))
+			result = self.run_refresh()
+			self.assertEqual(result['counts']['metadata_unchanged'], 1)
+			self.assertEqual(result['items'][0]['preserved_fields'], ['date'])
+			self.assertNotIn('|date=', self.page['text'])
+		self.writer.assert_called_once()
+
+	def test_failed_edit_receipt_preserves_human_ownership_on_later_retries(self):
+		'''A rejected Commons edit cannot erase the protected fields learned before that edit.'''
+		self.page['text'] = self.old.replace('Catalog author', 'Human author')
+		edit = self.writer.side_effect
+		self.writer.side_effect = None
+		self.writer.return_value = False
+		self.assertEqual(self.run_refresh()['counts']['metadata_edit_failed'], 1)
+		self.writer.side_effect = edit
+		self.fresh = self.snapshot(self.new.replace('New author', 'Human author'))
+		self.assertEqual(self.run_refresh()['counts']['metadata_updated'], 1)
+		self.fresh = self.snapshot(self.new.replace('New author', 'Later catalog author'))
+		result = self.run_refresh()
+		self.assertEqual(result['counts']['metadata_unchanged'], 1)
+		self.assertEqual(result['items'][0]['preserved_fields'], ['author'])
+		self.assertIn('|author=Human author\n', self.page['text'])
 
 	def test_dry_run_produces_preview_without_receipts_or_edits(self):
 		'''Preview is optional and cannot claim that a generated description was published.'''
@@ -106,17 +160,73 @@ class TestAutomaticMetadataRefresh(unittest.TestCase):
 
 	def test_corrected_volume_uses_unique_valid_alternative_with_the_same_binary(self):
 		'''An original wrong owner can be replaced by a newly scoped catalog association.'''
-		blocked = self.snapshot(self.new, eligible=False)
+		blocked = self.snapshot(self.new, eligible=False, identity_reason='Viewer volume differs from the catalog record')
 		correct = self.snapshot(description('Correct volume three', date='1645'), key='BY-NLB-correct')
 		result = self.run_refresh([blocked, correct])
 		self.assertEqual(result['counts']['metadata_updated'], 1)
 		self.assertIn('Correct volume three', self.page['text'])
 
+	def test_failed_uncertain_or_unselected_primary_cannot_be_replaced_by_a_ready_secondary(self):
+		'''A temporary failure or missing selection supplies no evidence of a wrong association.'''
+		self.assertEqual(self.run_refresh()['counts']['metadata_updated'], 1)
+		original = self.page['text']
+		secondary = self.snapshot(description('Different bibliography', date='1801'), key='BY-NLB-secondary')
+		for status, reason in (
+			('metadata_failed', 'HTTP 504 gateway timeout'), ('metadata_failed', 'HTTP 403 forbidden'),
+			('source_missing', 'Previously uploaded file ID is absent from the current record'),
+			('source_changed', 'The source file path changed'), ('restricted', 'No public access'),
+			('metadata_review', 'Shared viewer has no explicit volume for this scan'),
+			('metadata_review', 'Catalog volume statements disagree'), (None, ''),
+		):
+			with self.subTest(status=status, reason=reason):
+				selected = [secondary]
+				if status:
+					failed = self.snapshot(self.new, eligible=False, identity_reason=reason)
+					manifest = json.loads(failed.read_text())
+					manifest['files']['1'].update(status=status, error=reason, metadata_refresh={'status': status})
+					failed.write_text(json.dumps(manifest))
+					selected.append(failed)
+				self.writer.reset_mock()
+				result = self.run_refresh(selected)
+				self.assertEqual(result['counts']['metadata_conflict'], 1)
+				self.assertEqual(result['counts']['metadata_source_skipped'], int(bool(status)))
+				self.assertIn('Established primary source is not ready', result['items'][-1]['error'])
+				self.assertEqual(self.page['text'], original)
+				self.writer.assert_not_called()
+
+	def test_wrong_volume_evidence_must_match_the_published_binary_and_target(self):
+		'''An unrelated or unverifiable rejected source cannot transfer primary ownership.'''
+		secondary = self.snapshot(description('Different bibliography'), key='BY-NLB-secondary')
+		for field, value in (('sha1', 'b' * 40), ('sha1', 'invalid'), ('commons_title', 'File:Other.pdf')):
+			with self.subTest(field=field, value=value):
+				blocked = self.snapshot(self.new, eligible=False, identity_reason='Viewer volume differs from the catalog record')
+				manifest = json.loads(blocked.read_text())
+				manifest['files']['1'][field] = value
+				blocked.write_text(json.dumps(manifest))
+				self.assertEqual(self.run_refresh([blocked, secondary])['counts']['metadata_conflict'], 1)
+				self.assertEqual(self.page['text'], self.old)
+				self.writer.assert_not_called()
+
+	def test_failed_replacement_edit_keeps_the_previous_primary_on_restart(self):
+		'''A pending replacement receipt cannot make an unpublished primary authoritative.'''
+		blocked = self.snapshot(self.new, eligible=False, identity_reason='Viewer volume differs from the catalog record')
+		correct = self.snapshot(description('Correct volume three'), key='BY-NLB-correct')
+		self.writer.side_effect = None
+		self.writer.return_value = False
+		self.assertEqual(self.run_refresh([blocked, correct])['counts']['metadata_edit_failed'], 1)
+		self.writer.reset_mock()
+		self.assertEqual(self.run_refresh([correct])['counts']['metadata_conflict'], 1)
+		self.assertEqual(self.page['text'], self.old)
+		self.writer.assert_not_called()
+
 	def test_competing_new_primary_records_remain_pending(self):
 		'''No archive ordering rule may choose between conflicting replacement volumes.'''
+		blocked = self.snapshot(self.new, eligible=False, identity_reason='Viewer volume differs from the catalog record')
 		one = self.snapshot(description('Volume two'), key='BY-NLB-second')
 		two = self.snapshot(description('Volume three'), key='BY-NLB-third')
-		self.assertEqual(self.run_refresh([one, two])['counts']['metadata_conflict'], 1)
+		result = self.run_refresh([blocked, one, two])
+		self.assertEqual(result['counts']['metadata_conflict'], 1)
+		self.assertIn('Conflicting replacement catalog associations', result['items'][-1]['error'])
 		self.writer.assert_not_called()
 
 	def test_crash_after_edit_resumes_without_reapplying_or_losing_ownership(self):
@@ -291,7 +401,8 @@ class TestAutomaticMetadataRefresh(unittest.TestCase):
 			('title', None), ('generated_text', 'Modified without checksum'),
 			('expected_text_sha256', 'invalid'), ('updated_at', '2026-01-01T00:00:00'),
 			('updated_at', None), ('aliases', 'File:Not a list.pdf'), ('aliases', [None]),
-			('primary_key', []), ('mode', 'unknown'),
+			('primary_key', []), ('baseline_primary_key', []), ('mode', 'unknown'),
+			('preserved_fields', 'author'), ('preserved_fields', [None]), ('preserved_fields', [' ']),
 		):
 			with self.subTest(field=field, value=value):
 				path.write_text(json.dumps({**receipt, field: value}))

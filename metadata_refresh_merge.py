@@ -6,7 +6,7 @@ blocks are conflicts because combining them with new catalog claims is unsafe.
 '''
 
 import re
-from typing import Any
+from typing import Any, Iterable
 
 import mwparserfromhell
 
@@ -18,7 +18,12 @@ MARKER = re.compile(r'<!-- NLB-METADATA:([A-Za-z0-9_-]+:[A-Za-z0-9_-]+):(BEGIN|E
 
 def information(text: str) -> Any:
 	'''Require exactly one top-level Information template with unique named fields.'''
-	templates = [item for item in mwparserfromhell.parse(text).filter_templates(recursive=False)
+	return _information(mwparserfromhell.parse(text))
+
+
+def _information(document: Any) -> Any:
+	'''Return the actual validated template node in an already parsed document.'''
+	templates = [item for item in document.filter_templates(recursive=False)
 		if item.name.strip().casefold() == 'information']
 	if len(templates) != 1:
 		raise ValueError('Expected one unambiguous Information template')
@@ -52,9 +57,12 @@ def managed_blocks(text: str) -> dict[str, str]:
 	return blocks
 
 
-def merge_generated_metadata(current_text: str, baseline_text: str, generated_text: str) -> str:
-	'''Refresh unchanged generated fields, preserving licensing and human contributions.'''
-	current, baseline, generated = [information(text) for text in (current_text, baseline_text, generated_text)]
+def merge_generated_metadata(current_text: str, baseline_text: str, generated_text: str, *, preserved_fields: Iterable[str] = ()) -> str:
+	'''Refresh owned fields, keeping prior human ownership even when values coincide.'''
+	document = mwparserfromhell.parse(current_text)
+	current = _information(document)
+	baseline, generated = [information(text) for text in (baseline_text, generated_text)]
+	protected = set(preserved_fields) - {'description'}
 	fields = [{item.name.strip(): item for item in template.params} for template in (current, baseline, generated)]
 	present, old, new = fields
 	def value(parameters: dict, key: str) -> str | None:
@@ -62,9 +70,8 @@ def merge_generated_metadata(current_text: str, baseline_text: str, generated_te
 		return normalize_wikitext(str(parameters[key].value).strip()) if key in parameters else None
 	if 'description' not in old or 'description' not in new or value(present, 'description') not in (value(old, 'description'), value(new, 'description')):
 		raise ValueError('Human-edited or missing Information description')
-	before = str(current)
 	for name in set(old) | set(new):
-		if name == 'permission':
+		if name == 'permission' or name in protected:
 			continue
 		if name in old and value(present, name) == value(old, name):
 			if name in new:
@@ -73,10 +80,9 @@ def merge_generated_metadata(current_text: str, baseline_text: str, generated_te
 				current.remove(present[name])
 	# Preserve generator order when appending genuinely new parameters.
 	for name, parameter in new.items():
-		if name != 'permission' and name not in old and name not in present:
+		if name != 'permission' and name not in protected and name not in old and name not in present:
 			current.add(str(parameter.name), normalize_wikitext(str(parameter.value)), preserve_spacing=False)
-	result = current_text.replace(before, str(current), 1)
-	return merge_metadata_blocks(result, baseline_text, generated_text)
+	return merge_metadata_blocks(str(document), baseline_text, generated_text)
 
 
 def merge_metadata_blocks(current_text: str, baseline_text: str, generated_text: str) -> str:

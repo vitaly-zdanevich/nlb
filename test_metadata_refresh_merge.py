@@ -35,6 +35,21 @@ class TestMetadataRefreshMerge(unittest.TestCase):
 		generated = description('New description', date='1838', author='New catalog author', source='Updated source', other_fields='Catalog notes')
 		self.assertEqual(merge_generated_metadata(current, baseline, generated), description('New description', date='1837', author='Human author', other_fields='Human notes'))
 
+	def test_active_template_updates_without_changing_identical_commented_example(self):
+		'''Mutate the parsed template node instead of a matching substring in a comment.'''
+		baseline = description(author='Catalog author')
+		prefix = '<!-- Saved example: ' + baseline + ' -->\n'
+		suffix = '\n<nowiki>' + baseline + '</nowiki>\n[[Category:Human category]]'
+		generated = description('Updated description', author='New author')
+		self.assertEqual(merge_generated_metadata(prefix + baseline + suffix, baseline, generated), prefix + generated + suffix)
+
+	def test_owned_human_fields_and_removals_cannot_be_reclaimed_after_convergence(self):
+		'''A receipt's protected names survive matching values and absent generated fields.'''
+		baseline = description(author='Human author')
+		generated = description('Updated description', author='Catalog correction', source='New source')
+		merged = merge_generated_metadata(baseline, baseline, generated, preserved_fields=['author', 'source'])
+		self.assertEqual(merged, description('Updated description', author='Human author'))
+
 	def test_new_fields_add_and_removed_unchanged_fields_disappear(self):
 		'''A known generated field can retire; a genuinely new absent field can be introduced.'''
 		baseline = description(author='Old author')
