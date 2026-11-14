@@ -183,9 +183,41 @@ class TestPublicationRights(unittest.TestCase):
 			with self.subTest(roles=roles):
 				self.assertFalse(self.evaluate({'date': '1890', 'contributors': [contributor('Person', [], roles)]})['eligible'])
 		meta = {'date': '1890', 'contributors': [{'name': 'Unspecified secondary (1900-1980)', 'tag': '702', 'roles': []}]}
-		self.assertTrue(self.evaluate(meta)['eligible'])
+		self.assertFalse(self.evaluate(meta)['eligible'])
 		meta['contributors'] = [{'name': 'Primary (1800-1870)', 'tag': '700', 'roles': []}]
 		self.assertIn('deathyear=1870', self.evaluate(meta)['license'])
+
+	def test_missing_secondary_roles_cannot_hide_later_deaths(self) -> None:
+		'''An old author does not establish expiry for an unclassified secondary role.'''
+		for tag in ('702', '712'):
+			for dates in ([], ['1860-1960'], ['1800-1870']):
+				with self.subTest(tag=tag, dates=dates):
+					secondary = {'name': 'Secondary contributor', 'tag': tag, 'roles': [], 'dates': dates}
+					meta = {'date': '1890', 'contributors': [contributor('Author', ['1800-1870']), secondary]}
+					decision = self.evaluate(meta)
+					self.assertFalse(decision['eligible'])
+					self.assertIn('Unresolved contributor role: Secondary contributor', decision['evidence'])
+					if dates:
+						self.assertIn(dates[0], '\n'.join(decision['evidence']))
+					secondary['roles'] = ['390']
+					self.assertEqual(self.evaluate(meta)['license'], 'PD-scan|PD-old-auto-expired|deathyear=1870')
+
+	def test_parsed_translation_keeps_uncoded_translator_in_rights_review(self) -> None:
+		'''The real MARC parser must not turn an absent 702$4 into permission to upload.'''
+		from upload import parse_marcxml
+
+		marc = parse_marcxml('''<record xmlns="http://www.loc.gov/MARC21/slim">
+<controlfield tag="001">BY-NLB-test</controlfield>
+<datafield tag="200"><subfield code="a">A translated book</subfield><subfield code="g">Translated by Translator</subfield></datafield>
+<datafield tag="210"><subfield code="d">1890</subfield></datafield>
+<datafield tag="700"><subfield code="a">Author</subfield><subfield code="f">1800-1870</subfield><subfield code="4">070</subfield></datafield>
+<datafield tag="702"><subfield code="a">Translator</subfield><subfield code="f">1860-1960</subfield></datafield>
+</record>''')
+		decision = self.evaluate(marc)
+		self.assertFalse(decision['eligible'])
+		self.assertEqual(decision['basis'], 'rights_review')
+		self.assertIn('Unresolved contributor role: Translator (1860-1960)', decision['evidence'])
+		self.assertIn('1860-1960', '\n'.join(decision['evidence']))
 
 	def test_malformed_and_abbreviated_dates_remain_unresolved(self) -> None:
 		'''Unsupported numeric patterns must not degrade to the first plausible year.'''

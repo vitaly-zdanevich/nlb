@@ -157,7 +157,7 @@ def publication_year(record_meta: dict[str, Any], marc_meta: dict[str, Any]) -> 
 
 
 def _creator_evidence(record: dict[str, Any], marc: dict[str, Any]) -> tuple[list[int | None], list[str], bool]:
-	'''Resolve creative people only; owners and organizations never supply deaths.'''
+	'''Resolve creative people; unclassified secondary responsibilities need review.'''
 	contributors = marc.get('contributors') or []
 	if not contributors:
 		names = list(marc.get('authors') or [])
@@ -173,9 +173,16 @@ def _creator_evidence(record: dict[str, Any], marc: dict[str, Any]) -> tuple[lis
 		roles = set(person.get('roles') or [])
 		if roles and roles <= NONCREATIVE_ROLES:
 			continue
-		if not roles and person.get('tag') not in {'700', '701', '710', '711'}:
-			continue
 		name = str(person.get('name', ''))
+		if not roles and person.get('tag') not in {'700', '701', '710', '711'}:
+			# UNIMARC 702/712 secondary responsibility includes creative roles
+			# as well as ownership. A missing $4 cannot establish either role.
+			deaths.append(None)
+			has_dates = True
+			evidence.append(f'Unresolved contributor role: {name}')
+			if person.get('dates'):
+				evidence.append(f"Contributor dates ({name}): {'; '.join(str(value) for value in person['dates'])}")
+			continue
 		if person.get('kind') == 'organization' or person.get('tag') in {'710', '711', '712'}:
 			deaths.append(None)
 			has_dates = True
