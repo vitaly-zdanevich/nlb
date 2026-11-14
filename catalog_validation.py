@@ -11,7 +11,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlsplit
 import xml.etree.ElementTree as ET
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 import requests
 
 from catalog_requests import InvalidCatalogResponse
@@ -21,9 +21,9 @@ MARC_NAMESPACE = '{http://www.loc.gov/MARC21/slim}'
 RECORD_PATH = re.compile(r'/elib/(?:Record|Collection)/([^/?#"\'<>\s]+)')
 
 
-def reject(response: requests.Response, reason: str) -> None:
+def reject(response: requests.Response | None, reason: str) -> None:
 	'''Attach the source response to a retryable validation failure.'''
-	raise InvalidCatalogResponse(f'{reason}: {response.url}', response=response)
+	raise InvalidCatalogResponse(reason + (f': {response.url}' if response is not None else ''), response=response)
 
 
 def html_soup(response: requests.Response) -> BeautifulSoup:
@@ -37,32 +37,67 @@ def html_soup(response: requests.Response) -> BeautifulSoup:
 	return soup
 
 
-def check_html_identity(soup: BeautifulSoup, response: requests.Response, marc_id: str, *, required: bool) -> None:
+def record_region(soup: Tag) -> Tag:
+	'''Select the bibliographic body and its tabs, removing unrelated suggestion panels.
+
+	The caller owns this parsed tree; response bytes remain untouched for archiving.
+	Prefer the main body explicitly because a combined CSS selector matches the
+	outer record before its descendants. Lightweight pages may omit both wrappers.
+	'''
+	# A suggested record can itself contain record/mainbody classes. Exclude its
+	# panel before selecting the primary region, as well as before reading fields.
+	for sidebar in soup.select('aside, .sidebar'):
+		sidebar.decompose()
+	return soup.select_one('.record .mainbody') or soup.select_one('.record') or soup.select_one('.mainbody') or soup
+
+
+def viewer_link_identity(
+	href: str, *, marc_id: str | None = None, response: requests.Response | None = None,
+) -> dict[str, str | None] | None:
+	'''Read viewer identities without discarding conflicting record or query values.'''
+	if 'viewer' not in href:
+		return None
+	try:
+		url = urlsplit(href)
+	except ValueError as error:
+		raise InvalidCatalogResponse('Malformed HTML viewer URL', response=response) from error
+	if 'viewer' not in url.path:
+		return None
+	params = parse_qs(url.query, keep_blank_values=True)
+	identities: dict[str, str | None] = {}
+	for key, aliases in (
+		('mark_id', ('markID', 'marcID')), ('file_id', ('fileID', 'fileId')), ('mets_id', ('metsID', 'metsId')),
+	):
+		values = {value for alias in aliases for value in params.get(alias, [])}
+		if len(values) > 1:
+			reject(response, f'HTML viewer has conflicting {key} values')
+		if key == 'mark_id' and values and marc_id is not None and values != {marc_id}:
+			reject(response, 'HTML viewer identifier does not match the requested record')
+		identities[key] = next(iter(values), None)
+	return identities if any(identities.values()) else None
+
+
+def check_html_identity(soup: Tag, response: requests.Response | None, marc_id: str, *, required: bool) -> None:
 	'''Check the main record identity without confusing sidebar or related-record links.'''
-	main = soup.select_one('.record .mainbody, .record') or soup
+	main = record_region(soup)
 	identifiers = [str(node.get('value', '')).strip() for node in main.select('input.hiddenId')]
 	if identifiers:
 		if set(identifiers) != {marc_id}:
 			reject(response, 'HTML record identifier does not match the requested record')
-		return
 	# Older/lightweight record pages may identify themselves only in the viewer URL.
 	viewer_ids = set()
 	for link in main.find_all('a', href=True):
-		url = urlsplit(link['href'])
-		if 'viewer' not in url.path:
-			continue
-		params = parse_qs(url.query)
-		viewer_ids.update(params.get('markID', []) + params.get('marcID', []))
-	if viewer_ids and viewer_ids != {marc_id}:
-		reject(response, 'HTML viewer identifier does not match the requested record')
-	if required and not viewer_ids:
+		viewer = viewer_link_identity(link['href'], marc_id=marc_id, response=response)
+		if viewer and viewer['mark_id']:
+			viewer_ids.add(viewer['mark_id'])
+	if required and not identifiers and not viewer_ids:
 		reject(response, 'HTML record has no verifiable identifier')
 
 
 def validate_record_html(response: requests.Response, marc_id: str) -> None:
 	'''Require a record title, bibliographic rows, and the requested record identity.'''
 	soup = html_soup(response)
-	main = soup.select_one('.record .mainbody, .record') or soup
+	main = record_region(soup)
 	title = main.select_one('h1, h3[property="name"], h2[property="name"]')
 	rows = [row for row in main.select('table tr') if row.find('th') and row.find('td')]
 	if title is None or not title.get_text(strip=True) or not rows:
@@ -91,6 +126,7 @@ def validate_search_html(response: requests.Response) -> None:
 		reject(response, 'Search result count is missing or inconsistent')
 	seen = set()
 	for result in results:
+		result = record_region(result)
 		hidden = result.select_one('input.hiddenId')
 		identifier = str(hidden.get('value', '')).strip() if hidden else ''
 		if not identifier:
@@ -101,6 +137,7 @@ def validate_search_html(response: requests.Response) -> None:
 					break
 		if not identifier or identifier in seen:
 			reject(response, 'Search result has a missing or repeated record identifier')
+		check_html_identity(result, response, identifier, required=False)
 		seen.add(identifier)
 
 

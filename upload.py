@@ -312,26 +312,16 @@ def build_search_page_url(
 	return f'{ELIB_BASE_URL}/elib/Search/Results?' + urlencode(params)
 
 
-def parse_viewer_link(href: str) -> dict[str, str | None] | None:
-	"""Extract markID, fileID, or metsID from an NLB viewer URL."""
-	if 'viewer' not in href:
-		return None
-	parts = urlsplit(href)
-	params = parse_qs(parts.query)
-	mark_id = (params.get('markID') or params.get('marcID') or [None])[0]
-	file_id = (params.get('fileID') or params.get('fileId') or [None])[0]
-	mets_id = (params.get('metsID') or params.get('metsId') or [None])[0]
-	if not mark_id and not file_id and not mets_id:
-		return None
-	return {
-		'mark_id': mark_id,
-		'file_id': file_id,
-		'mets_id': mets_id,
-	}
+def parse_viewer_link(href: str, *, marc_id: str | None = None) -> dict[str, str | None] | None:
+	'''Extract viewer identities, rejecting explicit conflicts with the source record.'''
+	from catalog_validation import viewer_link_identity
+	return viewer_link_identity(href, marc_id=marc_id)
 
 
 def parse_search_results_html(html: str) -> dict[str, Any]:
-	"""Parse a VuFind Search/Results HTML page into total count and record entries."""
+	'''Parse result entries without adopting unrelated sidebar scans or metadata.'''
+	from catalog_validation import check_html_identity, record_region
+
 	soup = BeautifulSoup(html, 'html.parser')
 	total_results = 0
 	stats_node = soup.select_one('.search-stats strong:nth-of-type(3), .search-controls strong:nth-of-type(3)')
@@ -347,6 +337,7 @@ def parse_search_results_html(html: str) -> dict[str, Any]:
 	records: list[dict[str, Any]] = []
 	seen_ids: set[str] = set()
 	for result_node in soup.select('.result'):
+		result_node = record_region(result_node)
 		hidden_id = result_node.select_one('input.hiddenId')
 		marc_id = hidden_id.get('value', '').strip() if hidden_id else ''
 		if not marc_id:
@@ -357,6 +348,7 @@ def parse_search_results_html(html: str) -> dict[str, Any]:
 					break
 		if not marc_id or marc_id in seen_ids:
 			continue
+		check_html_identity(result_node, None, marc_id, required=False)
 		seen_ids.add(marc_id)
 
 		title_link = result_node.select_one('a.title')
@@ -369,10 +361,14 @@ def parse_search_results_html(html: str) -> dict[str, Any]:
 
 		file_ids: list[str] = []
 		mets_ids: list[str] = []
+		viewer_links: list[dict[str, str | None]] = []
 		for link in result_node.find_all('a', href=True):
-			parsed = parse_viewer_link(link['href'])
+			parsed = parse_viewer_link(link['href'], marc_id=marc_id)
 			if not parsed:
 				continue
+			viewer = {'url': link['href'], **parsed}
+			if viewer not in viewer_links:
+				viewer_links.append(viewer)
 			if parsed['file_id'] and parsed['file_id'] not in file_ids:
 				file_ids.append(parsed['file_id'])
 			if parsed['mets_id'] and parsed['mets_id'] not in mets_ids:
@@ -384,6 +380,7 @@ def parse_search_results_html(html: str) -> dict[str, Any]:
 			'formats': formats,
 			'file_ids': file_ids,
 			'mets_ids': mets_ids,
+			'viewer_links': viewer_links,
 		})
 
 	return {
@@ -437,7 +434,10 @@ def extract_cell_links(cell: Any, marc_id: str) -> list[dict[str, str]]:
 
 def parse_record_html(html: str, marc_id: str) -> dict[str, Any]:
 	'''Extract metadata and catalog links from table cells, excluding sidebar suggestions.'''
-	soup = BeautifulSoup(html, 'html.parser')
+	from catalog_validation import check_html_identity, record_region
+
+	soup = record_region(BeautifulSoup(html, 'html.parser'))
+	check_html_identity(soup, None, marc_id, required=False)
 	title_node = soup.select_one('h1, h3[property="name"], h2[property="name"]')
 	title = title_node.get_text(' ', strip=True) if title_node else ''
 
@@ -501,10 +501,14 @@ def parse_record_html(html: str, marc_id: str) -> dict[str, Any]:
 
 	file_ids: list[str] = []
 	mets_ids: list[str] = []
+	viewer_links: list[dict[str, str | None]] = []
 	for link in soup.find_all('a', href=True):
-		parsed = parse_viewer_link(link['href'])
+		parsed = parse_viewer_link(link['href'], marc_id=marc_id)
 		if not parsed:
 			continue
+		viewer = {'url': link['href'], **parsed}
+		if viewer not in viewer_links:
+			viewer_links.append(viewer)
 		if parsed['file_id'] and parsed['file_id'] not in file_ids:
 			file_ids.append(parsed['file_id'])
 		if parsed['mets_id'] and parsed['mets_id'] not in mets_ids:
@@ -517,6 +521,7 @@ def parse_record_html(html: str, marc_id: str) -> dict[str, Any]:
 		'record_links': record_links,
 		'file_ids': file_ids,
 		'mets_ids': mets_ids,
+		'viewer_links': viewer_links,
 	}
 
 

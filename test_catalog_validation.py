@@ -177,6 +177,81 @@ class TestCatalogValidation(unittest.TestCase):
 		self.assertEqual(files, [{'file_id': '2001', 'part_label': 'Том 1 / Часть 1'}])
 		self.client.fetch_mets_files.assert_called_once_with('555', marc_id=None)
 
+	def test_record_scope_excludes_suggestions_and_keeps_holdings(self) -> None:
+		'''Only the requested record supplies scans, authors, title and copy metadata.'''
+		main = f'''<input class="hiddenId" value="{self.marc_id}"><h1>Current book</h1>
+<table><tr><th>Опубликовано:</th><td>1890</td></tr></table>
+<a href="https://elib.nlb.by:8070/viewer?markID={self.marc_id}&amp;fileID=1001">Scan</a>
+<div class="record-tabs"><div class="tab-content"><div class="holdings-tab">
+<table><tr><th>Шифр</th><th>Место нахождения</th></tr><tr><td>Rare 123</td><td>Vault A</td></tr></table>
+</div></div></div>'''
+		sidebar = '''<aside class="sidebar"><input class="hiddenId" value="BY-NLB-other">
+<h1>Suggested book</h1><table><tr><th>Автор:</th><td>Unrelated author</td></tr></table>
+<a href="https://elib.nlb.by:8070/viewer?markID=BY-NLB-other&amp;fileID=2002">Other scan</a></aside>'''
+		for body in (
+			f'<div class="record"><div class="mainbody">{main}</div>{sidebar}</div>',
+			f'<div class="record">{sidebar}<div class="mainbody">{main}{sidebar}</div></div>',
+			f'<aside><div class="record"><div class="mainbody">{sidebar}</div></div></aside><div class="record"><div class="mainbody">{main}</div></div>',
+			f'<div class="record">{main}{sidebar}</div>', f'{main}{sidebar}',
+		):
+			with self.subTest(body=body[:80]):
+				response = self.response(body)
+				self.session.get.side_effect = [response, self.response('', 404), self.response('', 404)]
+				archive = self.client.archive = mock.Mock()
+				record, marc = self.client.fetch_record_metadata(self.marc_id)
+				files = self.client.resolve_record_files({}, record)
+				self.assertEqual([item['file_id'] for item in files], ['1001'])
+				self.assertEqual(record['title'], 'Current book')
+				self.assertEqual(record['viewer_links'][0]['mark_id'], self.marc_id)
+				text = upload_nlb.build_commons_description(record, marc, self.marc_id, '1001')
+				self.assertNotIn('Unrelated author', text)
+				self.assertNotIn('Suggested book', text)
+				self.assertIn('Rare 123', text)
+				self.assertIn('Vault A', text)
+				# Scope applies to derived metadata, never to the preserved source bytes.
+				self.assertIn('Unrelated author', response.text)
+				archive.capture_response.assert_any_call(response)
+
+	def test_explicit_viewer_conflicts_retry_even_with_correct_hidden_record_id(self) -> None:
+		'''A valid record marker cannot excuse a different or ambiguous scan identity.'''
+		queries = (
+			'markID=BY-NLB-other&fileID=1001',
+			f'markID={self.marc_id}&marcID=BY-NLB-other&fileID=1001',
+			f'markID={self.marc_id}&markID=BY-NLB-other&fileID=1001',
+			f'markID={self.marc_id}&fileID=1001&fileId=2002',
+			f'markID={self.marc_id}&metsID=555&metsId=666',
+		)
+		for query in queries:
+			with self.subTest(query=query):
+				body = f'''<div class="record"><div class="mainbody"><input class="hiddenId" value="{self.marc_id}">
+<h1>Current book</h1><table><tr><th>Date</th><td>1890</td></tr></table>
+<a href="https://elib.nlb.by:8070/viewer?{query}">Scan</a></div></div>'''
+				self.session.get.reset_mock()
+				self.session.get.side_effect = [self.response(body) for _ in range(5)]
+				with self.assertRaises(CatalogRetriesExhausted):
+					self.client.fetch_record_metadata(self.marc_id)
+				self.assertEqual(self.session.get.call_count, 5)
+				with self.assertRaises(InvalidCatalogResponse):
+					upload_nlb.parse_record_html(body, self.marc_id)
+
+	def test_search_scope_and_shared_viewer_provenance(self) -> None:
+		'''A shared METS identifier stays valid while another record's sidebar is ignored.'''
+		body = MOCK_SEARCH_HTML_PAGE_1.replace('<div class="result-formats">', '''<aside>
+<input class="hiddenId" value="BY-NLB-other"><a class="title" href="/elib/Record/BY-NLB-other">Other</a>
+<a href="https://elib.nlb.by:8070/viewer?markID=BY-NLB-other&amp;fileID=9999">Other scan</a>
+</aside><div class="result-formats">''')
+		self.session.get.return_value = self.response(body)
+		records = self.client.fetch_search_page(1)['records']
+		self.assertEqual(records[0]['file_ids'], ['1001'])
+		self.assertEqual(records[1]['mets_ids'], ['555'])
+		self.assertEqual(records[1]['viewer_links'][0]['mark_id'], 'BY-NLB-rr222')
+		self.assertEqual(records[1]['viewer_links'][0]['mets_id'], '555')
+		self.assertNotIn('Other', records[0]['title'])
+		conflicting = MOCK_SEARCH_HTML_PAGE_1.replace('markID=BY-NLB-rr111', 'markID=BY-NLB-other')
+		self.session.get.side_effect = [self.response(conflicting) for _ in range(5)]
+		with self.assertRaises(CatalogRetriesExhausted):
+			self.client.fetch_search_page(1)
+
 	def test_archive_observes_invalid_and_missing_responses_before_validation(self) -> None:
 		'''Capture error evidence and optional 404s as well as successful source bytes.'''
 		archive = mock.Mock()
