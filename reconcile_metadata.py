@@ -116,7 +116,8 @@ def generate_plan(archive_dir: Path, fetch_page: Callable[[str], dict[str, Any]]
 	if not root.is_dir():
 		raise ValueError(f'Archive directory does not exist: {root}')
 	reader = fetch_page or read_commons_page
-	plan: dict[str, Any] = {'schema_version': 1, 'created_at': datetime.now(timezone.utc).isoformat(), 'entries': [], 'skipped': []}
+	plan: dict[str, Any] = {'schema_version': 1, 'archive_dir': str(root.resolve()),
+		'created_at': datetime.now(timezone.utc).isoformat(), 'entries': [], 'skipped': []}
 	pages: dict[str, dict[str, Any]] = {}
 	pending: dict[str, dict[str, Any]] = {}
 	for record_dir in sorted((root / 'records').glob('*')):
@@ -222,21 +223,35 @@ def apply_plan(
 def main(argv: list[str] | None = None) -> int:
 	'''Write a review plan, or apply a separately and explicitly selected plan file.'''
 	parser = argparse.ArgumentParser(description=__doc__)
-	parser.add_argument('--archive-dir', type=Path, default=Path('archive'), help='Uploader preservation archive directory.')
+	parser.add_argument('--archive-dir', type=Path, help='Uploader archive (default: archive/ when planning, saved plan archive when applying).')
 	action = parser.add_mutually_exclusive_group(required=True)
 	action.add_argument('--plan', type=Path, help='Write a JSON review plan without editing Commons.')
 	action.add_argument('--apply', type=Path, help='Apply this reviewed JSON plan; writes to Commons.')
 	parser.add_argument('--pywikibot-dir', type=Path, help='Pywikibot configuration directory, used only with --apply.')
 	args = parser.parse_args(argv)
 	if args.plan:
-		plan = generate_plan(args.archive_dir)
+		root = args.archive_dir or Path('archive')
+		output = args.plan.resolve()
+		if output.name.endswith('.lock') or any(output.is_relative_to((root / name).resolve())
+			for name in ('objects', 'records', 'quarantine', 'metadata-refresh', 'pdf-backfill')):
+			parser.error('--plan must not overwrite archive evidence or run lock files')
+		plan = generate_plan(root)
 		atomic_json(args.plan, plan)
 		print(json.dumps({'planned': len(plan['entries']), 'skipped': len(plan['skipped']), 'plan': str(args.plan)}))
 	else:
 		if args.pywikibot_dir:
 			os.environ['PYWIKIBOT_DIR'] = str(args.pywikibot_dir)
 		plan = json.loads(args.apply.read_text(encoding='utf-8'))
-		print(json.dumps({'edited': apply_plan(plan)}))
+		root = Path(plan['archive_dir']) if plan.get('archive_dir') else (args.archive_dir or Path('archive'))
+		if args.archive_dir and args.archive_dir.resolve() != root.resolve():
+			parser.error('--archive-dir differs from the archive recorded in the plan')
+		from state_storage import RunLockedError, exclusive_run
+		try:
+			with exclusive_run(None, root):
+				print(json.dumps({'edited': apply_plan(plan)}))
+		except RunLockedError as error:
+			print(f'Stopped: {error}')
+			return 2
 	return 0
 
 

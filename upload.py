@@ -37,6 +37,7 @@ from preservation import ArchiveStore, ArchiveWriteError, file_integrity
 from pdf_validation import InvalidPDFError, manifest_page_count, validate_pdf
 from publication_rights import evaluate_publication, publication_year
 from publication_history import publication_evidence, retain_publication, with_publication_evidence
+from state_storage import InvalidStateError, RunLockedError, exclusive_run, validate_state
 from wikimedia_text import normalize_wikitext
 from viewer_api import SourceAuthorizationError, ViewerAPIHealth, ViewerAPIUnavailable, authorization_failure
 from catalog_validation import (
@@ -199,6 +200,7 @@ def load_state(
 		state['search_url'] = search_url
 		return state
 	data = json.loads(path.read_text(encoding='utf-8'))
+	validate_state(data)
 	state = default_state()
 	state.update(data)
 	if (
@@ -211,8 +213,6 @@ def load_state(
 		state['search_url'] = search_url
 		state['current_page'] = 1
 		state.pop('retry_from_page', None)
-	if not isinstance(state.get('items'), dict):
-		state['items'] = {}
 	# Revisit older associations once: a verified binary does not establish its
 	# catalog volume. Preserve prior results until the fresh scope check runs.
 	if not data.get('scan_identity_version') and state['items']:
@@ -232,14 +232,10 @@ def save_state(path: Path, state: dict[str, Any]) -> None:
 	'''Atomically write the state file so interrupts never corrupt progress.'''
 	if state.get('_read_only'):
 		return
-	path.parent.mkdir(parents=True, exist_ok=True)
+	from preservation import atomic_json
+	validate_state(state)
 	state['updated_at'] = datetime.now(timezone.utc).isoformat()
-	temp_path = path.with_suffix(path.suffix + '.new')
-	temp_path.write_text(
-		json.dumps(state, ensure_ascii=False, indent=2) + '\n',
-		encoding='utf-8',
-	)
-	temp_path.replace(path)
+	atomic_json(path, state)
 
 
 def item_state_key(marc_id: str, file_id: str) -> str:
@@ -3208,6 +3204,7 @@ def refresh_uploaded_metadata(
 	Progress describes local source collection, before any Commons edit phase.
 	'''
 	state = json.loads(state_path.read_text(encoding='utf-8'))
+	validate_state(state)
 	archive = client.archive
 	counts = dict.fromkeys(('metadata_ready', 'metadata_review', 'metadata_failed', 'source_missing', 'source_changed', 'restricted', 'skipped'), 0)
 	groups: dict[str, dict[str, dict]] = {}
@@ -3411,6 +3408,9 @@ def main(argv: list[str] | None = None) -> int:
 	'''Entry point for CLI execution.'''
 	parser = build_arg_parser()
 	args = parser.parse_args(argv)
+	# Use the same canonical state path for locking and atomic replacement. Writing
+	# through an unresolved symlink would replace its inode and change the lock key.
+	args.state_file = args.state_file.resolve()
 	if args.report and args.report.resolve() == args.state_file.resolve():
 		parser.error('--report must not overwrite the upload state file')
 	if args.continue_run and args.metadata_only:
@@ -3440,6 +3440,21 @@ def main(argv: list[str] | None = None) -> int:
 			parser.error('--report must not overwrite archived sources, receipts or collection checkpoints')
 	if args.refresh_uploaded_metadata and (args.report or archive.root / 'metadata-refresh' / 'report.json').resolve() == args.state_file.resolve():
 		parser.error('The metadata refresh report must not overwrite the upload state file')
+	locks = {args.state_file.resolve().with_name(args.state_file.resolve().name + '.lock'), (archive.root / '.nlb-run.lock').resolve()}
+	if args.state_file.resolve() in locks or args.state_file.name.endswith('.lock') or (args.report and (args.report.resolve() in locks or args.report.name.endswith('.lock'))):
+		parser.error('State and report paths must not overwrite run lock files')
+	try:
+		with exclusive_run(args.state_file, archive.root):
+			if args.state_file.exists():
+				validate_state(json.loads(args.state_file.read_text(encoding='utf-8')))
+			return run_locked(args, archive, target_url, until_year)
+	except (InvalidStateError, RunLockedError, json.JSONDecodeError) as error:
+		print(f'Stopped: {error}')
+		return 2
+
+
+def run_locked(args: argparse.Namespace, archive: ArchiveStore, target_url: str | None, until_year: int) -> int:
+	'''Execute one operation while the CLI holds its state and archive writer locks.'''
 	client = NlbClient(viewer_cookies=args.viewer_cookies, archive=archive,
 		metadata_reads_only=args.metadata_only or args.refresh_uploaded_metadata)
 	client.archive = archive

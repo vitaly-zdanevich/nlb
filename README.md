@@ -149,6 +149,8 @@ A metadata-only run starts at page 1 of the selected catalog, captures metadata 
 
 Ordinary runs already revisit completed files to archive their current metadata; verified completed PDFs skip another transfer. They also process new/pending uploads; `--continue` resumes saved catalog progress. The unused `--refresh-metadata` flag has been removed. Ordinary and metadata-only runs do not edit existing Commons descriptions.
 
+The uploader validates saved state before using or rewriting it and holds process locks for the state and archive throughout each run. A second writer stops with a diagnostic; read-only inspection remains available. Locks release when the process exits, including after a crash; do not delete their files. Historical Commons targets, hashes and sizes survive later failed attempts, while evidence for different downloaded bytes is stored separately.
+
 To refresh the metadata of every hash-identified Commons association saved in `state.json` and **apply updates automatically**:
 
 ```bash
