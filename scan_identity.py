@@ -105,12 +105,14 @@ def assess_scan_identity(file_entry: dict, record_meta: dict, marc_meta: dict) -
 	'''Require consistent volume scope for grouped or bound-with viewers.
 
 	A sole viewer volume can describe an ordinary record without a volume suffix.
-	Multiple volumes or bound-with records require an explicit catalog match.
+	Multiple volumes, foreign viewer anchors and bound-with records require an
+	explicit catalog match even when the viewer omits volume headings.
 	'''
 	catalog_volumes: set[int] = set()
 	unsupported = False
 	related = marc_meta.get('related_records') or []
 	bound_with = any(item.get('tag') in ('481', '482') for item in related)
+	shared_anchor = bool(file_entry.get('shared_viewers'))
 	for item in related:
 		if item.get('tag') == '461':
 			number, unknown = heading_volume(item.get('volume') or '')
@@ -136,9 +138,9 @@ def assess_scan_identity(file_entry: dict, record_meta: dict, marc_meta: dict) -
 				current.add(number)
 			unsupported |= unknown
 		scopes.append(current)
-	context = {'catalog_volumes': sorted(catalog_volumes), 'viewer_volumes': sorted(viewer_volumes), 'bound_with': bound_with, 'file': file_entry}
+	context = {'catalog_volumes': sorted(catalog_volumes), 'viewer_volumes': sorted(viewer_volumes), 'bound_with': bound_with, 'shared_anchor': shared_anchor, 'file': file_entry}
 	reason = ''
-	if (unsupported and (viewer_volumes or bound_with)) or file_entry.get('mets_unresolved_volume'):
+	if (unsupported and (viewer_volumes or bound_with or shared_anchor)) or file_entry.get('mets_unresolved_volume'):
 		reason = 'Unsupported or uncertain volume notation'
 	elif len(catalog_volumes) > 1:
 		reason = 'Catalog volume statements disagree'
@@ -146,11 +148,11 @@ def assess_scan_identity(file_entry: dict, record_meta: dict, marc_meta: dict) -
 		reason = 'The same file occurs in conflicting viewer contexts'
 	elif any(len(scope) > 1 for scope in scopes):
 		reason = 'Nested viewer volume headings disagree'
-	elif viewer_volumes or bound_with:
+	elif viewer_volumes or bound_with or shared_anchor:
 		file_volumes = set().union(*scopes) if scopes else set()
 		if len(file_volumes) != 1:
 			reason = 'Shared viewer has no explicit volume for this scan'
-		elif not catalog_volumes and (len(viewer_volumes) > 1 or bound_with):
+		elif not catalog_volumes and (len(viewer_volumes) > 1 or bound_with or shared_anchor):
 			reason = 'Shared viewer requires an explicit catalog volume'
 		elif catalog_volumes and file_volumes != catalog_volumes:
 			reason = 'Viewer volume differs from the catalog record'

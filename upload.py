@@ -309,10 +309,10 @@ def build_search_page_url(
 	return f'{ELIB_BASE_URL}/elib/Search/Results?' + urlencode(params)
 
 
-def parse_viewer_link(href: str, *, marc_id: str | None = None) -> dict[str, str | None] | None:
-	'''Extract viewer identities, rejecting explicit conflicts with the source record.'''
+def parse_viewer_link(href: str, *, marc_id: str | None = None, allow_shared_mets: bool = False) -> dict[str, str | None] | None:
+	'''Retain viewer identities; shared-METS candidates still require relationship checks.'''
 	from catalog_validation import viewer_link_identity
-	return viewer_link_identity(href, marc_id=marc_id)
+	return viewer_link_identity(href, marc_id=marc_id, allow_shared_mets=allow_shared_mets)
 
 
 def parse_search_results_html(html: str) -> dict[str, Any]:
@@ -360,7 +360,7 @@ def parse_search_results_html(html: str) -> dict[str, Any]:
 		mets_ids: list[str] = []
 		viewer_links: list[dict[str, str | None]] = []
 		for link in result_node.find_all('a', href=True):
-			parsed = parse_viewer_link(link['href'], marc_id=marc_id)
+			parsed = parse_viewer_link(link['href'], marc_id=marc_id, allow_shared_mets=hidden_id is not None)
 			if not parsed:
 				continue
 			viewer = {'url': link['href'], **parsed}
@@ -500,7 +500,7 @@ def parse_record_html(html: str, marc_id: str) -> dict[str, Any]:
 	mets_ids: list[str] = []
 	viewer_links: list[dict[str, str | None]] = []
 	for link in soup.find_all('a', href=True):
-		parsed = parse_viewer_link(link['href'], marc_id=marc_id)
+		parsed = parse_viewer_link(link['href'], marc_id=marc_id, allow_shared_mets=soup.select_one('input.hiddenId') is not None)
 		if not parsed:
 			continue
 		viewer = {'url': link['href'], **parsed}
@@ -2163,10 +2163,63 @@ class NlbClient:
 		)
 		return resp.json()
 
+	def verify_shared_viewers(self, search_entry: dict[str, Any], record_meta: dict[str, Any]) -> dict[str, list[dict[str, str]]]:
+		'''Verify foreign METS anchors using fresh catalog links and a reciprocal owner record.
+
+		Read only the owner's HTML, never recursively fetch its bibliography or use
+		its access decision. Cache validated responses within this run and preserve
+		the source bytes for each child. A relationship still needs per-file volume
+		verification before its metadata can describe an uploaded scan.
+		'''
+		def defer(reason: str) -> None:
+			'''Keep unproven sharing retryable without treating it as a missing child.'''
+			raise CatalogRetriesExhausted(InvalidCatalogResponse(reason), 1)
+
+		marc_id = record_meta.get('marc_id') or search_entry.get('marc_id')
+		current = record_meta.get('viewer_links', [])
+		candidates: set[tuple[str, str]] = set()
+		for links, from_search in ((current, False), (search_entry.get('viewer_links', []), True)):
+			for link in links:
+				owner, mets_id = link.get('mark_id'), link.get('mets_id')
+				if not owner or owner == marc_id:
+					continue
+				if not marc_id or not NLB_RECORD_ID_RE.fullmatch(owner) or not mets_id or link.get('file_id'):
+					defer('Unverified foreign viewer identifier in catalog metadata')
+				if from_search and not any(item.get('mark_id') == owner and item.get('mets_id') == mets_id
+					and not item.get('file_id') for item in current):
+					defer('Search shared viewer is absent from the current catalog record')
+				candidates.add((owner, mets_id))
+		if not hasattr(self, '_shared_viewer_records'):
+			self._shared_viewer_records = {}
+		verified: dict[str, list[dict[str, str]]] = {}
+		for owner, mets_id in sorted(candidates):
+			url = f'{ELIB_BASE_URL}/elib/Record/{owner}'
+			if owner not in self._shared_viewer_records:
+				response = self._get_catalog(url, validate=lambda response: validate_record_html(response, owner))
+				metadata = parse_record_html(response.text, owner)
+				self._shared_viewer_records[owner] = (response, metadata)
+			else:
+				response, metadata = self._shared_viewer_records[owner]
+				if self.archive is not None:
+					self.archive.capture_response(response)
+			anchored = any(link.get('mark_id') == owner and link.get('mets_id') == mets_id
+				and not link.get('file_id') for link in metadata.get('viewer_links', []))
+			backlink = any(urlsplit(link['url']).netloc == urlsplit(ELIB_BASE_URL).netloc
+				and urlsplit(link['url']).path.rstrip('/') in {
+					f'{prefix}/{kind}/{marc_id}' for prefix in ('', '/elib') for kind in ('Record', 'Collection')}
+				for field in metadata.get('fields', []) for link in field.get('links', []))
+			if not anchored or not backlink:
+				defer(f'Unverified shared METS {mets_id}: viewer owner {owner} must link the same viewer and catalog record {marc_id}')
+			verified.setdefault(mets_id, []).append({
+				'catalog_record_id': marc_id, 'viewer_record_id': owner, 'mets_id': mets_id, 'owner_url': url,
+			})
+		return verified
+
 	def resolve_record_files(
 		self, search_entry: dict[str, Any], record_meta: dict[str, Any],
 	) -> list[dict[str, Any]]:
 		'''Keep all METS scope evidence, including when a file also has a direct link.'''
+		shared_viewers = self.verify_shared_viewers(search_entry, record_meta)
 		by_id: dict[str, dict[str, Any]] = {}
 		for file_id in [*search_entry.get('file_ids', []), *record_meta.get('file_ids', [])]:
 			by_id.setdefault(file_id, {'file_id': file_id, 'part_label': ''})
@@ -2175,6 +2228,9 @@ class NlbClient:
 		for mets_id in dict.fromkeys([*search_entry.get('mets_ids', []), *record_meta.get('mets_ids', [])]):
 			for item in self.fetch_mets_files(mets_id, marc_id=record_meta.get('marc_id') or search_entry.get('marc_id')):
 				entry = by_id.setdefault(item['file_id'], {'file_id': item['file_id'], 'part_label': ''})
+				for proof in shared_viewers.get(mets_id, []):
+					if proof not in entry.setdefault('shared_viewers', []):
+						entry['shared_viewers'].append(proof)
 				for key in ('part_label', 'file_location'):
 					if item.get(key) and not entry.get(key):
 						entry[key] = item[key]

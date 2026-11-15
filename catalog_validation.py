@@ -53,8 +53,13 @@ def record_region(soup: Tag) -> Tag:
 
 def viewer_link_identity(
 	href: str, *, marc_id: str | None = None, response: requests.Response | None = None,
+	allow_shared_mets: bool = False,
 ) -> dict[str, str | None] | None:
-	'''Read viewer identities without discarding conflicting record or query values.'''
+	'''Read viewer identities, retaining shared-METS candidates for later verification.
+
+	Only an independently identified catalog record may admit a foreign METS
+	anchor. This does not verify the relationship or permit a foreign direct file.
+	'''
 	if 'viewer' not in href:
 		return None
 	try:
@@ -71,9 +76,10 @@ def viewer_link_identity(
 		values = {value for alias in aliases for value in params.get(alias, [])}
 		if len(values) > 1:
 			reject(response, f'HTML viewer has conflicting {key} values')
-		if key == 'mark_id' and values and marc_id is not None and values != {marc_id}:
-			reject(response, 'HTML viewer identifier does not match the requested record')
 		identities[key] = next(iter(values), None)
+	if marc_id is not None and identities['mark_id'] is not None and identities['mark_id'] != marc_id:
+		if not (allow_shared_mets and identities['mark_id'] and identities['mets_id'] and not identities['file_id']):
+			reject(response, 'HTML viewer identifier does not match the requested record')
 	return identities if any(identities.values()) else None
 
 
@@ -87,7 +93,7 @@ def check_html_identity(soup: Tag, response: requests.Response | None, marc_id: 
 	# Older/lightweight record pages may identify themselves only in the viewer URL.
 	viewer_ids = set()
 	for link in main.find_all('a', href=True):
-		viewer = viewer_link_identity(link['href'], marc_id=marc_id, response=response)
+		viewer = viewer_link_identity(link['href'], marc_id=marc_id, response=response, allow_shared_mets=bool(identifiers))
 		if viewer and viewer['mark_id']:
 			viewer_ids.add(viewer['mark_id'])
 	if required and not identifiers and not viewer_ids:

@@ -1,0 +1,1063 @@
+{
+  "provenance": "Minimized from public NLB HTML and METS archived on tower on 2026-11-14; MARC volume evidence from the previous successful November capture. Navigation, availability, and unrelated fields omitted.",
+  "records": [
+    {
+      "record_id": "BY-NLB-br0000059063",
+      "owner_id": "BY-NLB-br0000059041",
+      "mets_id": "212004",
+      "record_html": "<div class=\"record\"><div class=\"mainbody\"><input class=\"hiddenId\" value=\"BY-NLB-br0000059063\"><h3 property=\"name\">Komedje oryginalne Stanisława Bogusławskiego. T. 2</h3><table><tr><th>Title</th><td>Komedje oryginalne Stanisława Bogusławskiego. T. 2</td></tr></table><a href=\"https://elib.nlb.by:8070/viewer/html/?markID=BY-NLB-br0000059041&amp;metsID=212004\">E-document</a></div></div>",
+      "owner_html": "<div class=\"record\"><div class=\"mainbody\"><input class=\"hiddenId\" value=\"BY-NLB-br0000059041\"><h3 property=\"name\">Komedje oryginalne Stanisława Bogusławskiego. T. 1</h3><table><tr><th>Title</th><td>Komedje oryginalne Stanisława Bogusławskiego. T. 1</td></tr><tr><th>Related Items</th><td><a href=\"/elib/Record/BY-NLB-br0000059063\">Komedje oryginalne Stanisława Bogusławskiego. T. 2. — 1848. — 296 s.</a> <a href=\"/elib/Record/BY-NLB-br0000059074\">Komedje oryginalne Stanisława Bogusławskiego. T. 3. — 1853. — 228 s.</a> <a href=\"/elib/Record/BY-NLB-br0000059079\">Komedje oryginalne Stanisława Bogusławskiego. T. 4. [Cz. 1]. — 1860. — 123 s.</a> <a href=\"/elib/Record/BY-NLB-br0000059083\">Komedje oryginalne Stanisława Bogusławskiego. [T. 4. Cz. 2]. — 1866. — 148 s.</a> <a href=\"/elib/Record/BY-NLB-br0000059089\">Blagier: monodram / przez Stanisława Bogusławskiego wierszem napisany. - Warszawa : S. Orgelbrand, 1866. - 23 s.</a> <a href=\"/elib/Record/BY-NLB-br0000059092\">Wiejscy politycy: komedya we trzech aktach wierszem / przez Władysława Syrokomlę. - Warszawa : S. Orgelbrand, 1859. - 94 с.</a></td></tr></table><a href=\"https://elib.nlb.by:8070/viewer/html/?markID=BY-NLB-br0000059041&amp;metsID=212004\">E-document</a></div></div>",
+      "marc_meta": {
+        "title": "Komedje oryginalne Stanisława Bogusławskiego. T. 2",
+        "related_records": [
+          {
+            "tag": "461",
+            "record_id": "BY-NLB-br0000059039",
+            "volume": "T. 2"
+          },
+          {
+            "tag": "464",
+            "record_id": "",
+            "volume": ""
+          },
+          {
+            "tag": "464",
+            "record_id": "",
+            "volume": ""
+          },
+          {
+            "tag": "464",
+            "record_id": "",
+            "volume": ""
+          },
+          {
+            "tag": "482",
+            "record_id": "BY-NLB-br0000059041",
+            "volume": ""
+          }
+        ]
+      },
+      "mets": {
+        "metsID": 212004,
+        "nodes": [
+          {
+            "key": "212004_FILE_Y06yVzmm67",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_wB3FZgsSFE",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "TOM I",
+              "description": "1848 rok",
+              "file": {
+                "id": 12541588,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_1.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "212004_FILE_j5I4BTTit3",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_9ci0RpGDvS",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "TOM II",
+              "description": "1848 rok",
+              "file": {
+                "id": 12541593,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_2.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "212004_FILE_hWDgsV7CIL",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_Ac3A51C5Rz",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "TOM III",
+              "description": "1853 rok",
+              "file": {
+                "id": 12541601,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_3.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "212004_FILE_qOhdYnybf6",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_y1HhBZQcll",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "TOM IV, CZĘŚĆ 1",
+              "description": "1860 rok",
+              "file": {
+                "id": 12541585,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_4_1.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "212004_FILE_xNYLvbuFsa",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_sn3Hc7tM4z",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "TOM IV, CZĘŚĆ 2",
+              "description": "1866 rok",
+              "file": {
+                "id": 12541596,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_4_2.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "212004_FILE_KwcItoZUbN",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_YDZg9Jjik4",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "BLAGIER : monodram",
+              "description": "1866 rok",
+              "file": {
+                "id": 12541591,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_5.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "212004_FILE_FtggmRpeZC",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_2dMcyK99iV",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "WIEJSCY POLITYCY : komedya we trzech aktach wierszem",
+              "description": "1859 rok",
+              "file": {
+                "id": 12541520,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_6.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          }
+        ]
+      }
+    },
+    {
+      "record_id": "BY-NLB-br0000059074",
+      "owner_id": "BY-NLB-br0000059041",
+      "mets_id": "212004",
+      "record_html": "<div class=\"record\"><div class=\"mainbody\"><input class=\"hiddenId\" value=\"BY-NLB-br0000059074\"><h3 property=\"name\">Komedje oryginalne Stanisława Bogusławskiego. T. 3</h3><table><tr><th>Title</th><td>Komedje oryginalne Stanisława Bogusławskiego. T. 3</td></tr></table><a href=\"https://elib.nlb.by:8070/viewer/html/?markID=BY-NLB-br0000059041&amp;metsID=212004\">E-document</a></div></div>",
+      "owner_html": "<div class=\"record\"><div class=\"mainbody\"><input class=\"hiddenId\" value=\"BY-NLB-br0000059041\"><h3 property=\"name\">Komedje oryginalne Stanisława Bogusławskiego. T. 1</h3><table><tr><th>Title</th><td>Komedje oryginalne Stanisława Bogusławskiego. T. 1</td></tr><tr><th>Related Items</th><td><a href=\"/elib/Record/BY-NLB-br0000059063\">Komedje oryginalne Stanisława Bogusławskiego. T. 2. — 1848. — 296 s.</a> <a href=\"/elib/Record/BY-NLB-br0000059074\">Komedje oryginalne Stanisława Bogusławskiego. T. 3. — 1853. — 228 s.</a> <a href=\"/elib/Record/BY-NLB-br0000059079\">Komedje oryginalne Stanisława Bogusławskiego. T. 4. [Cz. 1]. — 1860. — 123 s.</a> <a href=\"/elib/Record/BY-NLB-br0000059083\">Komedje oryginalne Stanisława Bogusławskiego. [T. 4. Cz. 2]. — 1866. — 148 s.</a> <a href=\"/elib/Record/BY-NLB-br0000059089\">Blagier: monodram / przez Stanisława Bogusławskiego wierszem napisany. - Warszawa : S. Orgelbrand, 1866. - 23 s.</a> <a href=\"/elib/Record/BY-NLB-br0000059092\">Wiejscy politycy: komedya we trzech aktach wierszem / przez Władysława Syrokomlę. - Warszawa : S. Orgelbrand, 1859. - 94 с.</a></td></tr></table><a href=\"https://elib.nlb.by:8070/viewer/html/?markID=BY-NLB-br0000059041&amp;metsID=212004\">E-document</a></div></div>",
+      "marc_meta": {
+        "title": "Komedje oryginalne Stanisława Bogusławskiego. T. 3",
+        "related_records": [
+          {
+            "tag": "461",
+            "record_id": "BY-NLB-br0000059039",
+            "volume": "T. 3"
+          },
+          {
+            "tag": "464",
+            "record_id": "",
+            "volume": ""
+          },
+          {
+            "tag": "464",
+            "record_id": "",
+            "volume": ""
+          },
+          {
+            "tag": "482",
+            "record_id": "BY-NLB-br0000059041",
+            "volume": ""
+          }
+        ]
+      },
+      "mets": {
+        "metsID": 212004,
+        "nodes": [
+          {
+            "key": "212004_FILE_Y06yVzmm67",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_wB3FZgsSFE",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "TOM I",
+              "description": "1848 rok",
+              "file": {
+                "id": 12541588,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_1.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "212004_FILE_j5I4BTTit3",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_9ci0RpGDvS",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "TOM II",
+              "description": "1848 rok",
+              "file": {
+                "id": 12541593,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_2.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "212004_FILE_hWDgsV7CIL",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_Ac3A51C5Rz",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "TOM III",
+              "description": "1853 rok",
+              "file": {
+                "id": 12541601,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_3.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "212004_FILE_qOhdYnybf6",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_y1HhBZQcll",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "TOM IV, CZĘŚĆ 1",
+              "description": "1860 rok",
+              "file": {
+                "id": 12541585,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_4_1.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "212004_FILE_xNYLvbuFsa",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_sn3Hc7tM4z",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "TOM IV, CZĘŚĆ 2",
+              "description": "1866 rok",
+              "file": {
+                "id": 12541596,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_4_2.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "212004_FILE_KwcItoZUbN",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_YDZg9Jjik4",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "BLAGIER : monodram",
+              "description": "1866 rok",
+              "file": {
+                "id": 12541591,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_5.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "212004_FILE_FtggmRpeZC",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_2dMcyK99iV",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "WIEJSCY POLITYCY : komedya we trzech aktach wierszem",
+              "description": "1859 rok",
+              "file": {
+                "id": 12541520,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_6.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          }
+        ]
+      }
+    },
+    {
+      "record_id": "BY-NLB-br0000059079",
+      "owner_id": "BY-NLB-br0000059041",
+      "mets_id": "212004",
+      "record_html": "<div class=\"record\"><div class=\"mainbody\"><input class=\"hiddenId\" value=\"BY-NLB-br0000059079\"><h3 property=\"name\">Komedje oryginalne Stanisława Bogusławskiego. T. 4. [Cz. 1]</h3><table><tr><th>Title</th><td>Komedje oryginalne Stanisława Bogusławskiego. T. 4. [Cz. 1]</td></tr></table><a href=\"https://elib.nlb.by:8070/viewer/html/?markID=BY-NLB-br0000059041&amp;metsID=212004\">E-document</a></div></div>",
+      "owner_html": "<div class=\"record\"><div class=\"mainbody\"><input class=\"hiddenId\" value=\"BY-NLB-br0000059041\"><h3 property=\"name\">Komedje oryginalne Stanisława Bogusławskiego. T. 1</h3><table><tr><th>Title</th><td>Komedje oryginalne Stanisława Bogusławskiego. T. 1</td></tr><tr><th>Related Items</th><td><a href=\"/elib/Record/BY-NLB-br0000059063\">Komedje oryginalne Stanisława Bogusławskiego. T. 2. — 1848. — 296 s.</a> <a href=\"/elib/Record/BY-NLB-br0000059074\">Komedje oryginalne Stanisława Bogusławskiego. T. 3. — 1853. — 228 s.</a> <a href=\"/elib/Record/BY-NLB-br0000059079\">Komedje oryginalne Stanisława Bogusławskiego. T. 4. [Cz. 1]. — 1860. — 123 s.</a> <a href=\"/elib/Record/BY-NLB-br0000059083\">Komedje oryginalne Stanisława Bogusławskiego. [T. 4. Cz. 2]. — 1866. — 148 s.</a> <a href=\"/elib/Record/BY-NLB-br0000059089\">Blagier: monodram / przez Stanisława Bogusławskiego wierszem napisany. - Warszawa : S. Orgelbrand, 1866. - 23 s.</a> <a href=\"/elib/Record/BY-NLB-br0000059092\">Wiejscy politycy: komedya we trzech aktach wierszem / przez Władysława Syrokomlę. - Warszawa : S. Orgelbrand, 1859. - 94 с.</a></td></tr></table><a href=\"https://elib.nlb.by:8070/viewer/html/?markID=BY-NLB-br0000059041&amp;metsID=212004\">E-document</a></div></div>",
+      "marc_meta": {
+        "title": "Komedje oryginalne Stanisława Bogusławskiego. T. 4. [Cz. 1]",
+        "related_records": [
+          {
+            "tag": "461",
+            "record_id": "BY-NLB-br0000059039",
+            "volume": "T. 4. [Cz. 1]"
+          },
+          {
+            "tag": "464",
+            "record_id": "",
+            "volume": ""
+          },
+          {
+            "tag": "482",
+            "record_id": "BY-NLB-br0000059041",
+            "volume": ""
+          }
+        ]
+      },
+      "mets": {
+        "metsID": 212004,
+        "nodes": [
+          {
+            "key": "212004_FILE_Y06yVzmm67",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_wB3FZgsSFE",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "TOM I",
+              "description": "1848 rok",
+              "file": {
+                "id": 12541588,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_1.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "212004_FILE_j5I4BTTit3",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_9ci0RpGDvS",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "TOM II",
+              "description": "1848 rok",
+              "file": {
+                "id": 12541593,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_2.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "212004_FILE_hWDgsV7CIL",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_Ac3A51C5Rz",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "TOM III",
+              "description": "1853 rok",
+              "file": {
+                "id": 12541601,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_3.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "212004_FILE_qOhdYnybf6",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_y1HhBZQcll",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "TOM IV, CZĘŚĆ 1",
+              "description": "1860 rok",
+              "file": {
+                "id": 12541585,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_4_1.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "212004_FILE_xNYLvbuFsa",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_sn3Hc7tM4z",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "TOM IV, CZĘŚĆ 2",
+              "description": "1866 rok",
+              "file": {
+                "id": 12541596,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_4_2.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "212004_FILE_KwcItoZUbN",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_YDZg9Jjik4",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "BLAGIER : monodram",
+              "description": "1866 rok",
+              "file": {
+                "id": 12541591,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_5.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "212004_FILE_FtggmRpeZC",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_2dMcyK99iV",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "WIEJSCY POLITYCY : komedya we trzech aktach wierszem",
+              "description": "1859 rok",
+              "file": {
+                "id": 12541520,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_6.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          }
+        ]
+      }
+    },
+    {
+      "record_id": "BY-NLB-br0000059083",
+      "owner_id": "BY-NLB-br0000059041",
+      "mets_id": "212004",
+      "record_html": "<div class=\"record\"><div class=\"mainbody\"><input class=\"hiddenId\" value=\"BY-NLB-br0000059083\"><h3 property=\"name\">Komedje oryginalne Stanisława Bogusławskiego. [T. 4. Cz. 2]</h3><table><tr><th>Title</th><td>Komedje oryginalne Stanisława Bogusławskiego. [T. 4. Cz. 2]</td></tr></table><a href=\"https://elib.nlb.by:8070/viewer/html/?markID=BY-NLB-br0000059041&amp;metsID=212004\">E-document</a></div></div>",
+      "owner_html": "<div class=\"record\"><div class=\"mainbody\"><input class=\"hiddenId\" value=\"BY-NLB-br0000059041\"><h3 property=\"name\">Komedje oryginalne Stanisława Bogusławskiego. T. 1</h3><table><tr><th>Title</th><td>Komedje oryginalne Stanisława Bogusławskiego. T. 1</td></tr><tr><th>Related Items</th><td><a href=\"/elib/Record/BY-NLB-br0000059063\">Komedje oryginalne Stanisława Bogusławskiego. T. 2. — 1848. — 296 s.</a> <a href=\"/elib/Record/BY-NLB-br0000059074\">Komedje oryginalne Stanisława Bogusławskiego. T. 3. — 1853. — 228 s.</a> <a href=\"/elib/Record/BY-NLB-br0000059079\">Komedje oryginalne Stanisława Bogusławskiego. T. 4. [Cz. 1]. — 1860. — 123 s.</a> <a href=\"/elib/Record/BY-NLB-br0000059083\">Komedje oryginalne Stanisława Bogusławskiego. [T. 4. Cz. 2]. — 1866. — 148 s.</a> <a href=\"/elib/Record/BY-NLB-br0000059089\">Blagier: monodram / przez Stanisława Bogusławskiego wierszem napisany. - Warszawa : S. Orgelbrand, 1866. - 23 s.</a> <a href=\"/elib/Record/BY-NLB-br0000059092\">Wiejscy politycy: komedya we trzech aktach wierszem / przez Władysława Syrokomlę. - Warszawa : S. Orgelbrand, 1859. - 94 с.</a></td></tr></table><a href=\"https://elib.nlb.by:8070/viewer/html/?markID=BY-NLB-br0000059041&amp;metsID=212004\">E-document</a></div></div>",
+      "marc_meta": {
+        "title": "Komedje oryginalne Stanisława Bogusławskiego. [T. 4. Cz. 2]",
+        "related_records": [
+          {
+            "tag": "461",
+            "record_id": "BY-NLB-br0000059039",
+            "volume": "[T. 4. Cz. 2]"
+          },
+          {
+            "tag": "464",
+            "record_id": "",
+            "volume": ""
+          },
+          {
+            "tag": "482",
+            "record_id": "BY-NLB-br0000059041",
+            "volume": ""
+          }
+        ]
+      },
+      "mets": {
+        "metsID": 212004,
+        "nodes": [
+          {
+            "key": "212004_FILE_Y06yVzmm67",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_wB3FZgsSFE",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "TOM I",
+              "description": "1848 rok",
+              "file": {
+                "id": 12541588,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_1.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "212004_FILE_j5I4BTTit3",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_9ci0RpGDvS",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "TOM II",
+              "description": "1848 rok",
+              "file": {
+                "id": 12541593,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_2.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "212004_FILE_hWDgsV7CIL",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_Ac3A51C5Rz",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "TOM III",
+              "description": "1853 rok",
+              "file": {
+                "id": 12541601,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_3.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "212004_FILE_qOhdYnybf6",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_y1HhBZQcll",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "TOM IV, CZĘŚĆ 1",
+              "description": "1860 rok",
+              "file": {
+                "id": 12541585,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_4_1.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "212004_FILE_xNYLvbuFsa",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_sn3Hc7tM4z",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "TOM IV, CZĘŚĆ 2",
+              "description": "1866 rok",
+              "file": {
+                "id": 12541596,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_4_2.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "212004_FILE_KwcItoZUbN",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_YDZg9Jjik4",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "BLAGIER : monodram",
+              "description": "1866 rok",
+              "file": {
+                "id": 12541591,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_5.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "212004_FILE_FtggmRpeZC",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_2dMcyK99iV",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "WIEJSCY POLITYCY : komedya we trzech aktach wierszem",
+              "description": "1859 rok",
+              "file": {
+                "id": 12541520,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_6.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          }
+        ]
+      }
+    },
+    {
+      "record_id": "BY-NLB-br0000059092",
+      "owner_id": "BY-NLB-br0000059041",
+      "mets_id": "212004",
+      "record_html": "<div class=\"record\"><div class=\"mainbody\"><input class=\"hiddenId\" value=\"BY-NLB-br0000059092\"><h3 property=\"name\">Wiejscy politycy: komedya we trzech aktach wierszem / przez Władysława Syrokomlę</h3><table><tr><th>Title</th><td>Wiejscy politycy: komedya we trzech aktach wierszem / przez Władysława Syrokomlę</td></tr></table><a href=\"https://elib.nlb.by:8070/viewer/html/?markID=BY-NLB-br0000059041&amp;metsID=212004\">E-document</a></div></div>",
+      "owner_html": "<div class=\"record\"><div class=\"mainbody\"><input class=\"hiddenId\" value=\"BY-NLB-br0000059041\"><h3 property=\"name\">Komedje oryginalne Stanisława Bogusławskiego. T. 1</h3><table><tr><th>Title</th><td>Komedje oryginalne Stanisława Bogusławskiego. T. 1</td></tr><tr><th>Related Items</th><td><a href=\"/elib/Record/BY-NLB-br0000059063\">Komedje oryginalne Stanisława Bogusławskiego. T. 2. — 1848. — 296 s.</a> <a href=\"/elib/Record/BY-NLB-br0000059074\">Komedje oryginalne Stanisława Bogusławskiego. T. 3. — 1853. — 228 s.</a> <a href=\"/elib/Record/BY-NLB-br0000059079\">Komedje oryginalne Stanisława Bogusławskiego. T. 4. [Cz. 1]. — 1860. — 123 s.</a> <a href=\"/elib/Record/BY-NLB-br0000059083\">Komedje oryginalne Stanisława Bogusławskiego. [T. 4. Cz. 2]. — 1866. — 148 s.</a> <a href=\"/elib/Record/BY-NLB-br0000059089\">Blagier: monodram / przez Stanisława Bogusławskiego wierszem napisany. - Warszawa : S. Orgelbrand, 1866. - 23 s.</a> <a href=\"/elib/Record/BY-NLB-br0000059092\">Wiejscy politycy: komedya we trzech aktach wierszem / przez Władysława Syrokomlę. - Warszawa : S. Orgelbrand, 1859. - 94 с.</a></td></tr></table><a href=\"https://elib.nlb.by:8070/viewer/html/?markID=BY-NLB-br0000059041&amp;metsID=212004\">E-document</a></div></div>",
+      "marc_meta": {
+        "title": "Wiejscy politycy",
+        "related_records": [
+          {
+            "tag": "482",
+            "record_id": "BY-NLB-br0000059041",
+            "volume": ""
+          }
+        ]
+      },
+      "mets": {
+        "metsID": 212004,
+        "nodes": [
+          {
+            "key": "212004_FILE_Y06yVzmm67",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_wB3FZgsSFE",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "TOM I",
+              "description": "1848 rok",
+              "file": {
+                "id": 12541588,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_1.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "212004_FILE_j5I4BTTit3",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_9ci0RpGDvS",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "TOM II",
+              "description": "1848 rok",
+              "file": {
+                "id": 12541593,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_2.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "212004_FILE_hWDgsV7CIL",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_Ac3A51C5Rz",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "TOM III",
+              "description": "1853 rok",
+              "file": {
+                "id": 12541601,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_3.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "212004_FILE_qOhdYnybf6",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_y1HhBZQcll",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "TOM IV, CZĘŚĆ 1",
+              "description": "1860 rok",
+              "file": {
+                "id": 12541585,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_4_1.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "212004_FILE_xNYLvbuFsa",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_sn3Hc7tM4z",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "TOM IV, CZĘŚĆ 2",
+              "description": "1866 rok",
+              "file": {
+                "id": 12541596,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_4_2.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "212004_FILE_KwcItoZUbN",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_YDZg9Jjik4",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "BLAGIER : monodram",
+              "description": "1866 rok",
+              "file": {
+                "id": 12541591,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_5.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "212004_FILE_FtggmRpeZC",
+            "data": {
+              "nodeType": "FILE",
+              "id": "212004_FILE_2dMcyK99iV",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "WIEJSCY POLITYCY : komedya we trzech aktach wierszem",
+              "description": "1859 rok",
+              "file": {
+                "id": 12541520,
+                "fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_6.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          }
+        ]
+      }
+    },
+    {
+      "record_id": "BY-NLB-br0000092396",
+      "owner_id": "BY-NLB-br0000092394",
+      "mets_id": "205173",
+      "record_html": "<div class=\"record\"><div class=\"mainbody\"><input class=\"hiddenId\" value=\"BY-NLB-br0000092396\"><h3 property=\"name\">Obrazy litewskie / przez Ignacego Chodźkę. Ser. 4. T. 2 : Autor swatem ; Panna respektowa</h3><table><tr><th>Title</th><td>Obrazy litewskie / przez Ignacego Chodźkę. Ser. 4. T. 2 : Autor swatem ; Panna respektowa</td></tr></table><a href=\"https://elib.nlb.by:8070/viewer/html/?markID=BY-NLB-br0000092394&amp;metsID=205173\">E-document</a></div></div>",
+      "owner_html": "<div class=\"record\"><div class=\"mainbody\"><input class=\"hiddenId\" value=\"BY-NLB-br0000092394\"><h3 property=\"name\">Obrazy litewskie / przez Ignacego Chodźkę. Ser. 4. T. 1 : Jubileusz ; Duch opiekuńczy</h3><table><tr><th>Title</th><td>Obrazy litewskie / przez Ignacego Chodźkę. Ser. 4. T. 1 : Jubileusz ; Duch opiekuńczy</td></tr><tr><th>Related Items</th><td><a href=\"/elib/Record/BY-NLB-br0000092396\">Obrazy litewskie / przez Ignacego Chodźkę. Ser. 4. T. 2 : Autor swatem ; Panna respektowa. — 1846. — 192 с.</a></td></tr></table><a href=\"https://elib.nlb.by:8070/viewer/html/?markID=BY-NLB-br0000092394&amp;metsID=205173\">E-document</a></div></div>",
+      "marc_meta": {
+        "title": "Obrazy litewskie / przez Ignacego Chodźkę. Autor swatem ; Panna respektowa",
+        "related_records": [
+          {
+            "tag": "461",
+            "record_id": "BY-NLB-br0000092338",
+            "volume": "Ser. 4. T. 2"
+          },
+          {
+            "tag": "482",
+            "record_id": "BY-NLB-br0000092394",
+            "volume": ""
+          }
+        ]
+      },
+      "mets": {
+        "metsID": 205173,
+        "nodes": [
+          {
+            "key": "205173_FILE_EwAHxGoEjK",
+            "data": {
+              "nodeType": "FILE",
+              "id": "205173_FILE_7SsvkJcLHw",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "SERIA CZWARTA, TOM I :",
+              "description": "Jubileusz ; Duch opiekuńczy",
+              "file": {
+                "id": 12107177,
+                "fileLocation": "/import/s3/nlb/8/2/1/r17825/PDF/r17825_t_1.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "205173_FILE_DMWhuk7vvT",
+            "data": {
+              "nodeType": "FILE",
+              "id": "205173_FILE_luEjHvGc6T",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "SERIA CZWARTA, TOM II:",
+              "description": "Autor swatem ; Panna respektowa",
+              "file": {
+                "id": 12107176,
+                "fileLocation": "/import/s3/nlb/8/2/1/r17825/PDF/r17825_t_2.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          }
+        ]
+      }
+    },
+    {
+      "record_id": "BY-NLB-br0000096009",
+      "owner_id": "BY-NLB-br0000096005",
+      "mets_id": "185530",
+      "record_html": "<div class=\"record\"><div class=\"mainbody\"><input class=\"hiddenId\" value=\"BY-NLB-br0000096009\"><h3 property=\"name\">Podania litewskie / przez Ignacego Chodźkę. Ser. 4 : Drugi pustelnik w Proniunach, czyli Votum chybione</h3><table><tr><th>Title</th><td>Podania litewskie / przez Ignacego Chodźkę. Ser. 4 : Drugi pustelnik w Proniunach, czyli Votum chybione</td></tr></table><a href=\"https://elib.nlb.by:8070/viewer/html/?markID=BY-NLB-br0000096005&amp;metsID=185530\">E-document</a></div></div>",
+      "owner_html": "<div class=\"record\"><div class=\"mainbody\"><input class=\"hiddenId\" value=\"BY-NLB-br0000096005\"><h3 property=\"name\">Podania litewskie / przez Ignacego Chodźkę. Ser. 3 : Pustelnik w Proniunach: powieść w dwóch częściach</h3><table><tr><th>Title</th><td>Podania litewskie / przez Ignacego Chodźkę. Ser. 3 : Pustelnik w Proniunach: powieść w dwóch częściach</td></tr><tr><th>Related Items</th><td><a href=\"/elib/Record/BY-NLB-br0000096009\">Podania litewskie / przez Ignacego Chodźkę. Ser. 4 : Drugi pustelnik w Proniunach, czyli Votum chybione. — 1860. — 146 с.</a></td></tr></table><a href=\"https://elib.nlb.by:8070/viewer/html/?markID=BY-NLB-br0000096005&amp;metsID=185530\">E-document</a></div></div>",
+      "marc_meta": {
+        "title": "Podania litewskie / przez Ignacego Chodźkę. Drugi pustelnik w Proniunach, czyli Votum chybione",
+        "related_records": [
+          {
+            "tag": "461",
+            "record_id": "BY-NLB-br0000095961",
+            "volume": "Ser. 4"
+          },
+          {
+            "tag": "482",
+            "record_id": "BY-NLB-br0000096005",
+            "volume": ""
+          }
+        ]
+      },
+      "mets": {
+        "metsID": 185530,
+        "nodes": [
+          {
+            "key": "185530_LEVEL_3424SPt",
+            "data": {
+              "nodeType": "LEVEL",
+              "id": "185530_LEVEL_XV4NGO0",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "elib",
+              "description": "",
+              "file": null
+            },
+            "children": [
+              {
+                "key": "185530_FILE_GSGr68E",
+                "data": {
+                  "nodeType": "FILE",
+                  "id": "185530_FILE_ctrxMCt",
+                  "elibLocal": false,
+                  "visible": true,
+                  "linkName": "Serya 3 - Pustelnik w Proniunach: powieść w dwóch częściach.",
+                  "description": "",
+                  "file": {
+                    "id": 10459352,
+                    "fileLocation": "/import/s3/nlb/8/2/1/r17272/r17272_3.pdf"
+                  },
+                  "elibLocalUrl": ""
+                }
+              },
+              {
+                "key": "185530_FILE_ONx9R4l",
+                "data": {
+                  "nodeType": "FILE",
+                  "id": "185530_FILE_TnX5b87",
+                  "elibLocal": false,
+                  "visible": true,
+                  "linkName": "Serya 4 - Drugi pustelnik w Proniunach, czyli Votum chybione.",
+                  "description": "",
+                  "file": {
+                    "id": 10459353,
+                    "fileLocation": "/import/s3/nlb/8/2/1/r17272/r17272_4.pdf"
+                  },
+                  "elibLocalUrl": ""
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "record_id": "BY-NLB-br0000142903",
+      "owner_id": "BY-NLB-br0000140589",
+      "mets_id": "198041",
+      "record_html": "<div class=\"record\"><div class=\"mainbody\"><input class=\"hiddenId\" value=\"BY-NLB-br0000142903\"><h3 property=\"name\">Menologium Bazyliańskie, to iest żywoty śwętych pańskich oboiey płci z zakony Ś. Bazylego W. : na miesiące rozłozone i na dwie części podzielone / zebrane i napisane przez s. p. J. X. Ignacego Kulczyńskiego Z. Ś. Bazylego W. opata grodzieńskiego. Cz. 2 : Drugie sześc miesięcy, to iest: lipiec, sierpień, wrzesień, pazdziernik, listopad i grudzień</h3><table><tr><th>Title</th><td>Menologium Bazyliańskie, to iest żywoty śwętych pańskich oboiey płci z zakony Ś. Bazylego W. : na miesiące rozłozone i na dwie części podzielone / zebrane i napisane przez s. p. J. X. Ignacego Kulczyńskiego Z. Ś. Bazylego W. opata grodzieńskiego. Cz. 2 : Drugie sześc miesięcy, to iest: lipiec, sierpień, wrzesień, pazdziernik, listopad i grudzień</td></tr></table><a href=\"https://elib.nlb.by:8070/viewer/html/?markID=BY-NLB-br0000140589&amp;metsID=198041\">E-document</a></div></div>",
+      "owner_html": "<div class=\"record\"><div class=\"mainbody\"><input class=\"hiddenId\" value=\"BY-NLB-br0000140589\"><h3 property=\"name\">Menologium Bazyliańskie, to iest żywoty śwętych pańskich oboiey płci z zakony Ś. Bazylego W. : na miesiące rozłozone i na dwie części podzielone / zebrane i napisane przez s. p. J. X. Ignacego Kulczyńskiego Z. Ś. Bazylego W. opata grodzieńskiego. Cz. 1 : Która zamyka w sobie miesiąc styczeń, luty, marzec, kwiecień, may, i czerwiec</h3><table><tr><th>Title</th><td>Menologium Bazyliańskie, to iest żywoty śwętych pańskich oboiey płci z zakony Ś. Bazylego W. : na miesiące rozłozone i na dwie części podzielone / zebrane i napisane przez s. p. J. X. Ignacego Kulczyńskiego Z. Ś. Bazylego W. opata grodzieńskiego. Cz. 1 : Która zamyka w sobie miesiąc styczeń, luty, marzec, kwiecień, may, i czerwiec</td></tr><tr><th>Related Items</th><td><a href=\"/elib/Record/BY-NLB-br0000142903\">Menologium Bazyliańskie, to iest żywoty śwętych pańskich oboiey płci z zakony Ś. Bazylego W. / zebrane i napisane przez s. p. J. X. Ignacego Kulczyńskiego Z. Ś. Bazylego W. opata grodzieńskiego. Cz. 2 : Drugie sześc miesięcy, to iest: lipiec, sierpień, wrzesień, pazdziernik, listopad i grudzień. — [2], 531, [6] c.</a></td></tr></table><a href=\"https://elib.nlb.by:8070/viewer/html/?markID=BY-NLB-br0000140589&amp;metsID=198041\">E-document</a></div></div>",
+      "marc_meta": {
+        "title": "Menologium Bazyliańskie, to iest żywoty śwętych pańskich oboiey płci z zakony Ś. Bazylego W. : na miesiące rozłozone i na dwie części podzielone / zebrane i napisane przez s. p. J. X. Ignacego Kulczyńskiego Z. Ś. Bazylego W. opata grodzieńskiego. Drugie sześc miesięcy, to iest: lipiec, sierpień, wrzesień, pazdziernik, listopad i grudzień",
+        "related_records": [
+          {
+            "tag": "461",
+            "record_id": "BY-NLB-br0000140541",
+            "volume": "Cz. 2"
+          },
+          {
+            "tag": "482",
+            "record_id": "BY-NLB-br0000140589",
+            "volume": ""
+          }
+        ]
+      },
+      "mets": {
+        "metsID": 198041,
+        "nodes": [
+          {
+            "key": "198041_LEVEL_iJLvQsX",
+            "data": {
+              "nodeType": "LEVEL",
+              "id": "198041_LEVEL_IhSnygf",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "Жития святых Господних обоих полов из ордена Святого Василия",
+              "description": "",
+              "file": null,
+              "elibLocalUrl": ""
+            },
+            "children": [
+              {
+                "key": "198041_FILE_4B5yFNj",
+                "data": {
+                  "nodeType": "FILE",
+                  "id": "198041_FILE_hEdmekA",
+                  "elibLocal": false,
+                  "visible": true,
+                  "linkName": "Część pierwsza:",
+                  "description": " Która zamyka w sobie miesiąc styczeń, luty, marzec, kwiecień, may, i czerwiec",
+                  "file": {
+                    "id": 11724881,
+                    "fileLocation": "/import/s3/nlb/0/9/094_3584k/PDF/094_3584k_1.pdf"
+                  },
+                  "elibLocalUrl": ""
+                }
+              },
+              {
+                "key": "198041_FILE_1sQDwmt",
+                "data": {
+                  "nodeType": "FILE",
+                  "id": "198041_FILE_c8X8NA9",
+                  "elibLocal": false,
+                  "visible": true,
+                  "linkName": "Część druga:",
+                  "description": "Drugie sześc miesięcy, to iest: lipiec, sierpień, wrzesień, pazdziernik, listopad i grudzień",
+                  "file": {
+                    "id": 11724882,
+                    "fileLocation": "/import/s3/nlb/0/9/094_3584k/PDF/094_3584k_2.pdf"
+                  },
+                  "elibLocalUrl": ""
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "record_id": "BY-NLB-br0000151440",
+      "owner_id": "BY-NLB-br0000151437",
+      "mets_id": "206933",
+      "record_html": "<div class=\"record\"><div class=\"mainbody\"><input class=\"hiddenId\" value=\"BY-NLB-br0000151440\"><h3 property=\"name\">Izabella d&#x27;Ayamonte: drammat we cztérech aktach / przez Józefa Korzeniowskiego</h3><table><tr><th>Title</th><td>Izabella d&#x27;Ayamonte: drammat we cztérech aktach / przez Józefa Korzeniowskiego</td></tr></table><a href=\"https://elib.nlb.by:8070/viewer/html/?markID=BY-NLB-br0000151437&amp;metsID=206933\">E-document</a></div></div>",
+      "owner_html": "<div class=\"record\"><div class=\"mainbody\"><input class=\"hiddenId\" value=\"BY-NLB-br0000151437\"><h3 property=\"name\">Daléj w świat / przez autorkę &quot;W imie Boże&quot;</h3><table><tr><th>Title</th><td>Daléj w świat / przez autorkę &quot;W imie Boże&quot;</td></tr><tr><th>Related Items</th><td><a href=\"/elib/Record/BY-NLB-br0000151440\">Izabella d&#x27;Ayamonte: drammat we cztérech aktach / przez Józefa Korzeniowskiego. - Wilno : Józef Zawadzki, 1848. - 141 с.</a></td></tr></table><a href=\"https://elib.nlb.by:8070/viewer/html/?markID=BY-NLB-br0000151437&amp;metsID=206933\">E-document</a></div></div>",
+      "marc_meta": {
+        "title": "Izabella d'Ayamonte",
+        "related_records": [
+          {
+            "tag": "482",
+            "record_id": "BY-NLB-br0000151437",
+            "volume": ""
+          }
+        ]
+      },
+      "mets": {
+        "metsID": 206933,
+        "nodes": [
+          {
+            "key": "206933_FILE_xXSmizMgMy",
+            "data": {
+              "nodeType": "FILE",
+              "id": "206933_FILE_yDmsGIhRSI",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "Puzynina, Gabriela. Daléj w świat",
+              "description": "",
+              "file": {
+                "id": 12262244,
+                "fileLocation": "/import/s3/nlb/8/2/1/r3007+2724/PDF/r3007+2724_1.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "206933_FILE_DPTA4QY92A",
+            "data": {
+              "nodeType": "FILE",
+              "id": "206933_FILE_qjFmWwhUvm",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": " Korzeniowski, J. Izabella d'Ayamonte: drammat we cztérech aktach",
+              "description": "",
+              "file": {
+                "id": 12262245,
+                "fileLocation": "/import/s3/nlb/8/2/1/r3007+2724/PDF/r3007+2724_2.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "206933_LEVEL_afL3beC0WB",
+            "data": {
+              "nodeType": "LEVEL",
+              "id": "206933_LEVEL_5rBWbIvqJy",
+              "elibLocal": false,
+              "visible": false,
+              "linkName": "elib",
+              "description": "",
+              "file": null,
+              "elibLocalUrl": ""
+            },
+            "children": []
+          }
+        ]
+      }
+    },
+    {
+      "record_id": "BY-NLB-br0000434173",
+      "owner_id": "BY-NLB-br0000434171",
+      "mets_id": "199838",
+      "record_html": "<div class=\"record\"><div class=\"mainbody\"><input class=\"hiddenId\" value=\"BY-NLB-br0000434173\"><h3 property=\"name\">Zbiór wiadomości do historyi sztuki lekarskiéj w Polsce : od czasów najdawniejszych, aż do najnowszych / przez Ludwika Gąsiorowskiego. T. 2</h3><table><tr><th>Title</th><td>Zbiór wiadomości do historyi sztuki lekarskiéj w Polsce : od czasów najdawniejszych, aż do najnowszych / przez Ludwika Gąsiorowskiego. T. 2</td></tr></table><a href=\"https://elib.nlb.by:8070/viewer/html/?markID=BY-NLB-br0000434171&amp;metsID=199838\">E-document</a></div></div>",
+      "owner_html": "<div class=\"record\"><div class=\"mainbody\"><input class=\"hiddenId\" value=\"BY-NLB-br0000434171\"><h3 property=\"name\">Zbiór wiadomości do historyi sztuki lekarskiéj w Polsce : od czasów najdawniejszych, aż do najnowszych / przez Ludwika Gąsiorowskiego. T. 1</h3><table><tr><th>Title</th><td>Zbiór wiadomości do historyi sztuki lekarskiéj w Polsce : od czasów najdawniejszych, aż do najnowszych / przez Ludwika Gąsiorowskiego. T. 1</td></tr><tr><th>Related Items</th><td><a href=\"/elib/Record/BY-NLB-br0000434173\">Zbiór wiadomości do historyi sztuki lekarskiéj w Polsce / przez Ludwika Gąsiorowskiego. T. 2. — 1853. — VII, 475, VIII</a></td></tr></table><a href=\"https://elib.nlb.by:8070/viewer/html/?markID=BY-NLB-br0000434171&amp;metsID=199838\">E-document</a></div></div>",
+      "marc_meta": {
+        "title": "Zbiór wiadomości do historyi sztuki lekarskiéj w Polsce : od czasów najdawniejszych, aż do najnowszych / przez Ludwika Gąsiorowskiego. T. 2",
+        "related_records": [
+          {
+            "tag": "461",
+            "record_id": "BY-NLB-br0000434170",
+            "volume": "T. 2"
+          },
+          {
+            "tag": "482",
+            "record_id": "BY-NLB-br0000434171",
+            "volume": ""
+          }
+        ]
+      },
+      "mets": {
+        "metsID": 199838,
+        "nodes": [
+          {
+            "key": "199838_FILE_u7cCPXv",
+            "data": {
+              "nodeType": "FILE",
+              "id": "199838_FILE_yV9Ccoj",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "ТОМ I",
+              "description": "1839 год",
+              "file": {
+                "id": 11885646,
+                "fileLocation": "/import/s3/nlb/6/1/r1888+1768/PDF/r1888+1768_1.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          },
+          {
+            "key": "199838_FILE_rLG0oGA",
+            "data": {
+              "nodeType": "FILE",
+              "id": "199838_FILE_WVkJkWE",
+              "elibLocal": false,
+              "visible": true,
+              "linkName": "ТОМ II",
+              "description": "1853 год",
+              "file": {
+                "id": 11885648,
+                "fileLocation": "/import/s3/nlb/6/1/r1888+1768/PDF/r1888+1768_2.pdf"
+              },
+              "elibLocalUrl": ""
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
