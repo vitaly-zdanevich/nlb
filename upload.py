@@ -216,15 +216,22 @@ def load_state(
 	# Revisit older associations once: a verified binary does not establish its
 	# catalog volume. Preserve prior results until the fresh scope check runs.
 	if not data.get('scan_identity_version') and state['items']:
+		state['current_page'] = 1
 		state['retry_from_page'] = 1
+		log_progress('Restarting at page 1 to verify legacy catalog-to-scan associations.')
 	state['scan_identity_version'] = 1
 	# Older releases treated HTML/error responses as terminal non-PDF records.
 	# Their original page was not saved, so revisit the selected catalog once.
+	legacy_non_pdf = False
 	for entry in state['items'].values():
 		if entry.get('status') == 'not_pdf':
 			entry['status'] = 'download_failed'
 			entry['error'] = 'Legacy non-PDF result needs another download and structural validation'
-			state['retry_from_page'] = 1
+			legacy_non_pdf = True
+	if legacy_non_pdf:
+		state['current_page'] = 1
+		state['retry_from_page'] = 1
+		log_progress('Restarting at page 1 to recheck legacy non-PDF results.')
 	return state
 
 
@@ -3013,7 +3020,11 @@ def iterate_and_upload(
 	metadata_only: bool = False,
 	continue_run: bool = False,
 ) -> dict[str, int]:
-	'''Scan from page one by default; explicit continuation resumes pending progress.'''
+	'''Scan from page one by default; continuation resumes traversal without retry rewinds.
+
+	Earlier failed or review items stay in state for the next fresh scan. They
+	must not prevent interrupted runs from reaching later catalog pages.
+	'''
 	if search_url:
 		url_from, url_to = extract_year_bounds_from_search_url(search_url)
 		if from_year is None:
@@ -3031,15 +3042,15 @@ def iterate_and_upload(
 		state['_read_only'] = True
 	if not continue_run or metadata_only:
 		state['current_page'] = 1
+		if not dry_run and not metadata_only:
+			# A fresh traversal rebuilds the earliest pending marker from its results.
+			state.pop('retry_from_page', None)
 	page = max(1, int(state.get('current_page') or 1))
-	if state.get('retry_from_page') is not None:
-		page = max(1, min(page, int(state['retry_from_page'])))
-		# A dry run cannot resolve pending uploads, even when downloads now succeed.
-		if not dry_run:
-			state.pop('retry_from_page')
-		# Save the rewind before fetching: even an immediate interruption can resume.
-		state['current_page'] = page
-		save_state(state_path, state)
+	if continue_run and not metadata_only:
+		log_progress(f'Resuming catalog at page {page}.')
+		pending_page = state.get('retry_from_page')
+		if pending_page is not None and pending_page < page:
+			log_progress(f'Earlier deferred items remain saved from page {pending_page}; run without --continue to revisit them.')
 	counts: dict[str, int] = {
 		'uploaded': 0,
 		'download_rejected': 0,
@@ -3434,7 +3445,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 	parser.add_argument('--backfill-pdfs', action='store_true', help='Archive missing PDFs for saved Commons uploads, verifying their original hashes; no Commons changes. With --dry-run, only inspect local files.')
 	parser.add_argument('--metadata-only', action='store_true', help='Revisit all selected records and archive Commons metadata without uploading or changing upload progress.')
 	parser.add_argument('--refresh-uploaded-metadata', action='store_true', help='Refresh saved Commons associations and automatically update their bibliographic metadata; no PDF uploads. Combine with --dry-run for an optional preview.')
-	parser.add_argument('--continue', dest='continue_run', action='store_true', help='Resume saved catalog progress or an interrupted metadata collection; otherwise start from the beginning while retaining upload history.')
+	parser.add_argument('--continue', dest='continue_run', action='store_true', help='Resume the saved catalog page without rewinding to earlier deferred items, or resume interrupted metadata collection. Omit to start a fresh scan and revisit deferred items while retaining upload history.')
 	parser.add_argument('--report', type=Path, help='Write a machine-readable run summary to this JSON file.')
 	parser.add_argument(
 		'--viewer-cookies',

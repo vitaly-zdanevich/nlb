@@ -2728,8 +2728,8 @@ class TestEndToEndPipeline(unittest.TestCase):
 					self.assertIn('PAGE_VIEWS timed out', output.getvalue())
 					self.assertIn('Deferring download after 5 attempts', output.getvalue())
 
-	def test_rejection_retry_page_survives_an_immediate_interrupt(self) -> None:
-		"""Persist the rewind before a search request can fail or be interrupted."""
+	def test_saved_page_and_pending_marker_survive_an_immediate_interrupt(self) -> None:
+		'''Keep traversal progress and earlier deferred work through an interrupted search.'''
 		with tempfile.TemporaryDirectory() as tmp_dir:
 			tmp_path = Path(tmp_dir)
 			state_path = tmp_path / 'state.json'
@@ -2746,10 +2746,13 @@ class TestEndToEndPipeline(unittest.TestCase):
 			}
 			with self.assertRaises(KeyboardInterrupt):
 				upload_nlb.iterate_and_upload(**kwargs)
-			self.assertEqual(upload_nlb.load_state(state_path)['current_page'], 2)
+			saved = upload_nlb.load_state(state_path)
+			self.assertEqual(saved['current_page'], 5)
+			self.assertEqual(saved['retry_from_page'], 2)
 			client.fetch_search_page = mock.Mock(return_value={'total_results': 0, 'records': []})
 			upload_nlb.iterate_and_upload(**kwargs)
-			self.assertEqual(client.fetch_search_page.call_args.kwargs['page'], 2)
+			self.assertEqual(client.fetch_search_page.call_args.kwargs['page'], 5)
+			self.assertEqual(upload_nlb.load_state(state_path)['retry_from_page'], 2)
 
 	def test_unrelated_http_errors_are_not_skipped(self) -> None:
 		'''Keep other download failures and Commons HTTP 400 errors visible to callers.'''

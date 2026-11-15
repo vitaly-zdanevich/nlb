@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from catalog_requests import CatalogRetriesExhausted
+from catalog_requests import CatalogRetriesExhausted, InvalidCatalogResponse
 from preservation import ArchiveStore, atomic_json, file_integrity
 from refresh_checkpoint import RefreshCheckpoint
 from test_refresh_uploaded_metadata import RefreshCatalog, association
@@ -27,7 +27,8 @@ class TestContinue(unittest.TestCase):
 		self.root = Path(temporary.name)
 		self.state = self.root / 'state.json'
 		self.addCleanup(mock.patch.stopall)
-		mock.patch('sys.stdout', io.StringIO()).start()
+		self.output = io.StringIO()
+		mock.patch('sys.stdout', self.output).start()
 
 	def test_default_discovers_earlier_new_records_without_reuploading_completed_files(self):
 		'''An old cursor cannot hide newly inserted records from a fresh catalog scan.'''
@@ -44,9 +45,9 @@ class TestContinue(unittest.TestCase):
 		self.assertEqual(len(uploader.uploads), 1)
 		self.assertEqual(len(json.loads(self.state.read_text())['items']), 3)
 
-	def test_continue_uses_saved_page_and_earliest_pending_page(self):
-		'''Explicit continuation repeats its boundary page, preserving pending work.'''
-		for pending, expected in ((None, 4), (2, 2)):
+	def test_continue_uses_saved_page_without_erasing_earlier_pending_work(self):
+		'''Explicit continuation repeats its boundary page without rewinding for review.'''
+		for pending in (None, 2):
 			with self.subTest(pending=pending):
 				state = upload.default_state()
 				state['current_page'] = 4
@@ -56,7 +57,76 @@ class TestContinue(unittest.TestCase):
 				client = FakeNlbClient()
 				client.fetch_search_page = mock.Mock(return_value={'records': [], 'total_results': 0})
 				upload.iterate_and_upload(client, FakeCommonsUploader(), self.state, self.root / 'staging', continue_run=True)
-				self.assertEqual(client.fetch_search_page.call_args.kwargs['page'], expected)
+				self.assertEqual(client.fetch_search_page.call_args.kwargs['page'], 4)
+				self.assertEqual(json.loads(self.state.read_text()).get('retry_from_page'), pending)
+				self.assertIn('Resuming catalog at page 4.', self.output.getvalue())
+				if pending:
+					self.assertIn('Earlier deferred items remain saved from page 2', self.output.getvalue())
+
+	def test_review_on_page_one_does_not_prevent_resuming_a_later_failed_search(self):
+		'''A real deferred scan survives continuation and is revisited by a fresh run.'''
+		client, uploader = FakeNlbClient(), FakeCommonsUploader()
+		fail_search = True
+		records = [{'marc_id': f'BY-NLB-rr{number}', 'file_ids': [str(number)]} for number in (111, 222, 333)]
+
+		def search(page, **options):
+			'''Fail page three once, after an unresolved rights case on page one.'''
+			if page == 3 and fail_search:
+				raise CatalogRetriesExhausted(InvalidCatalogResponse('Search unavailable'), 5)
+			return {'total_results': 3, 'records': [records[page - 1]]}
+
+		client.fetch_search_page = mock.Mock(side_effect=search)
+		client.fetch_record_metadata = mock.Mock(side_effect=lambda rid: (
+			{'marc_id': rid, 'title': 'Book'}, {} if rid.endswith('111') else {'date': '1800'}))
+		client.check_doc_access = mock.Mock(side_effect=lambda rid: {'publicAccess': not rid.endswith('222')})
+		client.resolve_record_files = mock.Mock(side_effect=lambda entry, metadata: [
+			{'file_id': entry['file_ids'][0], 'part_label': ''}])
+		with mock.patch('upload.SEARCH_PAGE_SIZE', 1), mock.patch('upload.check_commons_by_hash',
+			side_effect=lambda path, **_: (upload.calculate_sha1(path), [])):
+			counts = upload.iterate_and_upload(client, uploader, self.state, self.root / 'staging')
+			self.assertEqual((counts['rights_review'], counts['search_failed']), (1, 1))
+			saved = json.loads(self.state.read_text())
+			self.assertEqual((saved['current_page'], saved['retry_from_page']), (3, 1))
+			pending = saved['items']['BY-NLB-rr111:111']
+			fail_search = False
+			client.fetch_search_page.reset_mock()
+			counts = upload.iterate_and_upload(client, uploader, self.state, self.root / 'staging', continue_run=True)
+			self.assertEqual([call.kwargs['page'] for call in client.fetch_search_page.call_args_list], [3])
+			self.assertEqual(counts['uploaded'], 1)
+			saved = json.loads(self.state.read_text())
+			self.assertEqual(saved['items']['BY-NLB-rr111:111'], pending)
+			self.assertEqual(saved['retry_from_page'], 1)
+			client.fetch_search_page.reset_mock()
+			counts = upload.iterate_and_upload(client, uploader, self.state, self.root / 'staging')
+			self.assertEqual([call.kwargs['page'] for call in client.fetch_search_page.call_args_list], [1, 2, 3])
+			self.assertEqual(counts['rights_review'], 1)
+			self.assertEqual(client.downloaded_file_ids, ['333'])
+			self.assertEqual(len(uploader.uploads), 1)
+
+	def test_safety_migrations_rewind_once_even_with_continue(self):
+		'''Legacy scan auditing retains its one-time rewind independently of retry markers.'''
+		for migration in ('scan_identity', 'not_pdf'):
+			with self.subTest(migration=migration):
+				state = upload.default_state()
+				state['current_page'] = 4
+				state['items']['BY-NLB-rr111:1001'] = {'status': 'uploaded'}
+				if migration == 'scan_identity':
+					state.pop('scan_identity_version')
+				else:
+					state['items']['BY-NLB-rr111:1001']['status'] = 'not_pdf'
+				self.state.write_text(json.dumps(state))
+				client = FakeNlbClient()
+				client.fetch_search_page = mock.Mock(return_value={'records': [], 'total_results': 0})
+				upload.iterate_and_upload(client, FakeCommonsUploader(), self.state, self.root / 'staging', continue_run=True)
+				self.assertEqual(client.fetch_search_page.call_args.kwargs['page'], 1)
+				saved = json.loads(self.state.read_text())
+				self.assertEqual(saved['retry_from_page'], 1)
+				self.assertIn('BY-NLB-rr111:1001', saved['items'])
+				saved['current_page'] = 4
+				self.state.write_text(json.dumps(saved))
+				client.fetch_search_page.reset_mock()
+				upload.iterate_and_upload(client, FakeCommonsUploader(), self.state, self.root / 'staging', continue_run=True)
+				self.assertEqual(client.fetch_search_page.call_args.kwargs['page'], 4)
 
 	def test_new_access_restriction_keeps_historical_upload_identity(self):
 		'''A later library access decision cannot erase an already published file's evidence.'''
