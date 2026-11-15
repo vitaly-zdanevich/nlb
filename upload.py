@@ -323,8 +323,8 @@ def parse_viewer_link(href: str, *, marc_id: str | None = None, allow_shared_met
 
 
 def parse_search_results_html(html: str) -> dict[str, Any]:
-	'''Parse result entries without adopting unrelated sidebar scans or metadata.'''
-	from catalog_validation import check_html_identity, record_region
+	'''Keep identified records while discarding conflicting search viewer hints.'''
+	from catalog_validation import check_search_identity, record_region
 
 	soup = BeautifulSoup(html, 'html.parser')
 	total_results = 0
@@ -352,7 +352,7 @@ def parse_search_results_html(html: str) -> dict[str, Any]:
 					break
 		if not marc_id or marc_id in seen_ids:
 			continue
-		check_html_identity(result_node, None, marc_id, required=False)
+		viewer_error = check_search_identity(result_node, None, marc_id)
 		seen_ids.add(marc_id)
 
 		title_link = result_node.select_one('a.title')
@@ -366,7 +366,7 @@ def parse_search_results_html(html: str) -> dict[str, Any]:
 		file_ids: list[str] = []
 		mets_ids: list[str] = []
 		viewer_links: list[dict[str, str | None]] = []
-		for link in result_node.find_all('a', href=True):
+		for link in ([] if viewer_error else result_node.find_all('a', href=True)):
 			parsed = parse_viewer_link(link['href'], marc_id=marc_id, allow_shared_mets=hidden_id is not None)
 			if not parsed:
 				continue
@@ -386,6 +386,9 @@ def parse_search_results_html(html: str) -> dict[str, Any]:
 			'mets_ids': mets_ids,
 			'viewer_links': viewer_links,
 		})
+		if viewer_error:
+			records[-1]['viewer_error'] = viewer_error
+			log_progress(f'[{marc_id}] Search viewer links failed validation; checking the primary record instead: {viewer_error}')
 
 	return {
 		'total_results': total_results,

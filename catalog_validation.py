@@ -111,8 +111,26 @@ def validate_record_html(response: requests.Response, marc_id: str) -> None:
 	check_html_identity(soup, response, marc_id, required=True)
 
 
+def check_search_identity(soup: Tag, response: requests.Response | None, marc_id: str) -> str | None:
+	'''Keep an identified search record usable when only its viewer hints conflict.
+
+	Return the viewer diagnostic so parsers can discard every scan hint for this
+	entry and obtain fresh primary metadata. Missing or conflicting catalog IDs
+	still invalidate the page; primary record validation remains unchanged.
+	'''
+	main = record_region(soup)
+	identifiers = [str(node.get('value', '')).strip() for node in main.select('input.hiddenId')]
+	try:
+		check_html_identity(main, response, marc_id, required=False)
+	except InvalidCatalogResponse as error:
+		if not identifiers or set(identifiers) != {marc_id}:
+			raise
+		return str(error)
+	return None
+
+
 def validate_search_html(response: requests.Response) -> None:
-	'''Distinguish complete result lists and explicit empty searches from failed pages.'''
+	'''Require a complete identified result list, isolating conflicting viewer hints.'''
 	soup = html_soup(response)
 	results = soup.select('.result')
 	stats = soup.select_one('.search-stats, .search-controls')
@@ -143,7 +161,7 @@ def validate_search_html(response: requests.Response) -> None:
 					break
 		if not identifier or identifier in seen:
 			reject(response, 'Search result has a missing or repeated record identifier')
-		check_html_identity(result, response, identifier, required=False)
+		check_search_identity(result, response, identifier)
 		seen.add(identifier)
 
 

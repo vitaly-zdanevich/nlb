@@ -249,8 +249,10 @@ class TestCatalogValidation(unittest.TestCase):
 		self.assertNotIn('Other', records[0]['title'])
 		conflicting = MOCK_SEARCH_HTML_PAGE_1.replace('markID=BY-NLB-rr111', 'markID=BY-NLB-other')
 		self.session.get.side_effect = [self.response(conflicting) for _ in range(5)]
-		with self.assertRaises(CatalogRetriesExhausted):
-			self.client.fetch_search_page(1)
+		records = self.client.fetch_search_page(1)['records']
+		self.assertEqual(records[0]['file_ids'], [])
+		self.assertIn('viewer_error', records[0])
+		self.assertEqual(records[1]['mets_ids'], ['555'])
 
 	def test_archive_observes_invalid_and_missing_responses_before_validation(self) -> None:
 		'''Capture error evidence and optional 404s as well as successful source bytes.'''
