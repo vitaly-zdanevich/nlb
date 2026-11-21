@@ -81,6 +81,11 @@ class TestSharedViewers(unittest.TestCase):
 		'''All ten observed records preserve their shared anchors and remain subject to scope checks.'''
 		fixtures = json.loads((Path(__file__).parent / 'fixtures/shared_viewer_anchors.json').read_text())['records']
 		outcomes = Counter()
+		expected = {
+			'BY-NLB-br0000059063': '12541593', 'BY-NLB-br0000059074': '12541601',
+			'BY-NLB-br0000059079': '12541585', 'BY-NLB-br0000059083': '12541596',
+			'BY-NLB-br0000434173': '11885648',
+		}
 		for case in fixtures:
 			with self.subTest(record=case['record_id']):
 				client = upload.NlbClient(session=self.session, metadata_reads_only=True)
@@ -91,10 +96,10 @@ class TestSharedViewers(unittest.TestCase):
 				for item in files:
 					self.assertEqual(item['shared_viewers'][0]['viewer_record_id'], case['owner_id'])
 					decision = assess_scan_identity(item, metadata, case['marc_meta'])
-					self.assertFalse(decision['eligible'])
+					self.assertEqual(decision['eligible'], item['file_id'] == expected.get(case['record_id']))
 					outcomes[decision['reason']] += 1
 		self.assertEqual(sum(outcomes.values()), 45)
-		self.assertEqual(outcomes['Shared viewer has no explicit volume for this scan'], 38)
+		self.assertEqual(outcomes[''], 5)
 
 	def test_missing_or_unrelated_owner_evidence_defers_before_resolving_files(self):
 		'''Unproven owner chains, foreign links and sidebar backlinks cannot establish sharing.'''

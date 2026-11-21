@@ -1,0 +1,2695 @@
+{
+	"provenance": "Minimized from public NLB catalog metadata and METS captured in November 2026, using the local matching corpus collected on 2026-11-15. Original METS nodes retained without alteration; unrelated top-level METS fields and catalog fields omitted. Expected eligibility is for conservative exact work-title matching only, not author disambiguation.",
+	"records": [
+		{
+			"record_id": "BY-NLB-br0000023767",
+			"expected_file_ids": [
+				"7389652"
+			],
+			"case_note": "Quoted Polish work title after an author; the missing beginning note is descriptive and must remain preserved.",
+			"source_url": "https://elib.nlb.by:8070/mets//structure/state?id=127627",
+			"source_sha256": "57bf3318f17248df82dbd3948b87e4ae77cbfc81f2357f15174e4713a5048d00",
+			"record_meta": {
+				"marc_id": "BY-NLB-br0000023767",
+				"title": "Do głosów poetyckich: przydaie sama od siebie Drukarnia Głosy Oratorskie / przez pewnego szlachcica koronnego Urzędnika ziemskiego; a pzed tym w tutecznych szkołach Eloquencyi Auditora na Seymach, Radach, Legacyach y inszych publicznych miane, tu zaś dla tychże szkół y zabierających się ad similia Geniuszów, zebrane w R. p. 1734 [P.F.A.Ł.N.Ł]",
+				"record_links": [
+					{
+						"record_id": "BY-NLB-br0000987196",
+						"title": "Lutnia rozstroiona / [F.A. Łoski ]. - [Warszawa, 1734]. - 32 с.",
+						"label": "Related Items"
+					},
+					{
+						"record_id": "BY-NLB-br0000987285",
+						"title": "Dzwięk na wdzięk Opatrzności Boskiey przez Głosy: na którey wdięczność, nigdy dosyć, chwała zawsze, cyfra, / y ia Author Nic. P.F.A.Ł.. - Warszawa, 1734. - 89 с.",
+						"label": "Related Items"
+					}
+				],
+				"file_ids": [],
+				"mets_ids": [
+					"127627"
+				],
+				"viewer_links": [
+					{
+						"url": "https://elib.nlb.by:8070/viewer/html?metsID=127627&markID=BY-NLB-br0000023767",
+						"mark_id": "BY-NLB-br0000023767",
+						"file_id": null,
+						"mets_id": "127627"
+					}
+				]
+			},
+			"marc_meta": {
+				"title": "Do głosów poetyckich",
+				"subtitle": "przydaie sama od siebie Drukarnia Głosy Oratorskie",
+				"related_records": [
+					{
+						"tag": "481",
+						"record_id": "BY-NLB-br0000987196",
+						"title": "",
+						"volume": "",
+						"copies": []
+					},
+					{
+						"tag": "481",
+						"record_id": "BY-NLB-br0000987285",
+						"title": "",
+						"volume": "",
+						"copies": []
+					},
+					{
+						"tag": "488",
+						"record_id": "BY-NLB-br0000181085",
+						"title": "",
+						"volume": "",
+						"copies": []
+					}
+				],
+				"responsibility": "przez pewnego szlachcica koronnego Urzędnika ziemskiego; a pzed tym w tutecznych szkołach Eloquencyi Auditora na Seymach, Radach, Legacyach y inszych publicznych miane, tu zaś dla tychże szkół y zabierających się ad similia Geniuszów, zebrane w R. p. 1734 [P.F.A.Ł.N.Ł]",
+				"responsibilities": [
+					"przez pewnego szlachcica koronnego Urzędnika ziemskiego; a pzed tym w tutecznych szkołach Eloquencyi Auditora na Seymach, Radach, Legacyach y inszych publicznych miane, tu zaś dla tychże szkół y zabierających się ad similia Geniuszów, zebrane w R. p. 1734 [P.F.A.Ł.N.Ł]"
+				],
+				"edition": "",
+				"publication_terms": [],
+				"places": [
+					"Warszawa"
+				],
+				"publishers": [],
+				"imprint_statements": [
+					{
+						"tag": "210",
+						"text": "Место издания ($a): Warszawa; Дата издания ($d): 1734"
+					}
+				],
+				"manufacturing_statements": [],
+				"date": "1734",
+				"year": "1734",
+				"personal_name_variants": [
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar7997265",
+						"type": "400",
+						"name": "Łoski, P. F. A. (Piotr Franciszek Alojzy) (каля 1661—1728)",
+						"codes": [],
+						"context": "",
+						"main_names": [
+							"Łoski, F. A. (Franciszek Alojzy) (каля 1661—1728)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar7997265",
+						"type": "400",
+						"name": "Loski, F. A. (Franciszek Alojzy) (каля 1661—1728)",
+						"codes": [],
+						"context": "",
+						"main_names": [
+							"Łoski, F. A. (Franciszek Alojzy) (каля 1661—1728)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar7997265",
+						"type": "400",
+						"name": "P. F. A. Ł. (каля 1661—1728)",
+						"codes": [],
+						"context": "",
+						"main_names": [
+							"Łoski, F. A. (Franciszek Alojzy) (каля 1661—1728)"
+						]
+					}
+				],
+				"authors": [
+					"Łoski, F. A. (Franciszek Alojzy) (каля 1661—1728)"
+				],
+				"contributors": [
+					{
+						"name": "Łoski, F. A. (Franciszek Alojzy) (каля 1661—1728)",
+						"tag": "700",
+						"kind": "person",
+						"dates": [
+							"каля 1661—1728"
+						],
+						"roles": [
+							"070"
+						],
+						"copies": []
+					},
+					{
+						"name": "Bibliotheca Bychoviensi CCRR",
+						"tag": "712",
+						"kind": "organization",
+						"dates": [],
+						"roles": [
+							"390"
+						],
+						"copies": []
+					}
+				]
+			},
+			"mets": {
+				"metsID": 127627,
+				"nodes": [
+					{
+						"key": "127627_TEXT_6JpKiWv",
+						"serial": 0,
+						"data": {
+							"id": "127627_TEXT_6JpKiWv",
+							"file": null,
+							"linkName": "Канвалют:",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "TEXT",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "127627_FILE_rmeRtXn",
+						"serial": 0,
+						"data": {
+							"id": "127627_FILE_rmeRtXn",
+							"file": {
+								"id": 7389652,
+								"fileLocation": "/import/s3/nlb/0/9/12i_48_026/PDF/12i_48_026_1.pdf"
+							},
+							"linkName": "1. Łoski, Franciszek Alojzy «Do głosów poetyckich» - адсутничае пачатак выдання",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "127627_FILE_n5mjTWu",
+						"serial": 0,
+						"data": {
+							"id": "127627_FILE_n5mjTWu",
+							"file": {
+								"id": 7389653,
+								"fileLocation": "/import/s3/nlb/0/9/12i_48_026/PDF/12i_48_026_2.pdf"
+							},
+							"linkName": "2. Łoski, Franciszek Alojzy «Lutnia rozstroiona»",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "127627_FILE_Abg0665",
+						"serial": 0,
+						"data": {
+							"id": "127627_FILE_Abg0665",
+							"file": {
+								"id": 7389654,
+								"fileLocation": "/import/s3/nlb/0/9/12i_48_026/PDF/12i_48_026_3.pdf"
+							},
+							"linkName": "3. Łoski, Franciszek Alojzy «Dzwięk na wdzięk Opatrzności Boskiey przez Głosy» - адсутничае пачатак выдання",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					}
+				]
+			},
+			"parsed_source_sha256": "8ecfb311943b6b1bfe44e69452837b97d1755feabea46fab603ee35ef7aa56e7"
+		},
+		{
+			"record_id": "BY-NLB-br0000023872",
+			"expected_file_ids": [
+				"7390730"
+			],
+			"case_note": "Quoted Latin title after an author; two other bound works have distinct quoted titles.",
+			"source_url": "https://elib.nlb.by:8070/mets//structure/state?id=127629",
+			"source_sha256": "e3479c71cce56e29eaa64ce9a3e5ba66a0a746610597d37bdef35a9f3b64081b",
+			"record_meta": {
+				"marc_id": "BY-NLB-br0000023872",
+				"title": "De arte rhetorica: libri quinque, lectissimis veterum auctorum aetatis aurea perpetuisque exeplis illustrati / Auctore P. Dominico de Colonia Societatis Jesu presbytero",
+				"record_links": [
+					{
+						"record_id": "BY-NLB-br0001117610",
+						"title": "Apparatus eloquentiae: Seu latinorum auctorum aetatis aureae loca exquisitissima. - [Vilnia, 1770]. - 71 с.",
+						"label": "Related Items"
+					},
+					{
+						"record_id": "BY-NLB-br0001117617",
+						"title": "Institutiones poeticae et rhetoricae / Auctore R.P. Josepho Juvencio S.J. ad usum gymnasiorum ejusdem societatis. - Editio 3tia in Litvania. - Vilnae : Typis S. R. M. & R. Academ: Soc: Jesu, 1766. - [3], 139, [11] c.",
+						"label": "Related Items"
+					}
+				],
+				"file_ids": [],
+				"mets_ids": [
+					"127629"
+				],
+				"viewer_links": [
+					{
+						"url": "https://elib.nlb.by:8070/viewer/html?metsID=127629&markID=BY-NLB-br0000023872",
+						"mark_id": "BY-NLB-br0000023872",
+						"file_id": null,
+						"mets_id": "127629"
+					}
+				]
+			},
+			"marc_meta": {
+				"title": "De arte rhetorica",
+				"subtitle": "libri quinque, lectissimis veterum auctorum aetatis aurea perpetuisque exeplis illustrati",
+				"related_records": [
+					{
+						"tag": "481",
+						"record_id": "BY-NLB-br0001117610",
+						"title": "",
+						"volume": "",
+						"copies": []
+					},
+					{
+						"tag": "481",
+						"record_id": "BY-NLB-br0001117617",
+						"title": "",
+						"volume": "",
+						"copies": []
+					},
+					{
+						"tag": "488",
+						"record_id": "BY-NLB-br23098",
+						"title": "",
+						"volume": "",
+						"copies": []
+					},
+					{
+						"tag": "488",
+						"record_id": "BY-NLB-br0000180980",
+						"title": "",
+						"volume": "",
+						"copies": []
+					}
+				],
+				"responsibility": "Auctore P. Dominico de Colonia Societatis Jesu presbytero",
+				"responsibilities": [
+					"Auctore P. Dominico de Colonia Societatis Jesu presbytero"
+				],
+				"edition": "",
+				"publication_terms": [],
+				"places": [
+					"Vilnae"
+				],
+				"publishers": [
+					"Typis Academicis Soc: Jesu"
+				],
+				"imprint_statements": [
+					{
+						"tag": "210",
+						"text": "Место издания ($a): Vilnae; Издатель ($c): Typis Academicis Soc: Jesu; Дата издания ($d): 1770"
+					}
+				],
+				"manufacturing_statements": [],
+				"date": "1770",
+				"year": "1770",
+				"personal_name_variants": [
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar3333299",
+						"type": "400",
+						"name": "De Colonia, D. (Dominique de) (1660—1741)",
+						"codes": [],
+						"context": "",
+						"main_names": [
+							"Colonia, D. de (Dominique de) (1660—1741)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar3333299",
+						"type": "400",
+						"name": "Decolonia, D. (Dominique de) (1660—1741)",
+						"codes": [],
+						"context": "",
+						"main_names": [
+							"Colonia, D. de (Dominique de) (1660—1741)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar3333299",
+						"type": "400",
+						"name": "Colonia, D. de (Dominicus de) (1660—1741)",
+						"codes": [],
+						"context": "",
+						"main_names": [
+							"Colonia, D. de (Dominique de) (1660—1741)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar3333299",
+						"type": "400",
+						"name": "Colonia, D. (Dominik) (1660—1741)",
+						"codes": [],
+						"context": "",
+						"main_names": [
+							"Colonia, D. de (Dominique de) (1660—1741)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar3333299",
+						"type": "500",
+						"name": "Колония, Д. де (Доминик де) (1660—1741)",
+						"codes": [
+							"w"
+						],
+						"context": "",
+						"main_names": [
+							"Colonia, D. de (Dominique de) (1660—1741)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar3333299",
+						"type": "400",
+						"name": "Де Колония, Д. (Доминик) (1660—1741)",
+						"codes": [],
+						"context": "Колония, Д. де (Доминик де) (1660—1741)",
+						"main_names": [
+							"Colonia, D. de (Dominique de) (1660—1741)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar3333299",
+						"type": "400",
+						"name": "Деколония, Д. (Доминик) (1660—1741)",
+						"codes": [],
+						"context": "Колония, Д. де (Доминик де) (1660—1741)",
+						"main_names": [
+							"Colonia, D. de (Dominique de) (1660—1741)"
+						]
+					}
+				],
+				"authors": [
+					"Colonia, D. de (Dominique de) (1660—1741)"
+				],
+				"contributors": [
+					{
+						"name": "Colonia, D. de (Dominique de) (1660—1741)",
+						"tag": "700",
+						"kind": "person",
+						"dates": [
+							"1660—1741"
+						],
+						"roles": [
+							"070"
+						],
+						"copies": []
+					},
+					{
+						"name": "Czekatowicz",
+						"tag": "702",
+						"kind": "person",
+						"dates": [],
+						"roles": [
+							"390"
+						],
+						"copies": []
+					}
+				]
+			},
+			"mets": {
+				"metsID": 127629,
+				"nodes": [
+					{
+						"key": "127629_TEXT_d3zZbz3",
+						"serial": 0,
+						"data": {
+							"id": "127629_TEXT_d3zZbz3",
+							"file": null,
+							"linkName": "КОНВАЛЮТ:",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "TEXT",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "127629_FILE_t1WTeqA",
+						"serial": 0,
+						"data": {
+							"id": "127629_FILE_t1WTeqA",
+							"file": {
+								"id": 7390730,
+								"fileLocation": "/import/s3/nlb/0/9/12n_59_026/PDF/12n_59_026_1.pdf"
+							},
+							"linkName": "1. Dominique de Colonia \"De arte rhetorica\" (1770 rok)",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "127629_FILE_LnfPJ64",
+						"serial": 0,
+						"data": {
+							"id": "127629_FILE_LnfPJ64",
+							"file": {
+								"id": 7390731,
+								"fileLocation": "/import/s3/nlb/0/9/12n_59_026/PDF/12n_59_026_2.pdf"
+							},
+							"linkName": "2. \"Apparatus eloquentiae\" - Seu latinorum auctorum aetatis aureae loca exquisitissima (1770 rok)",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "127629_FILE_9NcAmOq",
+						"serial": 0,
+						"data": {
+							"id": "127629_FILE_9NcAmOq",
+							"file": {
+								"id": 7390732,
+								"fileLocation": "/import/s3/nlb/0/9/12n_59_026/PDF/12n_59_026_3.pdf"
+							},
+							"linkName": "3. Joseph de Jouvancy \"Institutiones poeticae et rhetoricae \" (1766 rok)",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					}
+				]
+			},
+			"parsed_source_sha256": "4e3dccc7b42b3b1c0af7c306540b4de26dca044ef7aefbdbf830394f6d7435de"
+		},
+		{
+			"record_id": "BY-NLB-br0000059092",
+			"expected_file_ids": [
+				"12541520"
+			],
+			"case_note": "Unquoted main title plus an exact subtitle; numeric volumes elsewhere in this viewer belong to another work.",
+			"source_url": "https://elib.nlb.by:8070/mets//structure/state?id=212004",
+			"source_sha256": "996a17341387b6ac1aedadd7bbf0543034214adf07790b857f709a328a170ce2",
+			"record_meta": {
+				"marc_id": "BY-NLB-br0000059092",
+				"title": "Wiejscy politycy: komedya we trzech aktach wierszem / przez Władysława Syrokomlę",
+				"record_links": [
+					{
+						"record_id": "BY-NLB-br0000059041",
+						"title": "Komedje oryginalne Stanisława Bogusławskiego. T. 1. — 1848. — 274 s.",
+						"label": "Related Items"
+					}
+				],
+				"file_ids": [],
+				"mets_ids": [
+					"212004"
+				],
+				"viewer_links": [
+					{
+						"url": "https://elib.nlb.by:8070/viewer/html/?markID=BY-NLB-br0000059041&metsID=212004",
+						"mark_id": "BY-NLB-br0000059041",
+						"file_id": null,
+						"mets_id": "212004"
+					}
+				]
+			},
+			"marc_meta": {
+				"title": "Wiejscy politycy",
+				"subtitle": "komedya we trzech aktach wierszem",
+				"related_records": [
+					{
+						"tag": "482",
+						"record_id": "BY-NLB-br0000059041",
+						"title": "",
+						"volume": "",
+						"copies": []
+					}
+				],
+				"responsibility": "przez Władysława Syrokomlę",
+				"responsibilities": [
+					"przez Władysława Syrokomlę"
+				],
+				"edition": "",
+				"publication_terms": [],
+				"places": [
+					"Warszawa"
+				],
+				"publishers": [
+					"S. Orgelbrand"
+				],
+				"imprint_statements": [
+					{
+						"tag": "210",
+						"text": "Место издания ($a): Warszawa; Издатель ($c): S. Orgelbrand; Дата издания ($d): 1859"
+					}
+				],
+				"manufacturing_statements": [],
+				"date": "1859",
+				"year": "1859",
+				"personal_name_variants": [
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar2667133",
+						"type": "400",
+						"name": "Kondratowicz, L. F. W. (Ludwik Franciszek Władysław) (1823—1862)",
+						"codes": [],
+						"context": "",
+						"main_names": [
+							"Syrokomla, W. (Władysław) (1823—1862)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar2667133",
+						"type": "500",
+						"name": "Сырокомля, В. (Владислав) (1823—1862)",
+						"codes": [
+							"w"
+						],
+						"context": "",
+						"main_names": [
+							"Syrokomla, W. (Władysław) (1823—1862)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar2667133",
+						"type": "400",
+						"name": "Кондратович, Л. Ф. В. (Людвик Франтишек Владислав) (1823—1862)",
+						"codes": [],
+						"context": "Сырокомля, В. (Владислав) (1823—1862)",
+						"main_names": [
+							"Syrokomla, W. (Władysław) (1823—1862)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar2667133",
+						"type": "500",
+						"name": "Сыракомля, У. (Уладзіслаў) (1823—1862)",
+						"codes": [
+							"w"
+						],
+						"context": "",
+						"main_names": [
+							"Syrokomla, W. (Władysław) (1823—1862)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar2667133",
+						"type": "400",
+						"name": "Кандратовіч, Л. Ф. У. (Людвік Францішак Уладзіслаў) (1823—1862)",
+						"codes": [],
+						"context": "Сыракомля, У. (Уладзіслаў) (1823—1862)",
+						"main_names": [
+							"Syrokomla, W. (Władysław) (1823—1862)"
+						]
+					}
+				],
+				"authors": [
+					"Syrokomla, W. (Władysław) (1823—1862)"
+				],
+				"contributors": [
+					{
+						"name": "Syrokomla, W. (Władysław) (1823—1862)",
+						"tag": "700",
+						"kind": "person",
+						"dates": [
+							"1823—1862"
+						],
+						"roles": [],
+						"copies": []
+					}
+				]
+			},
+			"mets": {
+				"metsID": 212004,
+				"nodes": [
+					{
+						"key": "212004_FILE_Y06yVzmm67",
+						"data": {
+							"nodeType": "FILE",
+							"id": "212004_FILE_wB3FZgsSFE",
+							"elibLocal": false,
+							"visible": true,
+							"linkName": "TOM I",
+							"description": "1848 rok",
+							"file": {
+								"id": 12541588,
+								"fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_1.pdf"
+							},
+							"elibLocalUrl": ""
+						}
+					},
+					{
+						"key": "212004_FILE_j5I4BTTit3",
+						"data": {
+							"nodeType": "FILE",
+							"id": "212004_FILE_9ci0RpGDvS",
+							"elibLocal": false,
+							"visible": true,
+							"linkName": "TOM II",
+							"description": "1848 rok",
+							"file": {
+								"id": 12541593,
+								"fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_2.pdf"
+							},
+							"elibLocalUrl": ""
+						}
+					},
+					{
+						"key": "212004_FILE_hWDgsV7CIL",
+						"data": {
+							"nodeType": "FILE",
+							"id": "212004_FILE_Ac3A51C5Rz",
+							"elibLocal": false,
+							"visible": true,
+							"linkName": "TOM III",
+							"description": "1853 rok",
+							"file": {
+								"id": 12541601,
+								"fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_3.pdf"
+							},
+							"elibLocalUrl": ""
+						}
+					},
+					{
+						"key": "212004_FILE_qOhdYnybf6",
+						"data": {
+							"nodeType": "FILE",
+							"id": "212004_FILE_y1HhBZQcll",
+							"elibLocal": false,
+							"visible": true,
+							"linkName": "TOM IV, CZĘŚĆ 1",
+							"description": "1860 rok",
+							"file": {
+								"id": 12541585,
+								"fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_4_1.pdf"
+							},
+							"elibLocalUrl": ""
+						}
+					},
+					{
+						"key": "212004_FILE_xNYLvbuFsa",
+						"data": {
+							"nodeType": "FILE",
+							"id": "212004_FILE_sn3Hc7tM4z",
+							"elibLocal": false,
+							"visible": true,
+							"linkName": "TOM IV, CZĘŚĆ 2",
+							"description": "1866 rok",
+							"file": {
+								"id": 12541596,
+								"fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_4_2.pdf"
+							},
+							"elibLocalUrl": ""
+						}
+					},
+					{
+						"key": "212004_FILE_KwcItoZUbN",
+						"data": {
+							"nodeType": "FILE",
+							"id": "212004_FILE_YDZg9Jjik4",
+							"elibLocal": false,
+							"visible": true,
+							"linkName": "BLAGIER : monodram",
+							"description": "1866 rok",
+							"file": {
+								"id": 12541591,
+								"fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_5.pdf"
+							},
+							"elibLocalUrl": ""
+						}
+					},
+					{
+						"key": "212004_FILE_FtggmRpeZC",
+						"data": {
+							"nodeType": "FILE",
+							"id": "212004_FILE_2dMcyK99iV",
+							"elibLocal": false,
+							"visible": true,
+							"linkName": "WIEJSCY POLITYCY : komedya we trzech aktach wierszem",
+							"description": "1859 rok",
+							"file": {
+								"id": 12541520,
+								"fileLocation": "/import/s3/nlb/8/2/1/r18108/PDF/r18108_6.pdf"
+							},
+							"elibLocalUrl": ""
+						}
+					}
+				]
+			},
+			"parsed_source_sha256": "ebf32ac2da5479f442d509e31d01f4bae1a537b80b39d5e5c08c655501fbd63c"
+		},
+		{
+			"record_id": "BY-NLB-br0000060109",
+			"expected_file_ids": [
+				"7397125"
+			],
+			"case_note": "Quoted Cyrillic main title with matching parenthesized subtitle; the adjacent file is a different work.",
+			"source_url": "https://elib.nlb.by:8070/mets//structure/state?id=127655",
+			"source_sha256": "f93f64e71fbf6b10842b4e0daa1c8975e9647393abe80151baf3e44914482d4f",
+			"record_meta": {
+				"marc_id": "BY-NLB-br0000060109",
+				"title": "Переклады з Н. Гоголя: (два розмаитых зразкы) / Олены Пчилкы",
+				"record_links": [
+					{
+						"record_id": "BY-NLB-br307362",
+						"title": "Веснянои ночи: оповиданьня / Н. Гоголя. - Киев, 1880. - 63 c.",
+						"label": "Related Items"
+					}
+				],
+				"file_ids": [],
+				"mets_ids": [
+					"127655"
+				],
+				"viewer_links": [
+					{
+						"url": "https://elib.nlb.by:8070/viewer/html?metsID=127655&markID=BY-NLB-br0000060109",
+						"mark_id": "BY-NLB-br0000060109",
+						"file_id": null,
+						"mets_id": "127655"
+					}
+				]
+			},
+			"marc_meta": {
+				"title": "Переклады з Н. Гоголя",
+				"subtitle": "(два розмаитых зразкы)",
+				"related_records": [
+					{
+						"tag": "481",
+						"record_id": "BY-NLB-br307362",
+						"title": "",
+						"volume": "",
+						"copies": []
+					}
+				],
+				"responsibility": "Олены Пчилкы",
+				"responsibilities": [
+					"Олены Пчилкы"
+				],
+				"edition": "",
+				"publication_terms": [
+					"Условия приобретения / цена: 35 к."
+				],
+				"places": [
+					"Киев"
+				],
+				"publishers": [],
+				"imprint_statements": [
+					{
+						"tag": "210",
+						"text": "Место издания ($a): Киев; Дата издания ($d): 1881"
+					}
+				],
+				"manufacturing_statements": [
+					"Типография / изготовитель ($g): Типография С. В. Кульженко"
+				],
+				"date": "1881",
+				"year": "1881",
+				"personal_name_variants": [
+					{
+						"tag": "990",
+						"authority_id": "BY-SEK-ar4636604",
+						"type": "500",
+						"name": "Гогаль, М. В. (Мікалай Васільевіч), пісьменнік (1809—1852)",
+						"codes": [
+							"w"
+						],
+						"context": "",
+						"main_names": [
+							"Гоголь, М. В. (Микола Васильович), пісьменнік (1809—1852)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-SEK-ar4636604",
+						"type": "400",
+						"name": "Gogol, M. (Mikolaj) (1809—1852)",
+						"codes": [],
+						"context": "Гогаль, М. В. (Мікалай Васільевіч), пісьменнік (1809—1852)",
+						"main_names": [
+							"Гоголь, М. В. (Микола Васильович), пісьменнік (1809—1852)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-SEK-ar4636604",
+						"type": "400",
+						"name": "Гоголь, М. В. (Микола Васильович) (1809—1852)",
+						"codes": [],
+						"context": "Гогаль, М. В. (Мікалай Васільевіч), пісьменнік (1809—1852)",
+						"main_names": [
+							"Гоголь, М. В. (Микола Васильович), пісьменнік (1809—1852)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-SEK-ar4636604",
+						"type": "400",
+						"name": "Gogolis, N. V. (Nikolajus Vasiljevičius) (1809—1852)",
+						"codes": [],
+						"context": "Гогаль, М. В. (Мікалай Васільевіч), пісьменнік (1809—1852)",
+						"main_names": [
+							"Гоголь, М. В. (Микола Васильович), пісьменнік (1809—1852)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-SEK-ar4636604",
+						"type": "500",
+						"name": "Гоголь, Н. В. (Николай Васильевич), писатель (1809—1852)",
+						"codes": [
+							"w"
+						],
+						"context": "",
+						"main_names": [
+							"Гоголь, М. В. (Микола Васильович), пісьменнік (1809—1852)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-SEK-ar4636604",
+						"type": "400",
+						"name": "Gogol, M. (Mikolaj) (1809—1852)",
+						"codes": [],
+						"context": "Гоголь, Н. В. (Николай Васильевич), писатель (1809—1852)",
+						"main_names": [
+							"Гоголь, М. В. (Микола Васильович), пісьменнік (1809—1852)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-SEK-ar4636604",
+						"type": "400",
+						"name": "Алов, В. (1809—1852)",
+						"codes": [],
+						"context": "Гоголь, Н. В. (Николай Васильевич), писатель (1809—1852)",
+						"main_names": [
+							"Гоголь, М. В. (Микола Васильович), пісьменнік (1809—1852)"
+						]
+					},
+					{
+						"tag": "991",
+						"authority_id": "BY-NLB-ar2273191",
+						"type": "400",
+						"name": "Косач-Драгоманова, О. П. (Ольга Петровна), писательница (1849—1930)",
+						"codes": [],
+						"context": "",
+						"main_names": [
+							"Пчилка, О. (Олена), писательница (1849–1930)"
+						]
+					},
+					{
+						"tag": "991",
+						"authority_id": "BY-NLB-ar2273191",
+						"type": "400",
+						"name": "Косач, О. П. (Ольга Петровна), писательница (1849—1930)",
+						"codes": [],
+						"context": "",
+						"main_names": [
+							"Пчилка, О. (Олена), писательница (1849–1930)"
+						]
+					},
+					{
+						"tag": "991",
+						"authority_id": "BY-NLB-ar2273191",
+						"type": "400",
+						"name": "Драгоманова, О. П. (Ольга Петровна)",
+						"codes": [],
+						"context": "",
+						"main_names": [
+							"Пчилка, О. (Олена), писательница (1849–1930)"
+						]
+					},
+					{
+						"tag": "991",
+						"authority_id": "BY-NLB-ar2273191",
+						"type": "400",
+						"name": "Косачева, О. П. (Ольга П.)",
+						"codes": [],
+						"context": "",
+						"main_names": [
+							"Пчилка, О. (Олена), писательница (1849–1930)"
+						]
+					},
+					{
+						"tag": "991",
+						"authority_id": "BY-NLB-ar2273191",
+						"type": "500",
+						"name": "Пчілка, О. (Олена), пісьменніца (1849—1930)",
+						"codes": [
+							"w"
+						],
+						"context": "",
+						"main_names": [
+							"Пчилка, О. (Олена), писательница (1849–1930)"
+						]
+					},
+					{
+						"tag": "991",
+						"authority_id": "BY-NLB-ar2273191",
+						"type": "400",
+						"name": "Косач-Драгоманова, О. П. (Ольга Петрівна), пісьменніца (1849—1930)",
+						"codes": [],
+						"context": "Пчілка, О. (Олена), пісьменніца (1849—1930)",
+						"main_names": [
+							"Пчилка, О. (Олена), писательница (1849–1930)"
+						]
+					},
+					{
+						"tag": "991",
+						"authority_id": "BY-NLB-ar2273191",
+						"type": "400",
+						"name": "Косач, О. П. (Ольга Петрівна), пісьменніца (1849—1930)",
+						"codes": [],
+						"context": "Пчілка, О. (Олена), пісьменніца (1849—1930)",
+						"main_names": [
+							"Пчилка, О. (Олена), писательница (1849–1930)"
+						]
+					},
+					{
+						"tag": "991",
+						"authority_id": "BY-NLB-ar2273191",
+						"type": "400",
+						"name": "Драгоманова, О. П. (Ольга Петрівна), пісьменніца (1849—1930)",
+						"codes": [],
+						"context": "Пчілка, О. (Олена), пісьменніца (1849—1930)",
+						"main_names": [
+							"Пчилка, О. (Олена), писательница (1849–1930)"
+						]
+					}
+				],
+				"authors": [
+					"Гоголь, М. В. (Микола Васильович), пісьменнік (1809—1852)"
+				],
+				"contributors": [
+					{
+						"name": "Гоголь, М. В. (Микола Васильович), пісьменнік (1809—1852)",
+						"tag": "700",
+						"kind": "person",
+						"dates": [
+							"1809—1852"
+						],
+						"roles": [],
+						"copies": []
+					},
+					{
+						"name": "Пчилка, О. (Олена), писательница (1849–1930)",
+						"tag": "701",
+						"kind": "person",
+						"dates": [
+							"1849–1930"
+						],
+						"roles": [
+							"730",
+							"080"
+						],
+						"copies": []
+					}
+				]
+			},
+			"mets": {
+				"metsID": 127655,
+				"nodes": [
+					{
+						"key": "127655_FILE_tuQ9JlE",
+						"serial": 0,
+						"data": {
+							"id": "127655_FILE_tuQ9JlE",
+							"file": {
+								"id": 7397125,
+								"fileLocation": "/import/s3/nlb/0/9/13_729_026/PDF/13_729_026_1.pdf"
+							},
+							"linkName": "1. «Переклады з Н. Гоголя» (два розмаитых зразкы)",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "127655_FILE_6PbNMWg",
+						"serial": 0,
+						"data": {
+							"id": "127655_FILE_6PbNMWg",
+							"file": {
+								"id": 7397126,
+								"fileLocation": "/import/s3/nlb/0/9/13_729_026/PDF/13_729_026_2.pdf"
+							},
+							"linkName": "2. «Веснянои ночи» оповиданьня",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					}
+				]
+			},
+			"parsed_source_sha256": "9ce21b1a4441d368444ef86fc4d457e9226f78f5325fb544bce5867ea8d610fd"
+		},
+		{
+			"record_id": "BY-NLB-br0000096103",
+			"expected_file_ids": [
+				"3489391"
+			],
+			"case_note": "Arabic display position precedes the exact unquoted title; preceding files are numbered volumes of another work.",
+			"source_url": "https://elib.nlb.by:8070/mets//structure/state?id=69298",
+			"source_sha256": "27d8ccbf5086c419c344463458043243e9eec722f78cd32fba0457cee0cbad35",
+			"record_meta": {
+				"marc_id": "BY-NLB-br0000096103",
+				"title": "Próby nowego dykcyonarza / wydaje pan Wirszajtos, niegdyś Szubrawiec Rustykanin, (Ignacy Chodźko)",
+				"record_links": [
+					{
+						"record_id": "BY-NLB-br0000096059",
+						"title": "Pisma Ignacego Chodźki. [T.] 9 : Podania litewskie. Ser. 4, Drugi pustelnik w Proniunach, czyli Votum chybione. — 1877. — 96 с.",
+						"label": "Related Items"
+					}
+				],
+				"file_ids": [],
+				"mets_ids": [
+					"69298"
+				],
+				"viewer_links": [
+					{
+						"url": "https://elib.nlb.by:8070/viewer/html?metsID=69298&markID=BY-NLB-br0000096103",
+						"mark_id": "BY-NLB-br0000096103",
+						"file_id": null,
+						"mets_id": "69298"
+					}
+				]
+			},
+			"marc_meta": {
+				"title": "Próby nowego dykcyonarza",
+				"subtitle": "",
+				"related_records": [
+					{
+						"tag": "482",
+						"record_id": "BY-NLB-br0000096059",
+						"title": "",
+						"volume": "",
+						"copies": []
+					}
+				],
+				"responsibility": "wydaje pan Wirszajtos, niegdyś Szubrawiec Rustykanin, (Ignacy Chodźko)",
+				"responsibilities": [
+					"wydaje pan Wirszajtos, niegdyś Szubrawiec Rustykanin, (Ignacy Chodźko)"
+				],
+				"edition": "",
+				"publication_terms": [
+					"Уточнение / переплет: У пераплёце"
+				],
+				"places": [
+					"Wilno"
+				],
+				"publishers": [
+					"Józef Zawadzki"
+				],
+				"imprint_statements": [
+					{
+						"tag": "210",
+						"text": "Место издания ($a): Wilno; Издатель ($c): Józef Zawadzki; Дата издания ($d): 1875"
+					}
+				],
+				"manufacturing_statements": [],
+				"date": "1875",
+				"year": "1875",
+				"personal_name_variants": [
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar2835509",
+						"type": "400",
+						"name": "Chodzko, I. (Ignacy) (1794—1861)",
+						"codes": [],
+						"context": "",
+						"main_names": [
+							"Chodźko, I. (Ignacy) (1794—1861)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar2835509",
+						"type": "500",
+						"name": "Ходзька, І. (Ігнат) (1794—1861)",
+						"codes": [
+							"w"
+						],
+						"context": "",
+						"main_names": [
+							"Chodźko, I. (Ignacy) (1794—1861)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar2835509",
+						"type": "400",
+						"name": "Ходько, И. (Игнатий) (1794—1861)",
+						"codes": [],
+						"context": "Ходзька, І. (Ігнат) (1794—1861)",
+						"main_names": [
+							"Chodźko, I. (Ignacy) (1794—1861)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar2835509",
+						"type": "400",
+						"name": "Ходзька, І. (Ігнацы) (1794—1861)",
+						"codes": [],
+						"context": "Ходзька, І. (Ігнат) (1794—1861)",
+						"main_names": [
+							"Chodźko, I. (Ignacy) (1794—1861)"
+						]
+					}
+				],
+				"authors": [
+					"Chodźko, I. (Ignacy) (1794—1861)"
+				],
+				"contributors": [
+					{
+						"name": "Chodźko, I. (Ignacy) (1794—1861)",
+						"tag": "700",
+						"kind": "person",
+						"dates": [
+							"1794—1861"
+						],
+						"roles": [],
+						"copies": []
+					}
+				]
+			},
+			"mets": {
+				"metsID": 69298,
+				"nodes": [
+					{
+						"key": "69298_FILE_I0omxJa",
+						"serial": 0,
+						"data": {
+							"id": "69298_FILE_I0omxJa",
+							"file": {
+								"id": 3489389,
+								"fileLocation": "/import/s3/nlb/0/9/r146+168/PDF/kn_1.pdf"
+							},
+							"linkName": "1. Pisma Ignacego Chodźki: IX",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "69298_FILE_ykzNqCm",
+						"serial": 0,
+						"data": {
+							"id": "69298_FILE_ykzNqCm",
+							"file": {
+								"id": 3489390,
+								"fileLocation": "/import/s3/nlb/0/9/r146+168/PDF/kn_2.pdf"
+							},
+							"linkName": "2. Pisma Ignacego Chodźki: X",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "69298_FILE_4PrOMdT",
+						"serial": 0,
+						"data": {
+							"id": "69298_FILE_4PrOMdT",
+							"file": {
+								"id": 3489391,
+								"fileLocation": "/import/s3/nlb/0/9/r146+168/PDF/kn_3.pdf"
+							},
+							"linkName": "3. Próby nowego dykcyonarza",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					}
+				]
+			},
+			"parsed_source_sha256": "e2b6b07a5c66524b5892a4f9997d2695abe54476e254bb8a1c4c952617c0eef9"
+		},
+		{
+			"record_id": "BY-NLB-br0000138111",
+			"expected_file_ids": [
+				"7584605"
+			],
+			"case_note": "Long quoted title after an author; another work by the same author must not match.",
+			"source_url": "https://elib.nlb.by:8070/mets//structure/state?id=128026",
+			"source_sha256": "72c4b4d0340565b11ec86ff964594494c646f68a18e9275d33263e35d0eee539",
+			"record_meta": {
+				"marc_id": "BY-NLB-br0000138111",
+				"title": "Onanizm czyli roztrząsnienie chorob pochodzących z samo-gwałtu / przez pana Tyssota po francuzku napisane, i podług siodmey edycyi od samego autora znacznie powiększoney i polepszoney; poprawione;  na polski ięzyk przełożone",
+				"record_links": [
+					{
+						"record_id": "BY-NLB-br0000631070",
+						"title": "Porządek życia w czerstwosci zdrowia w długie prowadzący lata: ze wszystkich dzieł S. Tyssota: przy trzecim wydaniu przeyrzany poprawiony y powiększony / Szymon Andrzej Tyssot. - W Łowiczu, 1799. - [14], 175 c.",
+						"label": "Related Items"
+					}
+				],
+				"file_ids": [],
+				"mets_ids": [
+					"128026"
+				],
+				"viewer_links": [
+					{
+						"url": "https://elib.nlb.by:8070/viewer/html?metsID=128026&markID=BY-NLB-br0000138111",
+						"mark_id": "BY-NLB-br0000138111",
+						"file_id": null,
+						"mets_id": "128026"
+					}
+				]
+			},
+			"marc_meta": {
+				"title": "Onanizm czyli roztrząsnienie chorob pochodzących z samo-gwałtu",
+				"subtitle": "",
+				"related_records": [
+					{
+						"tag": "481",
+						"record_id": "BY-NLB-br0000631070",
+						"title": "",
+						"volume": "",
+						"copies": []
+					},
+					{
+						"tag": "488",
+						"record_id": "BY-NLB-br0000180857",
+						"title": "",
+						"volume": "",
+						"copies": []
+					}
+				],
+				"responsibility": "przez pana Tyssota po francuzku napisane, i podług siodmey edycyi od samego autora znacznie powiększoney i polepszoney; poprawione; na polski ięzyk przełożone",
+				"responsibilities": [
+					"przez pana Tyssota po francuzku napisane, i podług siodmey edycyi od samego autora znacznie powiększoney i polepszoney; poprawione; na polski ięzyk przełożone"
+				],
+				"edition": "",
+				"publication_terms": [],
+				"places": [
+					"[Warszawa]"
+				],
+				"publishers": [],
+				"imprint_statements": [
+					{
+						"tag": "210",
+						"text": "Место издания ($a): [Warszawa]; Дата издания ($d): 1802"
+					}
+				],
+				"manufacturing_statements": [],
+				"date": "1802",
+				"year": "1802",
+				"personal_name_variants": [
+					{
+						"tag": "990",
+						"authority_id": "BY-SEK-978448",
+						"type": "400",
+						"name": "Tissot, S.-A. (Simon-André) (1728―1797)",
+						"codes": [],
+						"context": "",
+						"main_names": [
+							"Tissot, Samuel Auguste André David (1728―1797)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-SEK-978448",
+						"type": "400",
+						"name": "Tissot, S. A. (Szymon Andrzej) (1728―1797)",
+						"codes": [],
+						"context": "",
+						"main_names": [
+							"Tissot, Samuel Auguste André David (1728―1797)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-SEK-978448",
+						"type": "400",
+						"name": "Tyssot, S. A. (Szymon Andrzej) (1728―1797)",
+						"codes": [],
+						"context": "",
+						"main_names": [
+							"Tissot, Samuel Auguste André David (1728―1797)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-SEK-978448",
+						"type": "400",
+						"name": "Tissot, D. (David) (1728―1797)",
+						"codes": [],
+						"context": "",
+						"main_names": [
+							"Tissot, Samuel Auguste André David (1728―1797)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-SEK-978448",
+						"type": "500",
+						"name": "Тиссо, С. О. А. Д. (Самюэль Огюст Андре Давид) (1728―1797)",
+						"codes": [
+							"w"
+						],
+						"context": "",
+						"main_names": [
+							"Tissot, Samuel Auguste André David (1728―1797)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-SEK-978448",
+						"type": "400",
+						"name": "Тиссо, С. А. (Симон Андре) (1728―1797)",
+						"codes": [],
+						"context": "Тиссо, С. О. А. Д. (Самюэль Огюст Андре Давид) (1728―1797)",
+						"main_names": [
+							"Tissot, Samuel Auguste André David (1728―1797)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-SEK-978448",
+						"type": "400",
+						"name": "Тиссот, С. А. (Симон Андре) (1728―1797)",
+						"codes": [],
+						"context": "Тиссо, С. О. А. Д. (Самюэль Огюст Андре Давид) (1728―1797)",
+						"main_names": [
+							"Tissot, Samuel Auguste André David (1728―1797)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-SEK-978448",
+						"type": "400",
+						"name": "Тиссо, С.-А. (Симон-Андре) (1728―1797)",
+						"codes": [],
+						"context": "Тиссо, С. О. А. Д. (Самюэль Огюст Андре Давид) (1728―1797)",
+						"main_names": [
+							"Tissot, Samuel Auguste André David (1728―1797)"
+						]
+					}
+				],
+				"authors": [
+					"Tissot, Samuel Auguste André David (1728―1797)"
+				],
+				"contributors": [
+					{
+						"name": "Tissot, Samuel Auguste André David (1728―1797)",
+						"tag": "700",
+						"kind": "person",
+						"dates": [
+							"1728―1797"
+						],
+						"roles": [
+							"070"
+						],
+						"copies": []
+					}
+				]
+			},
+			"mets": {
+				"metsID": 128026,
+				"nodes": [
+					{
+						"key": "128026_TEXT_sfBoryY",
+						"serial": 0,
+						"data": {
+							"id": "128026_TEXT_sfBoryY",
+							"file": null,
+							"linkName": "Канвалют:",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "TEXT",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "128026_FILE_aWOYwQj",
+						"serial": 0,
+						"data": {
+							"id": "128026_FILE_aWOYwQj",
+							"file": {
+								"id": 7584605,
+								"fileLocation": "/import/s3/nlb/0/9/13i_2965_026/PDF/ch_1.pdf"
+							},
+							"linkName": "Tissot, Samuel Auguste André David «Onanizm czyli roztrząsnienie chorob pochodzących z samo-gwałtu»",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "128026_FILE_GHaoVdy",
+						"serial": 0,
+						"data": {
+							"id": "128026_FILE_GHaoVdy",
+							"file": {
+								"id": 7584606,
+								"fileLocation": "/import/s3/nlb/0/9/13i_2965_026/PDF/ch_2.pdf"
+							},
+							"linkName": "Tissot, Samuel Auguste André David «Porządek życia w czerstwosci zdrowia w długie prowadzący lata» - ze wszystkich dzieł S. Tyssota, przy trzecim wydaniu przeyrzany poprawiony y powiększony",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					}
+				]
+			},
+			"parsed_source_sha256": "60a36aa32213b75dc0178eef2844969392b4193dc69da685e94a8fb6ec3a4b1d"
+		},
+		{
+			"record_id": "BY-NLB-br0000148829",
+			"expected_file_ids": [
+				"6269655"
+			],
+			"case_note": "Exact quoted title with no author in the viewer; other files share a different work title and differ by collection number.",
+			"source_url": "https://elib.nlb.by:8070/mets//structure/state?id=119983",
+			"source_sha256": "a0d7d7a0897e5e164758988f67b2028f5c3a6833d719134c7de057350cbb0dd2",
+			"record_meta": {
+				"marc_id": "BY-NLB-br0000148829",
+				"title": "Lieder ohne Worte [Ноты]: fur pianoforte solo / von Felix Mendelssohn Bartholdy",
+				"record_links": [
+					{
+						"record_id": "BY-NLB-br0000148915",
+						"title": "Kompositionen [Ноты]: fur pianoforte solo / F. Mendelssohn-Bartholdy. - Neu revidierte Ausgabe. - Leipzig : C. F. Peters, [1890?]. - 137 с.. - (Felix Mendelssohn Bartholdy's Samtliche Werke)",
+						"label": "Related Items"
+					},
+					{
+						"record_id": "BY-NLB-br0000148947",
+						"title": "Kompositionen [Ноты]: fur pianoforte solo / F. Mendelssohn-Bartholdy. - Neu revidierte Ausgabe. - Leipzig : C. F. Peters, [1890?]. - 140 с.. - (Felix Mendelssohn-Bartholdy's Samtliche Werke)",
+						"label": "Related Items"
+					}
+				],
+				"file_ids": [],
+				"mets_ids": [
+					"119983"
+				],
+				"viewer_links": [
+					{
+						"url": "https://elib.nlb.by:8070/viewer/html?metsID=119983&markID=BY-NLB-br0000148829",
+						"mark_id": "BY-NLB-br0000148829",
+						"file_id": null,
+						"mets_id": "119983"
+					}
+				]
+			},
+			"marc_meta": {
+				"title": "Lieder ohne Worte",
+				"subtitle": "fur pianoforte solo",
+				"related_records": [
+					{
+						"tag": "481",
+						"record_id": "BY-NLB-br0000148915",
+						"title": "",
+						"volume": "",
+						"copies": []
+					},
+					{
+						"tag": "481",
+						"record_id": "BY-NLB-br0000148947",
+						"title": "",
+						"volume": "",
+						"copies": []
+					}
+				],
+				"responsibility": "von Felix Mendelssohn Bartholdy ; herausgegeben von Theodor Kullak ; [прадмова Walter Niemann]",
+				"responsibilities": [
+					"von Felix Mendelssohn Bartholdy",
+					"herausgegeben von Theodor Kullak",
+					"[прадмова Walter Niemann]"
+				],
+				"edition": "Neu revidierte Ausgabe",
+				"publication_terms": [],
+				"places": [
+					"Leipzig"
+				],
+				"publishers": [
+					"C. F. Perets"
+				],
+				"imprint_statements": [
+					{
+						"tag": "210",
+						"text": "Место издания ($a): Leipzig; Издатель ($c): C. F. Perets; Дата издания ($d): [1900?]"
+					}
+				],
+				"manufacturing_statements": [],
+				"date": "[1900?]",
+				"year": "1900",
+				"personal_name_variants": [
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar2470166",
+						"type": "400",
+						"name": "Бартольди, Ф. (Феликс) (1809—1847)",
+						"codes": [],
+						"context": "",
+						"main_names": [
+							"Мендельсон, Ф. (Феликс), композитор (1809—1847)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar2470166",
+						"type": "400",
+						"name": "Мендельсон-Бартольди, Я. Л. Ф. (Якоб Людвиг Феликс) (1809—1847)",
+						"codes": [],
+						"context": "",
+						"main_names": [
+							"Мендельсон, Ф. (Феликс), композитор (1809—1847)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar2470166",
+						"type": "400",
+						"name": "Мендельсон-Бартольди, Ф. (Феликс) (1809—1847)",
+						"codes": [],
+						"context": "",
+						"main_names": [
+							"Мендельсон, Ф. (Феликс), композитор (1809—1847)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar2470166",
+						"type": "500",
+						"name": "Мендельсоны (семья)",
+						"codes": [],
+						"context": "",
+						"main_names": [
+							"Мендельсон, Ф. (Феликс), композитор (1809—1847)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar2470166",
+						"type": "420",
+						"name": "Mendelssohns (семья)",
+						"codes": [],
+						"context": "Мендельсоны (семья)",
+						"main_names": [
+							"Мендельсон, Ф. (Феликс), композитор (1809—1847)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar2470166",
+						"type": "420",
+						"name": "Мендэльсоны (сям'я)",
+						"codes": [],
+						"context": "Мендельсоны (семья)",
+						"main_names": [
+							"Мендельсон, Ф. (Феликс), композитор (1809—1847)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar2470166",
+						"type": "500",
+						"name": "Mendelssohn, F. (Felix) (1809—1847)",
+						"codes": [
+							"w"
+						],
+						"context": "",
+						"main_names": [
+							"Мендельсон, Ф. (Феликс), композитор (1809—1847)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar2470166",
+						"type": "400",
+						"name": "Mendelssohn-Bartholdy, F. (Felix) (1809—1847)",
+						"codes": [],
+						"context": "Mendelssohn, F. (Felix) (1809—1847)",
+						"main_names": [
+							"Мендельсон, Ф. (Феликс), композитор (1809—1847)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar2470166",
+						"type": "400",
+						"name": "Bartholdy, F. (Felix) (1809—1847)",
+						"codes": [],
+						"context": "Mendelssohn, F. (Felix) (1809—1847)",
+						"main_names": [
+							"Мендельсон, Ф. (Феликс), композитор (1809—1847)"
+						]
+					}
+				],
+				"authors": [],
+				"contributors": [
+					{
+						"name": "Мендельсон, Ф. (Феликс), композитор (1809—1847)",
+						"tag": "700",
+						"kind": "person",
+						"dates": [
+							"1809—1847"
+						],
+						"roles": [
+							"230"
+						],
+						"copies": []
+					},
+					{
+						"name": "Куллак, Т. (Теодор)",
+						"tag": "702",
+						"kind": "person",
+						"dates": [],
+						"roles": [
+							"340"
+						],
+						"copies": []
+					}
+				]
+			},
+			"mets": {
+				"metsID": 119983,
+				"nodes": [
+					{
+						"key": "119983_FILE_04UeIas",
+						"serial": 0,
+						"data": {
+							"id": "119983_FILE_04UeIas",
+							"file": {
+								"id": 6269655,
+								"fileLocation": "/import/s3/nlb/0/2/5/1/in78_911/PDF/in78_911_1.pdf"
+							},
+							"linkName": "1. «Lieder ohne Worte»",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "119983_FILE_tiKQmOG",
+						"serial": 0,
+						"data": {
+							"id": "119983_FILE_tiKQmOG",
+							"file": {
+								"id": 6269656,
+								"fileLocation": "/import/s3/nlb/0/2/5/1/in78_911/PDF/in78_911_2.pdf"
+							},
+							"linkName": "2. «Kompositioner» (1-й сборник)",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "119983_FILE_oRZ9vvq",
+						"serial": 0,
+						"data": {
+							"id": "119983_FILE_oRZ9vvq",
+							"file": {
+								"id": 6269657,
+								"fileLocation": "/import/s3/nlb/0/2/5/1/in78_911/PDF/in78_911_3.pdf"
+							},
+							"linkName": "3. «Kompositioner» (2-й сборник)",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					}
+				]
+			},
+			"parsed_source_sha256": "42282cdd22168f36145d7fde8c4f5e1ff8d012746d9d61b5e04b825ab4b2bf6a"
+		},
+		{
+			"record_id": "BY-NLB-br0000276393",
+			"expected_file_ids": [
+				"6380595"
+			],
+			"case_note": "The first quoted phrase is the work title; a second quoted phrase is the incipit and is not another title candidate.",
+			"source_url": "https://elib.nlb.by:8070/mets//structure/state?id=120883",
+			"source_sha256": "c93cbbdaa27ed470eed0ab7a03d05ca1c4d4aeb7fd9165ca539a9d85dbb69ec7",
+			"record_meta": {
+				"marc_id": "BY-NLB-br0000276393",
+				"title": "Beaux Yeux que j'aime! [Ноты]: \"It est desetoiles aux cieux...\": № 1 рour contralto [et piano] / musique de J. Massenet",
+				"record_links": [
+					{
+						"record_id": "BY-NLB-br0000276394",
+						"title": "Enchantement! [Ноты]: \"Comme un rayon qui luit...\": melodie: № 2 en Si bemol (ton original): [для голасу ў суправаджэнні фартэпіяна] / musique de J. Massenet. - Paris : G. Hartmann & Cie, [1890?]. - 5 с.",
+						"label": "Связанные документы"
+					},
+					{
+						"record_id": "BY-NLB-br0000276395",
+						"title": "Guitare [Ноты]: \"Comment disaientils...\": № 2 en Re (ton original): [для голасу ў суправаджэнні фартэпіяна] / musique de J. Massenet. - Paris : G. Hartmann & Cie, [1890?]. - 3 с.",
+						"label": "Связанные документы"
+					}
+				],
+				"file_ids": [],
+				"mets_ids": [
+					"120883"
+				],
+				"viewer_links": [
+					{
+						"url": "https://elib.nlb.by:8070/viewer/html?metsID=120883&markID=BY-NLB-br0000276393",
+						"mark_id": "BY-NLB-br0000276393",
+						"file_id": null,
+						"mets_id": "120883"
+					}
+				]
+			},
+			"marc_meta": {
+				"title": "Beaux Yeux que j'aime!",
+				"subtitle": "\"It est desetoiles aux cieux...\" : № 1 рour contralto [et piano]",
+				"related_records": [
+					{
+						"tag": "481",
+						"record_id": "BY-NLB-br0000276394",
+						"title": "",
+						"volume": "",
+						"copies": []
+					},
+					{
+						"tag": "481",
+						"record_id": "BY-NLB-br0000276395",
+						"title": "",
+						"volume": "",
+						"copies": []
+					}
+				],
+				"responsibility": "musique de J. Massenet ; poesie de Th. Maquet",
+				"responsibilities": [
+					"musique de J. Massenet",
+					"poesie de Th. Maquet"
+				],
+				"edition": "",
+				"publication_terms": [],
+				"places": [
+					"Paris"
+				],
+				"publishers": [
+					"au Menestrel",
+					"Heugel & Cie"
+				],
+				"imprint_statements": [
+					{
+						"tag": "210",
+						"text": "Место издания ($a): Paris; Издатель ($c): au Menestrel; Издатель ($c): Heugel & Cie; Дата издания ($d): cop. 1891"
+					}
+				],
+				"manufacturing_statements": [],
+				"date": "cop. 1891",
+				"year": "1891",
+				"personal_name_variants": [
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar2470125",
+						"type": "400",
+						"name": "Massenet, J. (Jules) (1842—1912)",
+						"codes": [],
+						"context": "",
+						"main_names": [
+							"Массне, Ж. (Жюль) (1842—1912)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar2470125",
+						"type": "400",
+						"name": "Массене, Ж. (Жюль) (1842—1912)",
+						"codes": [],
+						"context": "",
+						"main_names": [
+							"Массне, Ж. (Жюль) (1842—1912)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar2470125",
+						"type": "400",
+						"name": "Массене, Ю. (Юлий) (1842—1912)",
+						"codes": [],
+						"context": "",
+						"main_names": [
+							"Массне, Ж. (Жюль) (1842—1912)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar2470125",
+						"type": "400",
+						"name": "Массенэ, Ж. (Жюль) (1842—1912)",
+						"codes": [],
+						"context": "",
+						"main_names": [
+							"Массне, Ж. (Жюль) (1842—1912)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar2470125",
+						"type": "400",
+						"name": "Массинэ, Ж. (Жюль) (1842—1912)",
+						"codes": [],
+						"context": "",
+						"main_names": [
+							"Массне, Ж. (Жюль) (1842—1912)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar2470125",
+						"type": "400",
+						"name": "Массне, Ж. Э. Ф. (Жюль Эмиль Фредерик) (1842—1912)",
+						"codes": [],
+						"context": "",
+						"main_names": [
+							"Массне, Ж. (Жюль) (1842—1912)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar2470125",
+						"type": "400",
+						"name": "Масснэ, Ж. (Жюль) (1842—1912)",
+						"codes": [],
+						"context": "",
+						"main_names": [
+							"Массне, Ж. (Жюль) (1842—1912)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-NLB-ar2470125",
+						"type": "500",
+						"name": "Massenet, J. (Jules) (1842—1912)",
+						"codes": [],
+						"context": "",
+						"main_names": [
+							"Массне, Ж. (Жюль) (1842—1912)"
+						]
+					}
+				],
+				"authors": [],
+				"contributors": [
+					{
+						"name": "Массне, Ж. (Жюль) (1842—1912)",
+						"tag": "700",
+						"kind": "person",
+						"dates": [
+							"1842—1912"
+						],
+						"roles": [
+							"230"
+						],
+						"copies": []
+					},
+					{
+						"name": "Maquet, T. (Th)",
+						"tag": "702",
+						"kind": "person",
+						"dates": [],
+						"roles": [
+							"520"
+						],
+						"copies": []
+					}
+				]
+			},
+			"mets": {
+				"metsID": 120883,
+				"nodes": [
+					{
+						"key": "120883_TEXT_yRSRoc9",
+						"serial": 0,
+						"data": {
+							"id": "120883_TEXT_yRSRoc9",
+							"file": null,
+							"linkName": "Конволют:",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "TEXT",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "120883_FILE_iDeejJE",
+						"serial": 0,
+						"data": {
+							"id": "120883_FILE_iDeejJE",
+							"file": {
+								"id": 6380595,
+								"fileLocation": "/import/s3/nlb/0/2/5/1/in78_2317/PDF/in78_2317_1.pdf"
+							},
+							"linkName": "1. Массне, Жюль «Beaux Yeux que j'aime!» - \"It est desetoiles aux cieux…\"",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "120883_FILE_5iNaFFe",
+						"serial": 0,
+						"data": {
+							"id": "120883_FILE_5iNaFFe",
+							"file": {
+								"id": 6380596,
+								"fileLocation": "/import/s3/nlb/0/2/5/1/in78_2317/PDF/in78_2317_2.pdf"
+							},
+							"linkName": "2. Массне, Жюль «Enchantement!» - \"Comme un rayon qui luit…\"",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "120883_FILE_A029J8k",
+						"serial": 0,
+						"data": {
+							"id": "120883_FILE_A029J8k",
+							"file": {
+								"id": 6380597,
+								"fileLocation": "/import/s3/nlb/0/2/5/1/in78_2317/PDF/in78_2317_3.pdf"
+							},
+							"linkName": "3. Массне, Жюль «Guitare» - \"Comment disaientils…\"",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "120883_FILE_eGn3Sq4",
+						"serial": 0,
+						"data": {
+							"id": "120883_FILE_eGn3Sq4",
+							"file": {
+								"id": 6380598,
+								"fileLocation": "/import/s3/nlb/0/2/5/1/in78_2317/PDF/in78_2317_4.pdf"
+							},
+							"linkName": "4. Массне, Жюль «Jour de noces» - \"Il fait beau, le ciel nous protege…\"",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "120883_FILE_Acv5RGC",
+						"serial": 0,
+						"data": {
+							"id": "120883_FILE_Acv5RGC",
+							"file": {
+								"id": 6380599,
+								"fileLocation": "/import/s3/nlb/0/2/5/1/in78_2317/PDF/in78_2317_5.pdf"
+							},
+							"linkName": "5. Массне, Жюль «Le poete est roi!» - melodie № 2",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "120883_FILE_64DtYVR",
+						"serial": 0,
+						"data": {
+							"id": "120883_FILE_64DtYVR",
+							"file": {
+								"id": 6380600,
+								"fileLocation": "/import/s3/nlb/0/2/5/1/in78_2317/PDF/in78_2317_6.pdf"
+							},
+							"linkName": "6. Массне, Жюль «Les Enfants» - \"On ne devrait faire aux enfants…\"",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "120883_FILE_2Sn2csh",
+						"serial": 0,
+						"data": {
+							"id": "120883_FILE_2Sn2csh",
+							"file": {
+								"id": 6380601,
+								"fileLocation": "/import/s3/nlb/0/2/5/1/in78_2317/PDF/in78_2317_7.pdf"
+							},
+							"linkName": "7. Массне, Жюль «Marquise!» - \"Vous en souvenezvous, Marquise?\"",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "120883_FILE_GU8d5D1",
+						"serial": 0,
+						"data": {
+							"id": "120883_FILE_GU8d5D1",
+							"file": {
+								"id": 6380602,
+								"fileLocation": "/import/s3/nlb/0/2/5/1/in78_2317/PDF/in78_2317_8.pdf"
+							},
+							"linkName": "8. Массне, Жюль «Noel paien» - № 2 en mi bemol",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "120883_FILE_30fHiQ6",
+						"serial": 0,
+						"data": {
+							"id": "120883_FILE_30fHiQ6",
+							"file": {
+								"id": 6380603,
+								"fileLocation": "/import/s3/nlb/0/2/5/1/in78_2317/PDF/in78_2317_9.pdf"
+							},
+							"linkName": "9. Массне, Жюль «Nuit d'Espagne» - \"L'air est embaume…\"",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					}
+				]
+			},
+			"parsed_source_sha256": "1019b5aecc04e47a4bc58014bff82284ae3ca44d89c30c8caf0cfa0280d2aeca"
+		},
+		{
+			"record_id": "BY-NLB-br0000310418",
+			"expected_file_ids": [],
+			"case_note": "Main-title matching alone must refuse ambiguity: 6413461 is Thalberg op. 63, while 6413463 is Liszt. Only additional explicit author or opus disambiguation could authorize 6413461.",
+			"source_url": "https://elib.nlb.by:8070/mets//structure/state?id=121349",
+			"source_sha256": "a112b8b7e381732901e3f521bc32535d2861dcf8f1fe688b1d7915df3cb88c54",
+			"record_meta": {
+				"marc_id": "BY-NLB-br0000310418",
+				"title": "Grande fantaisie [Ноты]: pour le piano: sur le Barbier de Seville: opéra de G. Rossini: op. 63 / par S. Thalberg",
+				"record_links": [
+					{
+						"record_id": "BY-NLB-br0000310525",
+						"title": "Grande fantaisie [Ноты]: sur des motifs de Robert le Diable de Meyerbeer: pour piano / par F. Liszt. - A Paris : chez Maurice Schlesinger, [да 1850]. - 22 с.",
+						"label": "Связанные документы"
+					},
+					{
+						"record_id": "BY-NLB-br531368",
+						"title": "Caprice sur des Airs Bohémiens [Ноты]: [pour piano]: op. 10 / par J. Schulhoff. - S. Pétersbourg : Musée musical, [1850?]. - 17 с.. - (Сompositions de J. Schulhoff ; № 8)",
+						"label": "Связанные документы"
+					}
+				],
+				"file_ids": [],
+				"mets_ids": [
+					"121349"
+				],
+				"viewer_links": [
+					{
+						"url": "https://elib.nlb.by:8070/viewer/html?metsID=121349&markID=BY-NLB-br0000310418",
+						"mark_id": "BY-NLB-br0000310418",
+						"file_id": null,
+						"mets_id": "121349"
+					}
+				]
+			},
+			"marc_meta": {
+				"title": "Grande fantaisie",
+				"subtitle": "pour le piano : sur le Barbier de Seville : opéra de G. Rossini : op. 63",
+				"related_records": [
+					{
+						"tag": "481",
+						"record_id": "BY-NLB-br0000310525",
+						"title": "",
+						"volume": "",
+						"copies": []
+					},
+					{
+						"tag": "481",
+						"record_id": "BY-NLB-br531368",
+						"title": "",
+						"volume": "",
+						"copies": []
+					},
+					{
+						"tag": "488",
+						"record_id": "",
+						"title": "Le Barbier de Seville",
+						"volume": "",
+						"copies": []
+					}
+				],
+				"responsibility": "par S. Thalberg",
+				"responsibilities": [
+					"par S. Thalberg"
+				],
+				"edition": "",
+				"publication_terms": [],
+				"places": [
+					"Paris"
+				],
+				"publishers": [
+					"chez E. Troupenas & C–ie"
+				],
+				"imprint_statements": [
+					{
+						"tag": "210",
+						"text": "Место издания ($a): Paris; Издатель ($c): chez E. Troupenas & C–ie; Дата издания ($d): [каля 1850]"
+					}
+				],
+				"manufacturing_statements": [],
+				"date": "[каля 1850]",
+				"year": "1850",
+				"personal_name_variants": [
+					{
+						"tag": "990",
+						"authority_id": "BY-SEK-ar6765211",
+						"type": "500",
+						"name": "Тальберг, С. (Сигизмунд), музыкант (1812—1871)",
+						"codes": [],
+						"context": "",
+						"main_names": [
+							"Thalberg, S. (Sigismund), музыкант (1812—1871)"
+						]
+					},
+					{
+						"tag": "990",
+						"authority_id": "BY-SEK-ar6765211",
+						"type": "400",
+						"name": "Тальберг, З. (Зигизмунд), музыкант (1812—1871)",
+						"codes": [],
+						"context": "Тальберг, С. (Сигизмунд), музыкант (1812—1871)",
+						"main_names": [
+							"Thalberg, S. (Sigismund), музыкант (1812—1871)"
+						]
+					}
+				],
+				"authors": [
+					"Thalberg, S. (Sigismund), музыкант (1812—1871)"
+				],
+				"contributors": [
+					{
+						"name": "Thalberg, S. (Sigismund), музыкант (1812—1871)",
+						"tag": "700",
+						"kind": "person",
+						"dates": [
+							"1812—1871"
+						],
+						"roles": [],
+						"copies": []
+					}
+				]
+			},
+			"mets": {
+				"metsID": 121349,
+				"nodes": [
+					{
+						"key": "121349_TEXT_PbyWbvE",
+						"serial": 0,
+						"data": {
+							"id": "121349_TEXT_PbyWbvE",
+							"file": null,
+							"linkName": "Конволют:",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "TEXT",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "121349_FILE_MT3qe8c",
+						"serial": 0,
+						"data": {
+							"id": "121349_FILE_MT3qe8c",
+							"file": {
+								"id": 6413461,
+								"fileLocation": "/import/s3/nlb/0/2/5/1/in78_2642/PDF/in78_2642_1.pdf"
+							},
+							"linkName": "1. Thalberg, Sigismond «Grande fantaisie» - op. 63 sur le Barbier de Seville",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "121349_FILE_LdD7z9e",
+						"serial": 0,
+						"data": {
+							"id": "121349_FILE_LdD7z9e",
+							"file": {
+								"id": 6413462,
+								"fileLocation": "/import/s3/nlb/0/2/5/1/in78_2642/PDF/in78_2642_2.pdf"
+							},
+							"linkName": "2. Шульгоф, Юлиус «Caprice sur des Airs Bohemiens» - op. 10",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "121349_FILE_SF5FVND",
+						"serial": 0,
+						"data": {
+							"id": "121349_FILE_SF5FVND",
+							"file": {
+								"id": 6413463,
+								"fileLocation": "/import/s3/nlb/0/2/5/1/in78_2642/PDF/in78_2642_3.pdf"
+							},
+							"linkName": "3. Лист, Ференц «Grande fantaisie»",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "121349_FILE_LZ5aQG4",
+						"serial": 0,
+						"data": {
+							"id": "121349_FILE_LZ5aQG4",
+							"file": {
+								"id": 6413464,
+								"fileLocation": "/import/s3/nlb/0/2/5/1/in78_2642/PDF/in78_2642_4.pdf"
+							},
+							"linkName": "4. Шопен, Фридерик «La ci darem la mano» - op. 2",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "121349_FILE_QwRbYqa",
+						"serial": 0,
+						"data": {
+							"id": "121349_FILE_QwRbYqa",
+							"file": {
+								"id": 6413465,
+								"fileLocation": "/import/s3/nlb/0/2/5/1/in78_2642/PDF/in78_2642_5.pdf"
+							},
+							"linkName": "5. Thalberg, Sigismond «Decameron» - № 8 \"Fantaisie\" sur des motifs d' Anna Bolena",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "121349_FILE_6gurgr4",
+						"serial": 0,
+						"data": {
+							"id": "121349_FILE_6gurgr4",
+							"file": {
+								"id": 6413466,
+								"fileLocation": "/import/s3/nlb/0/2/5/1/in78_2642/PDF/in78_2642_6.pdf"
+							},
+							"linkName": "6. Гензельт, Адольф фон «La Fontaine»",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "121349_FILE_JG4BKje",
+						"serial": 0,
+						"data": {
+							"id": "121349_FILE_JG4BKje",
+							"file": {
+								"id": 6413467,
+								"fileLocation": "/import/s3/nlb/0/2/5/1/in78_2642/PDF/in78_2642_7.pdf"
+							},
+							"linkName": "7. Лист, Ференц «Tarentelle»",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					}
+				]
+			},
+			"parsed_source_sha256": "8aae6ea88ebea580c5e910096e76ac402eb89a92f0ab3a8178979c629653deb3"
+		},
+		{
+			"record_id": "BY-NLB-br0000024201",
+			"expected_file_ids": [],
+			"case_note": "Catalog requires volume 2, but no viewer volume proves it. Chunk labels I/II/III are not bibliographic volumes. Later explicitly titled FILE nodes must not inherit the first work title.",
+			"source_url": "https://elib.nlb.by:8070/mets//structure/state?id=127630",
+			"source_sha256": "dfa69af218231b8fd9d20d1ae5a653dfca4778fe65a4e60250437dfcd2c03288",
+			"record_meta": {
+				"marc_id": "BY-NLB-br0000024201",
+				"title": "Aller des Heiligen Römischen Reichs Ordnungen gehaltener Reichβtäge und Abschiedt Sampt der Gulden Bullen : Т. 1 - 2. Т. 2. : Der Ander Theil",
+				"record_links": [
+					{
+						"record_id": "BY-NLB-br0000349060",
+						"title": "Der Römischen Keyserlichen Maiestat reformirte und gebesserte Policey Ordnung: zu befürderung gemeines guten bürgerlichen wesen und nutzen auff Anno M.D.LXXVII. zu Franckfort gehaltenem Reichs' Deputation tag verfast und auffgericht. - Meyntz [Mainz] : durch Franciscum Behem, 1579. - [2], 38, [1] л.",
+						"label": "Related Items"
+					},
+					{
+						"record_id": "BY-NLB-br0000349073",
+						"title": "Abschiedt der Römischen Kaiserlichen Maiestat: auch Churfürsten / deputirter Fürsten und Stän=de / fürstich und in namen gemeiner deß heiligen Reiche Stände auff dem Deputation tag zu Franckfort, Anno Domini M.D.LXXI auffgericht. - Meyntz [Mainz] : durch Franciscum Behem, 1571. - [2], 14, [7] л.",
+						"label": "Related Items"
+					},
+					{
+						"record_id": "BY-NLB-br0000349150",
+						"title": "Abschiedt der Römischen Kaiserlichen Maiestat und gemainer Stande: auf dem Reichstag zu Augspurg Anno Domini M.D.LXXXII. auffgericht. - Meyntz [Mainz] : durch Casparum Behem, 1582. - [2], 47 л.",
+						"label": "Related Items"
+					}
+				],
+				"file_ids": [],
+				"mets_ids": [
+					"127630"
+				],
+				"viewer_links": [
+					{
+						"url": "https://elib.nlb.by:8070/viewer/html?metsID=127630&markID=BY-NLB-br0000024201",
+						"mark_id": "BY-NLB-br0000024201",
+						"file_id": null,
+						"mets_id": "127630"
+					}
+				]
+			},
+			"marc_meta": {
+				"title": "Aller des Heiligen Römischen Reichs Ordnungen gehaltener Reichβtäge und Abschiedt Sampt der Gulden Bullen : Т. 1 - 2. Der Ander Theil",
+				"subtitle": "",
+				"related_records": [
+					{
+						"tag": "461",
+						"record_id": "BY-NLB-br0000536316",
+						"title": "Aller des Heiligen Römischen Reichs Ordnungen gehaltener Reichβtäge und Abschiedt Sampt der Gulden Bullen : Т. 1 - 2",
+						"volume": "Т. 2.",
+						"copies": []
+					},
+					{
+						"tag": "481",
+						"record_id": "BY-NLB-br0000349060",
+						"title": "",
+						"volume": "",
+						"copies": []
+					},
+					{
+						"tag": "481",
+						"record_id": "BY-NLB-br0000349073",
+						"title": "",
+						"volume": "",
+						"copies": []
+					},
+					{
+						"tag": "481",
+						"record_id": "BY-NLB-br0000349150",
+						"title": "",
+						"volume": "",
+						"copies": []
+					}
+				],
+				"responsibility": "",
+				"responsibilities": [],
+				"edition": "",
+				"publication_terms": [],
+				"places": [],
+				"publishers": [],
+				"imprint_statements": [],
+				"manufacturing_statements": [],
+				"date": "",
+				"year": "1579",
+				"personal_name_variants": [],
+				"authors": [],
+				"contributors": [
+					{
+						"name": "Coll. Vitebs., Витебск",
+						"tag": "712",
+						"kind": "organization",
+						"dates": [],
+						"roles": [
+							"390"
+						],
+						"copies": []
+					}
+				]
+			},
+			"mets": {
+				"metsID": 127630,
+				"nodes": [
+					{
+						"key": "127630_TEXT_W6G4RmU",
+						"serial": 0,
+						"data": {
+							"id": "127630_TEXT_W6G4RmU",
+							"file": null,
+							"linkName": "1. «Aller des Heiligen Römischen Reichs Ordnungen gehaltener Reichβtäge und Abschiedt Sampt der Gulden Bullen»:",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "TEXT",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "127630_FILE_B6wRK5Q",
+						"serial": 0,
+						"data": {
+							"id": "127630_FILE_B6wRK5Q",
+							"file": {
+								"id": 7391365,
+								"fileLocation": "/import/s3/nlb/0/9/12i_70k_026/PDF/ch_1_1.pdf"
+							},
+							"linkName": "",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "127630_FILE_Sfu8hoS",
+						"serial": 0,
+						"data": {
+							"id": "127630_FILE_Sfu8hoS",
+							"file": {
+								"id": 7391365,
+								"fileLocation": "/import/s3/nlb/0/9/12i_70k_026/PDF/ch_1_1.pdf"
+							},
+							"linkName": "* часть I",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "127630_FILE_NuRS3Ld",
+						"serial": 0,
+						"data": {
+							"id": "127630_FILE_NuRS3Ld",
+							"file": {
+								"id": 7391366,
+								"fileLocation": "/import/s3/nlb/0/9/12i_70k_026/PDF/ch_1_2.pdf"
+							},
+							"linkName": "",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "127630_FILE_nKcV0qt",
+						"serial": 0,
+						"data": {
+							"id": "127630_FILE_nKcV0qt",
+							"file": {
+								"id": 7391366,
+								"fileLocation": "/import/s3/nlb/0/9/12i_70k_026/PDF/ch_1_2.pdf"
+							},
+							"linkName": "* часть II",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "127630_FILE_yrGaIVq",
+						"serial": 0,
+						"data": {
+							"id": "127630_FILE_yrGaIVq",
+							"file": {
+								"id": 7391367,
+								"fileLocation": "/import/s3/nlb/0/9/12i_70k_026/PDF/ch_1_3.pdf"
+							},
+							"linkName": "",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "127630_FILE_t7HThWI",
+						"serial": 0,
+						"data": {
+							"id": "127630_FILE_t7HThWI",
+							"file": {
+								"id": 7391367,
+								"fileLocation": "/import/s3/nlb/0/9/12i_70k_026/PDF/ch_1_3.pdf"
+							},
+							"linkName": "* часть III",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "127630_FILE_LWOYLwJ",
+						"serial": 0,
+						"data": {
+							"id": "127630_FILE_LWOYLwJ",
+							"file": {
+								"id": 7391368,
+								"fileLocation": "/import/s3/nlb/0/9/12i_70k_026/PDF/ch_2.pdf"
+							},
+							"linkName": "2. «Der Römischen Keyserlichen Maiestat reformirte und gebesserte Policey Ordnung»",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "127630_FILE_8caOd11",
+						"serial": 0,
+						"data": {
+							"id": "127630_FILE_8caOd11",
+							"file": {
+								"id": 7391369,
+								"fileLocation": "/import/s3/nlb/0/9/12i_70k_026/PDF/ch_3.pdf"
+							},
+							"linkName": "3. «Abschiedt der Römischen Kaiserlichen Maiestat : auch Churfürsten»",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					},
+					{
+						"key": "127630_FILE_NColZc1",
+						"serial": 0,
+						"data": {
+							"id": "127630_FILE_NColZc1",
+							"file": {
+								"id": 7391370,
+								"fileLocation": "/import/s3/nlb/0/9/12i_70k_026/PDF/ch_4.pdf"
+							},
+							"linkName": "4. «Abschiedt der Römischen Kaiserlichen Maiestat und gemainer Stande : auf dem Reichstag zu Augspurg Anno Domini»",
+							"description": null,
+							"visible": true,
+							"elibLocal": false,
+							"nodeType": "FILE",
+							"elibLocalUrl": null
+						},
+						"children": []
+					}
+				]
+			},
+			"parsed_source_sha256": "c168b609b3cb1e9faeba2a543c2a8d4bfd8f5208cbeb4e411eed6c7650b07d3f"
+		}
+	]
+}

@@ -32,7 +32,8 @@ import requests
 
 from catalog_requests import CatalogRetriesExhausted, InvalidCatalogResponse, get_catalog_response
 from commons_verification import read_file_info
-from scan_identity import assess_scan_identity, flatten_mets
+from scan_identity import assess_scan_identity, flatten_mets, index_file_volumes
+from work_identity import index_work_titles
 from preservation import ArchiveStore, ArchiveWriteError, file_integrity
 from pdf_validation import InvalidPDFError, manifest_page_count, validate_pdf
 from publication_rights import evaluate_publication, publication_year
@@ -2255,6 +2256,8 @@ class NlbClient:
 		for entry in by_id.values():
 			if all_volumes or unresolved or 'mets_contexts' in entry:
 				entry.update(mets_volumes=sorted(all_volumes), mets_unresolved_volume=unresolved)
+		index_work_titles(list(by_id.values()))
+		index_file_volumes(list(by_id.values()))
 		return list(by_id.values())
 
 	def fetch_scan_manifest(self, marc_id: str, file_id: str) -> dict[str, Any]:

@@ -83,6 +83,55 @@ class TestScanIdentity(unittest.TestCase):
 		entry, = upload.extract_files_from_mets_structure({'nodes': [node('TEXT', 'Том I', children=[node('FILE', 'Ч. 1', 1)])]})
 		self.assertTrue(assess_scan_identity(entry, {'title': 'Book [в 3 т.]'}, {})['eligible'])
 
+	def test_file_volume_parts_keep_catalog_dimensions_and_ignore_year_description(self):
+		'''Volume IV alone cannot select either separately cataloged part.'''
+		from scan_identity import assess_scan_identity
+		nodes = [node('FILE', label, index) for index, label in enumerate(('TOM IV', 'TOM IV, CZĘŚĆ 1', 'TOM IV, CZĘŚĆ 2'), 1)]
+		for item in nodes:
+			item['data']['description'] = '1860 rok'
+		files = upload.extract_files_from_mets_structure({'nodes': nodes})
+		for volume, expected in (('T. 4', [True, False, False]), ('T. 4. [Cz. 1]', [False, True, False]), ('[T. 4. Cz. 2]', [False, False, True])):
+			with self.subTest(volume=volume):
+				marc = {'related_records': [{'tag': '461', 'volume': volume}, {'tag': '482'}]}
+				self.assertEqual([assess_scan_identity(item, {'title': 'Collected plays'}, marc)['eligible'] for item in files], expected)
+
+	def test_catalog_title_qualifiers_cannot_disappear_on_numeric_matching(self):
+		'''Series and conflicting part suffixes in a title also constrain FILE volumes.'''
+		from scan_identity import assess_scan_identity
+		for title, volume, label in (
+			('Collected works. Ser. 4. T. 2', 'T. 2', 'TOM II'),
+			('Collected plays. T. 4. Cz. 2', 'T. 4', 'TOM IV'),
+			('Collected plays. T. 4. Cz. 2', 'T. 4. Cz. 1', 'TOM IV, CZĘŚĆ 1'),
+			('Collected plays. Cz. 2', 'T. 4', 'TOM IV'),
+		):
+			with self.subTest(title=title):
+				entry, = upload.extract_files_from_mets_structure({'nodes': [node('FILE', label, 1)]})
+				marc = {'related_records': [{'tag': '461', 'volume': volume}, {'tag': '482'}]}
+				self.assertFalse(assess_scan_identity(entry, {'title': title}, marc)['eligible'])
+
+	def test_file_volume_conflicts_with_parent_and_duplicate_occurrences(self):
+		'''FILE evidence refines a matching parent but cannot override another volume.'''
+		from scan_identity import assess_scan_identity
+		for nodes in (
+			[node('TEXT', 'Том I'), node('FILE', 'TOM II', 1)],
+			[node('FILE', 'TOM II–III', 1)],
+			[node('TEXT', 'Another collected work'), node('FILE', 'TOM II', 1)],
+			[node('FILE', 'TOM I', 1), node('FILE', 'TOM II', 1)],
+			[node('FILE', 'TOM II', 1), node('FILE', 'TOM II, CZĘŚĆ 2', 1)],
+		):
+			with self.subTest(nodes=nodes):
+				entry, = upload.extract_files_from_mets_structure({'nodes': nodes})
+				self.assertFalse(assess_scan_identity(entry, {'title': 'Book T. 2'}, {})['eligible'])
+
+	def test_same_file_volume_on_distinct_pdfs_is_ambiguous_across_viewers(self):
+		'''Repeated bare volume labels cannot distinguish two bound works.'''
+		from scan_identity import assess_scan_identity
+		client = upload.NlbClient.__new__(upload.NlbClient)
+		client.fetch_mets_files = lambda mets_id, **kwargs: upload.extract_files_from_mets_structure({'nodes': [node('FILE', 'TOM II', mets_id)]})
+		files = client.resolve_record_files({'mets_ids': ['1', '2']}, {})
+		self.assertEqual(len(files), 2)
+		self.assertFalse(any(assess_scan_identity(entry, {'title': 'Book T. 2'}, {})['eligible'] for entry in files))
+
 	def test_archived_records_pass_scope_into_the_full_metadata_pipeline(self):
 		'''Metadata refresh cannot generate descriptions for another volume's scans.'''
 		from test_preservation_pipeline import Catalog
