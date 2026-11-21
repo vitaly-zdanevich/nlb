@@ -65,7 +65,7 @@ DOWNLOAD_TRANSIENT_STATUSES = frozenset({500, 502, 503, 504})
 HASH_CHECK_MAX_ATTEMPTS = 5
 HASH_CHECK_RETRY_DELAY = 5
 
-ILLEGAL_COMMONS_TITLE_CHARS_RE = re.compile(r'[\x00-\x1f\x7f#<>\[\]|{}]')
+ILLEGAL_COMMONS_TITLE_CHARS_RE = re.compile(r'[\x00-\x1f\x7f\ufffd#<>\[\]|{}]')
 RECORD_ID_RE = re.compile(r'/elib/(?:Record|Collection)/([^/?#"\'<>\s]+)')
 NLB_RECORD_ID_RE = re.compile(r'BY-NLB-[A-Za-z0-9_-]+')
 YEAR_RE = re.compile(r'(?<!\d)(1\d{3}|20\d{2})(?!\d)')
@@ -1208,6 +1208,8 @@ def build_commons_filename(
 
 	Overflow drops the appended year and record ID before shortening the title.
 	The file ID keeps multipart scans distinct; full metadata stays in the description.
+	Omit damaged viewer labels from filenames; their original text stays archived
+	and in the description. Never guess letters lost by the source's encoding.
 	'''
 	marc_title = (marc_meta.get('title') or '').strip()
 	html_title = (record_meta.get('title') or '').strip()
@@ -1217,7 +1219,7 @@ def build_commons_filename(
 		base_title = marc_title or html_title or marc_id
 	if marc_meta.get('subtitle') and marc_meta['subtitle'] not in base_title:
 		base_title = f"{base_title} - {marc_meta['subtitle']}"
-	if part_label:
+	if part_label and '\ufffd' not in part_label:
 		base_title = f'{base_title} ({part_label})'
 
 	year = resolve_publication_year(record_meta, marc_meta)
@@ -2641,6 +2643,10 @@ def make_stash_retrying_uploader(uploader_class: type, api_error_class: type[Exc
 	return StashRetryingUploader
 
 
+class InvalidCommonsTitle(ValueError):
+	'''A generated file title failed Pywikibot's validation before publication.'''
+
+
 class CommonsUploader:
 	'''Wrapper around Pywikibot to upload files to Wikimedia Commons with retries.'''
 
@@ -2661,9 +2667,12 @@ class CommonsUploader:
 		configure_upload_token_recovery(self.site, pywikibot.data.api.Request, pywikibot.exceptions.APIError)
 
 	def title_exists(self, commons_filename: str) -> bool:
-		"""Return True if File:<commons_filename> already exists on Commons."""
-		file_page = self.pywikibot.FilePage(self.site, f'File:{commons_filename}')
-		return bool(file_page.exists())
+		'''Check a file title, distinguishing invalid input from transport failures.'''
+		try:
+			file_page = self.pywikibot.FilePage(self.site, f'File:{commons_filename}')
+			return bool(file_page.exists())
+		except self.pywikibot.exceptions.InvalidTitleError as error:
+			raise InvalidCommonsTitle(str(error)) from error
 
 	def file_info(self, title: str) -> dict[str, Any]:
 		'''Read complete Commons binary/page identity, allowing for publication visibility.'''
@@ -2865,7 +2874,18 @@ def process_single_scan(
 	title_exists = False
 	if not dry_run:
 		log_progress(f'{prefix}[{key}] Checking title on Commons:\nFile:{commons_filename}')
-		title_exists = uploader.title_exists(commons_filename)
+		try:
+			title_exists = uploader.title_exists(commons_filename)
+		except InvalidCommonsTitle as error:
+			commons_filename = build_commons_filename({}, {'title': 'NLB scan'}, marc_id, file_id)
+			log_progress(f'{prefix}[{key}] Generated title was rejected ({error}); using File:{commons_filename}')
+			if archive is not None:
+				archive.save_scan(marc_id, file_id, wikitext, f'File:{commons_filename}', rights=decision, part_label=part_label, scan_identity=identity)
+			try:
+				title_exists = uploader.title_exists(commons_filename)
+			except InvalidCommonsTitle as fallback_error:
+				return finish('upload_failed', pending=True, error=str(fallback_error), error_type=type(fallback_error).__name__,
+					error_code='invalidtitle', commons_title=f'File:{commons_filename}')
 	staging_dir.mkdir(parents=True, exist_ok=True)
 	# Source identifiers never become path components; workers get distinct files.
 	import tempfile

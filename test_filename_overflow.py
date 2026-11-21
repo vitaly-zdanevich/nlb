@@ -2,6 +2,8 @@
 '''Keep readable filenames within their UTF-8 budget without losing scan identity.'''
 
 from html import unescape
+import json
+from pathlib import Path
 import unittest
 
 import upload
@@ -9,6 +11,27 @@ import upload
 
 class TestFilenameOverflow(unittest.TestCase):
 	'''Exercise exact byte boundaries, multibyte titles and preserved descriptions.'''
+
+	def test_damaged_source_labels_do_not_stop_filename_generation(self) -> None:
+		'''METS 130279 contains literal U+FFFD bytes; preserve them outside filenames.
+
+		Captured from https://elib.nlb.by:8070/mets//structure/state?id=130279
+		on 2026-11-16; source SHA-256:
+		f6b24c0e5841738ef8ff306c9e7f82fbd36081fe42951d5ef06821c9c24d2a1d.
+		'''
+		structure = json.loads((Path(__file__).parent / 'fixtures/damaged_viewer_labels.json').read_text())
+		files = upload.extract_files_from_mets_structure(structure)
+		metadata = {'title': 'Миниа, месяц март', 'date': '1750'}
+		names = []
+		for entry in files:
+			label, file_id = entry['part_label'], entry['file_id']
+			self.assertIn('\ufffd', label)
+			name = upload.build_commons_filename({}, metadata, 'BY-NLB-br0000686157', file_id, label)
+			self.assertEqual(name, f'Миниа, месяц март (1750) -- BY-NLB-br0000686157 -- {file_id}.pdf')
+			self.assertIn(label, unescape(upload.build_commons_description({}, metadata, 'BY-NLB-br0000686157', file_id, label)))
+			names.append(name)
+		self.assertEqual(len(set(names)), 2)
+		self.assertNotIn('\ufffd', upload.build_commons_filename({}, {'title': 'Damaged \ufffd title'}, 'record', '123'))
 
 	def test_short_filename_keeps_year_record_and_file_identifiers(self) -> None:
 		'''The compact suffix only applies when the full filename exceeds 240 bytes.'''

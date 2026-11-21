@@ -8,6 +8,7 @@ import unittest
 from unittest import mock
 
 import upload as upload_nlb
+from preservation import ArchiveStore
 from test_upload import FakeCommonsUploader, FakeNlbClient
 
 
@@ -22,6 +23,60 @@ class FakeAPIError(Exception):
 
 class TestDeferredUploads(unittest.TestCase):
 	'''Keep failed uploads resumable while processing other available scans.'''
+
+	def test_rejected_title_uses_id_filename_without_losing_metadata(self) -> None:
+		'''A title failure retries automatically, keeping description and archive aligned.'''
+		with tempfile.TemporaryDirectory() as directory:
+			root = Path(directory)
+			client, uploader = FakeNlbClient(), FakeCommonsUploader()
+			client.archive = ArchiveStore(root / 'archive')
+			uploader.title_exists = mock.Mock(side_effect=[upload_nlb.InvalidCommonsTitle('Rejected generated title'), False])
+			state = upload_nlb.default_state()
+			with mock.patch('upload.check_commons_by_hash', side_effect=lambda path, **kwargs: (upload_nlb.calculate_sha1(path), [])), mock.patch('sys.stdout', io.StringIO()):
+				status = upload_nlb.process_single_scan(client, uploader, state, root / 'state.json', root / 'scans',
+					'BY-NLB-test', '123', 'Original part', {'title': 'Complete original title'}, {'date': '1800'})
+			self.assertEqual(status, 'uploaded')
+			self.assertEqual(client.downloaded_file_ids, ['123'])
+			self.assertEqual(uploader.title_exists.call_args_list[-1], mock.call('NLB scan -- BY-NLB-test -- 123.pdf'))
+			published, = uploader.uploads
+			self.assertEqual(published['commons_filename'], 'NLB scan -- BY-NLB-test -- 123.pdf')
+			self.assertIn('Complete original title', published['wikitext'])
+			self.assertIn('Original part', published['wikitext'])
+			archived = client.archive.manifests['BY-NLB-test']['files']['123']
+			self.assertEqual(archived['commons_title'], 'File:NLB scan -- BY-NLB-test -- 123.pdf')
+			self.assertEqual(state['items']['BY-NLB-test:123']['status'], 'uploaded')
+
+	def test_rejected_fallback_remains_retryable_without_download(self) -> None:
+		'''Failure even for an ID title cannot cause a retry loop or lose the scan.'''
+		with tempfile.TemporaryDirectory() as directory:
+			root = Path(directory)
+			client, uploader = FakeNlbClient(), FakeCommonsUploader()
+			uploader.title_exists = mock.Mock(side_effect=upload_nlb.InvalidCommonsTitle('Rejected'))
+			state = upload_nlb.default_state()
+			state['current_page'] = 45
+			with mock.patch('sys.stdout', io.StringIO()):
+				status = upload_nlb.process_single_scan(client, uploader, state, root / 'state.json', root / 'scans',
+					'BY-NLB-test', '123', '', {'title': 'Original title'}, {'date': '1800'})
+			self.assertEqual(status, 'upload_failed')
+			self.assertEqual(uploader.title_exists.call_count, 2)
+			self.assertEqual(client.downloaded_file_ids, [])
+			self.assertEqual(state['retry_from_page'], 45)
+			self.assertEqual(state['items']['BY-NLB-test:123']['error_code'], 'invalidtitle')
+
+	def test_title_validation_does_not_hide_network_errors(self) -> None:
+		'''Only the library's InvalidTitleError triggers a filename fallback.'''
+		uploader = upload_nlb.CommonsUploader.__new__(upload_nlb.CommonsUploader)
+		uploader.site = mock.Mock()
+		class InvalidTitleError(Exception):
+			'''Model Pywikibot's local title validation exception.'''
+		uploader.pywikibot = mock.Mock()
+		uploader.pywikibot.exceptions.InvalidTitleError = InvalidTitleError
+		uploader.pywikibot.FilePage.side_effect = InvalidTitleError('Bad title')
+		with self.assertRaisesRegex(upload_nlb.InvalidCommonsTitle, 'Bad title'):
+			uploader.title_exists('Invalid title')
+		uploader.pywikibot.FilePage.side_effect = TimeoutError('Offline')
+		with self.assertRaisesRegex(TimeoutError, 'Offline'):
+			uploader.title_exists('Valid title')
 
 	def test_exhaustion_saves_diagnostics_and_earliest_page(self) -> None:
 		'''Persist the failed file identity and hash, clean staging, and preserve the earliest retry.'''

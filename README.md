@@ -6,8 +6,8 @@
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=vitaly-zdanevich_nlb&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=vitaly-zdanevich_nlb)
-[![Production code](https://img.shields.io/badge/production%20code-6%2C080%20lines-blue)](upload.py)
-[![Test code](https://img.shields.io/badge/test%20code-10%2C211%20lines-blue)](#running-tests)
+[![Production code](https://img.shields.io/badge/production%20code-6%2C098%20lines-blue)](upload.py)
+[![Test code](https://img.shields.io/badge/test%20code-10%2C284%20lines-blue)](#running-tests)
 
 [`upload.py`](upload.py) iterates over open-access digitized scans from the Electronic Library of the National Library of Belarus (`https://elib.nlb.by`), archives the source responses, and uploads eligible PDFs to Wikimedia Commons with their useful catalog metadata readable on the file page.
 
@@ -48,6 +48,8 @@
 - **Graceful `Ctrl-C` shutdown**: The first `Ctrl-C` finishes the current item in progress, updates `state.json`, prints the uploaded file count and uploaded megabytes, and exits cleanly. A second `Ctrl-C` aborts the current operation, removes the temporary PDF and exits with code 130. Unfinished items remain pending; restarting checks Commons again before uploading.
 
 ## Metadata preservation and readability
+
+Damaged viewer labels containing Unicode replacement characters (`�`) are omitted from generated filenames. Their original text remains in the archived source and Commons description; the file ID still distinguishes scans. If Pywikibot rejects a generated title, uploading automatically retries the title check with `NLB scan -- RECORD_ID -- FILE_ID.pdf`, retaining the complete description.
 
 Commons descriptions include the bibliographic details, contributors and their roles, subjects and variants, contents, copy and storage information, related works, and useful IIIF metadata. Remaining MARC values appear in a readable catalog supplement with field/subfield labels; unfamiliar codes retain their source codes instead of receiving guessed meanings. Embedded contributor names and dates in linked records also remain visible. Exact repeated display values are deduplicated without dropping distinct copy-specific statements.
 
