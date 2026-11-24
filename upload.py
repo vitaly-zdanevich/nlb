@@ -2830,11 +2830,20 @@ def process_single_scan(
 		try:
 			manifest = client.fetch_scan_manifest(marc_id, file_id)
 			wikitext = preserve_description(with_viewer_metadata(record_meta, manifest))
-		except (CatalogRetriesExhausted, ViewerAPIUnavailable, CatalogResourceMissing) as error:
+		except (CatalogRetriesExhausted, ViewerAPIUnavailable, requests.HTTPError) as error:
+			# NLB also returns HTTP 400 when its image backend cannot build a
+			# manifest. Keep that scan retryable without bypassing validation.
+			# Other unclassified HTTP failures retain their original handling.
+			if isinstance(error, requests.HTTPError) and not isinstance(error, CatalogResourceMissing):
+				if error.response is None or error.response.status_code != 400:
+					raise
 			# A fresh metadata outage does not erase an earlier publication or its
 			# binary identity. Keep it available for later verification and refresh.
 			base = {**previous, **base}
+			cause = getattr(error, 'last_error', error)
+			response = getattr(cause, 'response', None)
 			status = finish('metadata_failed', pending=True, error=str(error), attempts=getattr(error, 'attempts', 1),
+				error_type=type(cause).__name__, http_status=response.status_code if response is not None else None,
 				previous_status=previous.get('previous_status', previous.get('status')))
 			if isinstance(error, ViewerAPIUnavailable):
 				raise
@@ -2847,7 +2856,7 @@ def process_single_scan(
 	publication_status = publication.get('status', previous.get('status'))
 	if publication_status in TERMINAL_STATUSES and previous.get('verification'):
 		state['items'][key] = retain_publication(previous, {**previous, **base, 'status': publication_status})
-		for field in ('error', 'error_type', 'attempts', 'previous_status'):
+		for field in ('error', 'error_type', 'http_status', 'attempts', 'previous_status'):
 			state['items'][key].pop(field, None)
 		if archive is not None:
 			archive.record_result(marc_id, file_id, state['items'][key])
@@ -2860,7 +2869,7 @@ def process_single_scan(
 		# Publication succeeded or may have succeeded; recheck the saved identity
 		# before any download or upload. This read does not grant publication rights;
 		# missing or mismatched files remain pending without falling through to upload.
-		base = {**{name: value for name, value in previous.items() if name not in ('error', 'attempts', 'error_type', 'previous_status')}, **base}
+		base = {**{name: value for name, value in previous.items() if name not in ('error', 'attempts', 'error_type', 'http_status', 'previous_status')}, **base}
 		try:
 			info = uploader.file_info(previous['commons_title'])
 			if info['sha1'].lower() != previous['sha1'].lower() or info['size_bytes'] != previous['size_bytes']:

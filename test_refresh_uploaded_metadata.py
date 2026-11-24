@@ -176,6 +176,33 @@ class TestRefreshUploadedMetadata(unittest.TestCase):
 		self.assertEqual(entry['commons_title'], 'File:Actual old target.pdf')
 		self.assertEqual(self.state_path.read_bytes(), before)
 
+	def test_manifest_http_rejection_retains_history_and_continues_siblings(self):
+		'''HTTP 400 keeps the actual Commons identity while another scan remains refreshable.'''
+		items = {'BY-NLB-book:1': association(), 'BY-NLB-book:2': association(commons_title='File:Second scan.pdf')}
+		before = self.write_state(items)
+		client = RefreshCatalog(self.root / 'archive', {'BY-NLB-book': (
+			{'title': 'Changed catalog title', 'file_ids': ['1', '2']}, {'date': '1800'},
+		)})
+		response = requests.Response()
+		response.status_code = 400
+		client.fetch_scan_manifest.side_effect = [
+			requests.HTTPError('400 Bad Request', response=response),
+			{'metadata': [{'label': 'Scan note', 'value': 'Valid sibling metadata'}]},
+		]
+		counts = self.collect(client)
+		self.assertEqual((counts['metadata_failed'], counts['metadata_ready'], counts['source_missing']), (1, 1, 0))
+		entry = client.archive.manifests['BY-NLB-book']['files']['1']
+		self.assertEqual(entry['status'], 'metadata_failed')
+		self.assertEqual(entry['http_status'], 400)
+		self.assertEqual(entry['attempts'], 1)
+		self.assertEqual(entry['error_type'], 'HTTPError')
+		self.assertFalse(entry['scan_identity']['eligible'])
+		self.assertEqual(entry['metadata_refresh']['status'], 'metadata_failed')
+		for field in ('sha1', 'size_bytes', 'commons_title'):
+			self.assertEqual(entry[field], items['BY-NLB-book:1'][field])
+		self.assertEqual(client.archive.manifests['BY-NLB-book']['files']['2']['metadata_refresh']['status'], 'metadata_ready')
+		self.assertEqual(self.state_path.read_bytes(), before)
+
 	def test_record_failure_does_not_block_later_associations(self):
 		'''A missing record remains documented while the remaining known records refresh.'''
 		before = self.write_state({'BY-NLB-bad:1': association(), 'BY-NLB-good:2': association()})
@@ -264,7 +291,7 @@ class TestRefreshUploadedMetadata(unittest.TestCase):
 			response.encoding = 'utf-8'
 			if response.status_code != 200:
 				body = {'timestamp': '2026-11-10T04:09:46.119+00:00', 'status': response.status_code,
-					'error': 'Not Found', 'path': path}
+					'error': 'Bad Request' if response.status_code == 400 else 'Not Found', 'path': path}
 			response.headers['Content-Type'] = 'application/json' if isinstance(body, dict) else 'text/html'
 			response._content = (json.dumps(body) if isinstance(body, dict) else body).encode()
 			response.close = mock.Mock()
@@ -275,6 +302,43 @@ class TestRefreshUploadedMetadata(unittest.TestCase):
 		client.fetch_search_page = mock.Mock(side_effect=AssertionError('Unexpected full catalog search'))
 		client.download_pdf_scan = mock.Mock(side_effect=AssertionError('Unexpected PDF download'))
 		return client, session, failure
+
+	def test_manifest_http_400_response_is_archived_once_and_refresh_recovers(self):
+		'''A permanent manifest response is captured without backoff or fabricated metadata.'''
+		marc_id = 'BY-NLB-br0000000001'
+		before = self.write_state({f'{marc_id}:1001': association()})
+		client, session, failure = self.http_client('manifest', 400)
+		with mock.patch('catalog_requests.time.sleep') as sleep:
+			counts = self.collect(client)
+			sleep.assert_not_called()
+		self.assertEqual((counts['metadata_failed'], counts['metadata_ready']), (1, 0))
+		manifest_calls = [call for call in session.get.call_args_list if urlsplit(call.args[0]).path == '/iiif/manifest']
+		self.assertEqual(len(manifest_calls), 1)
+		manifest = client.archive.manifests[marc_id]
+		failed_sources = [source for source in manifest['sources'] if source['http_status'] == 400]
+		self.assertEqual(len(failed_sources), 1)
+		payload = json.loads((client.archive.root / failed_sources[0]['path']).read_text())
+		self.assertEqual((payload['status'], payload['error'], payload['path']), (400, 'Bad Request', '/iiif/manifest'))
+		entry = manifest['files']['1001']
+		self.assertEqual(entry['http_status'], 400)
+		self.assertEqual(entry['attempts'], 1)
+		self.assertFalse(entry['scan_identity']['eligible'])
+		self.assertEqual(self.state_path.read_bytes(), before)
+		session.post.assert_not_called()
+
+		failure['operation'] = None
+		session.get.reset_mock()
+		counts = self.collect(client)
+		self.assertEqual((counts['metadata_failed'], counts['metadata_ready']), (0, 1))
+		entry = client.archive.manifests[marc_id]['files']['1001']
+		self.assertTrue(entry['scan_identity']['eligible'])
+		self.assertEqual(entry['commons_title'], 'File:Actual old target.pdf')
+		text = (client.archive.root / entry['description']['path']).read_text()
+		self.assertIn('Recovered viewer metadata', text)
+		self.assertEqual(self.state_path.read_bytes(), before)
+		manifest_calls = [call for call in session.get.call_args_list if urlsplit(call.args[0]).path == '/iiif/manifest']
+		self.assertEqual(len(manifest_calls), 1)
+		session.post.assert_not_called()
 
 	def test_only_primary_record_http_missing_is_classified_as_source_missing(self):
 		'''Real subordinate hierarchy/export failures cannot impersonate a deleted primary record.'''

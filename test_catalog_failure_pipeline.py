@@ -44,6 +44,117 @@ class TestCatalogFailurePipeline(unittest.TestCase):
 		response.status_code = 504
 		return CatalogRetriesExhausted(requests.HTTPError('504 Gateway Time-out', response=response), 5)
 
+	def test_manifest_rejection_continues_and_recovers_without_duplicate_uploads(self) -> None:
+		'''A rejected manifest blocks only its scan until a later fresh read succeeds.'''
+		for failed_file, failed_page in (('1001', 1), ('2001', 2)):
+			with self.subTest(file_id=failed_file), self.environment() as (client, uploader, kwargs):
+				response = requests.Response()
+				response.status_code = 400
+				response.url = 'https://elib.nlb.by:8070/iiif/manifest'
+				error = requests.HTTPError('400 Bad Request', response=response)
+				rejected = True
+
+				def manifest(record_id, file_id):
+					'''Reject one manifest while serving its sibling and later records normally.'''
+					if rejected and file_id == failed_file:
+						raise error
+					return {'metadata': [{'label': 'Scan note', 'value': 'Validated viewer metadata'}]}
+
+				client.fetch_scan_manifest = mock.Mock(side_effect=manifest)
+				uploader.title_exists = mock.Mock(wraps=uploader.title_exists)
+				counts = upload_nlb.iterate_and_upload(**kwargs)
+				self.assertEqual((counts['metadata_failed'], counts['uploaded']), (1, 2))
+				self.assertEqual(client.downloaded_file_ids, [file_id for file_id in ('1001', '2001', '2002') if file_id != failed_file])
+				self.assertEqual(uploader.title_exists.call_count, 2)
+				self.assertEqual(upload_nlb.check_commons_by_hash.call_count, 2)
+				self.assertEqual(client.fetch_scan_manifest.call_count, 3)
+				state = upload_nlb.load_state(kwargs['state_path'])
+				key = ('BY-NLB-rr111:' if failed_file == '1001' else 'BY-NLB-rr222:') + failed_file
+				pending = state['items'][key]
+				self.assertEqual(pending['status'], 'metadata_failed')
+				self.assertEqual(pending['http_status'], 400)
+				self.assertEqual(pending['attempts'], 1)
+				self.assertEqual(pending['error_type'], 'HTTPError')
+				self.assertEqual(state['retry_from_page'], failed_page)
+				self.assertEqual(state['current_page'], 2)
+				self.assertFalse(upload_nlb.is_item_completed(state, *key.split(':')))
+
+				rejected = False
+				client.downloaded_file_ids.clear()
+				uploader.title_exists.reset_mock()
+				counts = upload_nlb.iterate_and_upload(**kwargs)
+				self.assertEqual((counts['metadata_failed'], counts['uploaded'], counts['completed']), (0, 1, 2))
+				self.assertEqual(client.downloaded_file_ids, [failed_file])
+				self.assertEqual(uploader.title_exists.call_count, 1)
+				self.assertEqual(len(uploader.uploads), 3)
+				state = upload_nlb.load_state(kwargs['state_path'])
+				self.assertEqual(state['items'][key]['status'], 'uploaded')
+				self.assertNotIn('retry_from_page', state)
+
+	def test_other_manifest_failures_remain_fatal(self) -> None:
+		'''Do not convert authorization, transport, or unclassified errors into a scan rejection.'''
+		errors = [requests.HTTPError('Missing response'), requests.exceptions.SSLError('Certificate mismatch')]
+		for status in (401, 403, 404, 405, 429, 501):
+			response = requests.Response()
+			response.status_code = status
+			errors.append(requests.HTTPError(f'HTTP {status}', response=response))
+		for error in errors:
+			with self.subTest(error=str(error)), self.environment() as (client, uploader, kwargs):
+				client.fetch_scan_manifest = mock.Mock(side_effect=error)
+				with self.assertRaises(type(error)) as raised:
+					upload_nlb.iterate_and_upload(**kwargs)
+				self.assertIs(raised.exception, error)
+				self.assertEqual(client.downloaded_file_ids, [])
+				self.assertEqual(uploader.uploads, [])
+				self.assertEqual(upload_nlb.load_state(kwargs['state_path'])['items'], {})
+
+	def test_uploaded_scan_manifest_recovery_keeps_identity_and_clears_http_status(self) -> None:
+		'''Metadata recovery reuses a published PDF with cached or freshly checked verification.'''
+		for verified in (False, True):
+			with self.subTest(verified=verified), self.environment() as (client, uploader, kwargs):
+				self.assertEqual(upload_nlb.iterate_and_upload(**kwargs)['uploaded'], 3)
+				state = upload_nlb.load_state(kwargs['state_path'])
+				key = 'BY-NLB-rr111:1001'
+				original = state['items'][key].copy()
+				if not verified:
+					for entry in (state['items'][key], state['items'][key]['publication']):
+						entry.pop('verification')
+						entry['status'] = 'verification_failed'
+					upload_nlb.save_state(kwargs['state_path'], state)
+				response = requests.Response()
+				response.status_code = 400
+				rejected = True
+
+				def manifest(record_id, file_id):
+					'''Model a temporary backend rejection after an earlier verified upload.'''
+					if rejected and file_id == '1001':
+						raise requests.HTTPError('400 Bad Request', response=response)
+					return {'metadata': []}
+
+				client.fetch_scan_manifest = mock.Mock(side_effect=manifest)
+				client.downloaded_file_ids.clear()
+				counts = upload_nlb.iterate_and_upload(**kwargs)
+				self.assertEqual((counts['metadata_failed'], counts['uploaded'], counts['completed']), (1, 0, 2))
+				self.assertEqual(client.downloaded_file_ids, [])
+				entry = upload_nlb.load_state(kwargs['state_path'])['items'][key]
+				self.assertEqual(entry['http_status'], 400)
+				for field in ('sha1', 'size_bytes', 'commons_title'):
+					self.assertEqual(entry[field], original[field])
+
+				rejected = False
+				counts = upload_nlb.iterate_and_upload(**kwargs)
+				self.assertEqual(counts['metadata_failed'], 0)
+				self.assertEqual(counts['uploaded'], 0)
+				self.assertEqual(counts['completed'], 3 if verified else 2)
+				self.assertEqual(counts['existing_title'], 0 if verified else 1)
+				self.assertEqual(client.downloaded_file_ids, [])
+				self.assertEqual(len(uploader.uploads), 3)
+				entry = upload_nlb.load_state(kwargs['state_path'])['items'][key]
+				for field in ('sha1', 'size_bytes', 'commons_title'):
+					self.assertEqual(entry[field], original[field])
+				for field in ('error', 'error_type', 'http_status', 'attempts', 'previous_status'):
+					self.assertNotIn(field, entry)
+
 	def test_record_failure_continues_and_recovery_preserves_completed_scans(self) -> None:
 		"""Access, HTML/XML, and METS failures survive limits and dry runs until recovery."""
 		for stage in ('check_doc_access', 'fetch_record_metadata', 'resolve_record_files'):
