@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 '''Multi-level unit, component, and end-to-end tests for upload.py.'''
 
+from contextlib import contextmanager
 import hashlib
 import io
 import json
@@ -2458,6 +2459,225 @@ class TestPywikibotUploadTokens(unittest.TestCase):
 			file_path.write_bytes(b'%PDF-1.4\n!')
 			result = self.uploader.upload(file_path, 'Scan.pdf', 'Preserved description', 'Test')
 		return result, file_page, sleep
+
+	@contextmanager
+	def polling_environment(self, *, phase: str, error_code: str | None = None):
+		'''Run real upload requests with an advancing clock and no network or real sleeps.'''
+		control = {'now': 0.0, 'phase': phase, 'error_code': error_code, 'failing': True,
+			'published': False, 'published_on_poll': False, 'publishing': False,
+			'chunk_seconds': 0, 'polls': {'assembly': 0, 'publication': 0}}
+		file_page = mock.MagicMock()
+		file_page.title.return_value = 'Scan.pdf'
+		file_page._pageid = 0
+		file_page.exists.side_effect = lambda: file_page._pageid > 0
+		self.site.loadpageinfo.reset_mock()
+		self.site.loadpageinfo.side_effect = lambda page: setattr(page, '_pageid', int(control['published']))
+		self.sent.clear()
+
+		def server(request: object) -> dict:
+			'''Exercise assembly and publication polling, failing quickly if a guard regresses.'''
+			if len(self.sent) > 80:
+				raise AssertionError('Unbounded asynchronous upload polling')
+			if request.get('stash'):
+				control['now'] += control['chunk_seconds']
+				offset, size = request['offset'][0], request['filesize'][0]
+				result = 'Continue' if offset + 4 < size else ('Poll' if phase != 'publication' else 'Success')
+				return {'upload': {'result': result, 'offset': min(offset + 4, size), 'filekey': 'test-stash'}}
+			if not request.get('checkstatus'):
+				control['publishing'] = True
+				return {'upload': {'result': 'Success' if phase == 'assembly' else 'Poll',
+					'filekey': 'test-stash', 'imageinfo': {}}}
+			control['now'] += 61
+			control['published'] = control['published_on_poll']
+			stage = 'publication' if control['publishing'] else 'assembly'
+			control['polls'][stage] += 1
+			if control['failing'] and error_code:
+				return {'error': {'code': error_code, 'info': 'No result in status data.'}}
+			if control['failing'] or control['polls'][stage] < 2:
+				# Subsequent status responses need not repeat the original file key.
+				return {'upload': {'result': 'Poll'}}
+			return {'upload': {'result': 'Success', 'filekey': 'test-stash', 'imageinfo': {}}}
+
+		self.payload_handler = server
+		with tempfile.TemporaryDirectory() as directory, mock.patch.object(
+			self.pwb, 'FilePage', return_value=file_page,
+		), mock.patch('upload.UPLOAD_CHUNK_SIZE', 4), mock.patch(
+			'upload.UPLOAD_POLL_TIMEOUT', 180,
+		), mock.patch('upload.UPLOAD_POLL_LOG_INTERVAL', 60), mock.patch(
+			'upload.time.monotonic', side_effect=lambda: control['now'],
+		), mock.patch('upload.time.sleep') as sleep, mock.patch('sys.stdout', io.StringIO()) as output:
+			path = Path(directory) / 'scan.pdf'
+			path.write_bytes(b'%PDF-1.4\n!')
+			yield path, file_page, control, sleep, output
+
+	def test_poll_timeout_bounds_both_upload_phases_without_retransmission(self) -> None:
+		'''An unchanging Poll result cannot hold the batch indefinitely or resend the PDF.'''
+		for phase in ('assembly', 'publication'):
+			with self.subTest(phase=phase), self.polling_environment(phase=phase) as (path, page, control, sleep, output):
+				with self.assertRaises(upload_nlb.UploadRetriesExhausted) as raised:
+					self.uploader.upload(path, 'Scan.pdf', 'Preserved description', 'Test')
+				self.assertEqual(raised.exception.attempts, 1)
+				self.assertEqual(raised.exception.last_error.code, 'upload-poll-timeout')
+				self.assertEqual(len([request for request in self.sent if request.get('stash')]), 3)
+				self.assertLessEqual(len([request for request in self.sent if request.get('checkstatus')]), 4)
+				self.assertEqual(len([request for request in self.sent if not request.get('stash') and not request.get('checkstatus')]), int(phase == 'publication'))
+				self.site.loadpageinfo.assert_called_once_with(page)
+				sleep.assert_not_called()
+				waits = [line for line in output.getvalue().splitlines() if line.startswith('Waiting for Commons')]
+				self.assertEqual(len(waits), 3)
+				label = 'chunk assembly' if phase == 'assembly' else 'publication'
+				for elapsed, line in zip((0, 61, 122), waits):
+					self.assertIn(f'Commons {label}: {elapsed}s elapsed (limit 180s)', line)
+					self.assertIn('File:Scan.pdf', line)
+				self.assertIsNone(self.site._request_class._nlb_upload_poll_guard)
+
+	def test_polling_interrupt_restores_the_previous_guard_without_retry(self) -> None:
+		'''An interrupted cached site must not retain the abandoned attempt's polling deadline.'''
+		with self.polling_environment(phase='assembly') as (path, _, _, sleep, _):
+			server = self.payload_handler
+			previous_guard = object()
+			self.site._request_class._nlb_upload_poll_guard = previous_guard
+
+			def interrupted(request: object) -> dict:
+				'''Interrupt the first status check after all PDF chunks have been sent.'''
+				if request.get('checkstatus'):
+					raise KeyboardInterrupt('Operator interrupted the polling wait')
+				return server(request)
+
+			self.payload_handler = interrupted
+			with self.assertRaises(KeyboardInterrupt):
+				self.uploader.upload(path, 'Scan.pdf', 'Description', 'Test')
+			self.assertIs(self.site._request_class._nlb_upload_poll_guard, previous_guard)
+			self.assertEqual(len([request for request in self.sent if request.get('stash')]), 3)
+			self.assertEqual(len([request for request in self.sent if request.get('checkstatus')]), 1)
+			self.site.loadpageinfo.assert_not_called()
+			sleep.assert_not_called()
+
+	def test_missing_poll_result_checks_commons_and_defers_only_once(self) -> None:
+		'''An expired asynchronous result is checked for publication before any retransmission.'''
+		for phase in ('assembly', 'publication'):
+			for published in (False, True):
+				with self.subTest(phase=phase, published=published), self.polling_environment(
+					phase=phase, error_code='missingresult',
+				) as (path, page, control, sleep, _):
+					control['published_on_poll'] = published
+					if published:
+						self.assertEqual(self.uploader.upload(path, 'Scan.pdf', 'Description', 'Test')['status'], 'existing_title')
+					else:
+						with self.assertRaises(upload_nlb.UploadRetriesExhausted) as raised:
+							self.uploader.upload(path, 'Scan.pdf', 'Description', 'Test')
+						self.assertEqual(raised.exception.attempts, 1)
+						self.assertEqual(raised.exception.last_error.code, 'missingresult')
+					self.site.loadpageinfo.assert_called_once_with(page)
+					self.assertEqual(len([request for request in self.sent if request.get('stash')]), 3)
+					self.assertEqual(len([request for request in self.sent if request.get('checkstatus')]), 1)
+					sleep.assert_not_called()
+					self.assertIsNone(self.site._request_class._nlb_upload_poll_guard)
+
+	def test_failed_publication_check_cannot_trigger_another_upload(self) -> None:
+		'''Transient verification reads defer the original upload; credentials and TLS still stop it.'''
+		for error_code in (None, 'missingresult'):
+			for check_error, transient in (
+				(upload_nlb.requests.Timeout('Read timed out'), True),
+				(self.pwb.exceptions.ApiTimeoutError('API retries exhausted'), True),
+				(self.pwb.exceptions.MaxlagTimeoutError('Maxlag retries exhausted'), True),
+				(self.pwb.exceptions.APIError('maxlag', 'Replication lag'), True),
+				(upload_nlb.requests.exceptions.SSLError('Certificate mismatch'), False),
+				(self.pwb.exceptions.APIError('badtoken', 'Invalid credentials'), False),
+			):
+				with self.subTest(poll_error=error_code, check_error=str(check_error)), self.polling_environment(
+					phase='assembly', error_code=error_code,
+				) as (path, page, _, sleep, _):
+					self.site.loadpageinfo.side_effect = check_error
+					with self.assertRaises(upload_nlb.UploadRetriesExhausted if transient else type(check_error)) as raised:
+						self.uploader.upload(path, 'Scan.pdf', 'Description', 'Test')
+					if transient:
+						self.assertEqual(raised.exception.attempts, 1)
+						self.assertEqual(raised.exception.last_error.code, error_code or 'upload-poll-timeout')
+						self.assertIs(raised.exception.__cause__, check_error)
+					else:
+						self.assertIs(raised.exception, check_error)
+					self.site.loadpageinfo.assert_called_once_with(page)
+					self.assertEqual(len([request for request in self.sent if request.get('stash')]), 3)
+					self.assertIsNone(self.site._request_class._nlb_upload_poll_guard)
+					sleep.assert_not_called()
+
+	def test_successful_polling_phases_have_independent_deadlines(self) -> None:
+		'''Slow healthy chunks and a completed assembly do not consume the publication wait.'''
+		with self.polling_environment(phase='both') as (path, _, control, sleep, _):
+			control['failing'] = False
+			control['chunk_seconds'] = 240
+			self.assertEqual(self.uploader.upload(path, 'Scan.pdf', 'Description', 'Test')['status'], 'uploaded')
+			self.assertGreater(control['now'], 180)
+			self.assertEqual(control['polls'], {'assembly': 2, 'publication': 2})
+			self.assertEqual(len([request for request in self.sent if request.get('stash')]), 3)
+			self.site.loadpageinfo.assert_not_called()
+			sleep.assert_not_called()
+			self.assertIsNone(self.site._request_class._nlb_upload_poll_guard)
+
+	def test_poll_recovery_checks_both_hash_and_size_before_completing_scan(self) -> None:
+		'''A page appearing during a failed poll is complete only if its original PDF matches.'''
+		for error_code in (None, 'missingresult'):
+			for mismatch in ('', 'sha1', 'size_bytes'):
+				with self.subTest(error=error_code, mismatch=mismatch), self.polling_environment(
+					phase='assembly', error_code=error_code,
+				) as (path, _, control, sleep, _):
+					control['published_on_poll'] = True
+					payload = b'%PDF-1.4\nRecord=BY-NLB-test File=1001\n%%EOF\n'
+					identity = {'sha1': hashlib.sha1(payload).hexdigest(), 'size_bytes': len(payload)}
+					if mismatch:
+						identity[mismatch] = '0' * 40 if mismatch == 'sha1' else len(payload) + 1
+					with mock.patch.object(self.uploader, 'file_info', return_value=identity) as info, mock.patch(
+						'upload.check_commons_by_hash', side_effect=lambda scan, **_: (upload_nlb.calculate_sha1(scan), []),
+					):
+						state = upload_nlb.default_state()
+						status = upload_nlb.process_single_scan(FakeNlbClient(), self.uploader, state,
+							path.parent / 'state.json', path.parent / 'staging',
+							'BY-NLB-test', '1001', '', {'title': 'Book'}, {'date': '1800'})
+					self.assertEqual(status, 'verification_failed' if mismatch else 'existing_title')
+					entry = state['items']['BY-NLB-test:1001']
+					self.assertEqual(entry['sha1'], hashlib.sha1(payload).hexdigest())
+					self.assertEqual(entry['size_bytes'], len(payload))
+					self.assertEqual(upload_nlb.is_item_completed(state, 'BY-NLB-test', '1001'), not mismatch)
+					info.assert_called_once_with(entry['commons_title'])
+					self.assertEqual(len([request for request in self.sent if request.get('stash')]), (len(payload) + 3) // 4)
+					self.assertEqual(list((path.parent / 'staging').iterdir()), [])
+					sleep.assert_not_called()
+
+	def test_poll_failure_preserves_identity_and_allows_another_scan(self) -> None:
+		'''Unfinished status checks leave recoverable hashes and do not poison the next upload.'''
+		for error_code in (None, 'missingresult'):
+			with self.subTest(error=error_code), self.polling_environment(
+				phase='assembly', error_code=error_code,
+			) as (path, _, control, sleep, _):
+				state = upload_nlb.default_state()
+				state['current_page'] = 74
+				client = FakeNlbClient()
+				kwargs = {'client': client, 'uploader': self.uploader, 'state': state,
+					'state_path': path.parent / 'state.json', 'staging_dir': path.parent / 'staging',
+					'marc_id': 'BY-NLB-test', 'part_label': '',
+					'record_meta': {'title': 'Book'}, 'marc_meta': {'date': '1800'}}
+				with mock.patch('upload.check_commons_by_hash', side_effect=lambda scan, **_: (upload_nlb.calculate_sha1(scan), [])):
+					self.assertEqual(upload_nlb.process_single_scan(**kwargs, file_id='1001'), 'upload_failed')
+					pending = state['items']['BY-NLB-test:1001'].copy()
+					payload = b'%PDF-1.4\nRecord=BY-NLB-test File=1001\n%%EOF\n'
+					self.assertEqual(pending['sha1'], hashlib.sha1(payload).hexdigest())
+					self.assertEqual(pending['size_bytes'], len(payload))
+					self.assertEqual(pending['attempts'], 1)
+					self.assertEqual(pending['error_code'], error_code or 'upload-poll-timeout')
+					self.assertEqual(state['retry_from_page'], 74)
+					self.assertFalse(upload_nlb.is_item_completed(state, 'BY-NLB-test', '1001'))
+					control.update(failing=False, publishing=False, polls={'assembly': 0, 'publication': 0})
+					payload = b'%PDF-1.4\nRecord=BY-NLB-test File=1002\n%%EOF\n'
+					with mock.patch.object(self.uploader, 'file_info', return_value={
+						'sha1': hashlib.sha1(payload).hexdigest(), 'size_bytes': len(payload),
+					}):
+						self.assertEqual(upload_nlb.process_single_scan(**kwargs, file_id='1002'), 'uploaded')
+				self.assertEqual(state['items']['BY-NLB-test:1001'], pending)
+				self.assertEqual(client.downloaded_file_ids, ['1001', '1002'])
+				self.assertEqual(list((path.parent / 'staging').iterdir()), [])
+				self.assertIsNone(self.site._request_class._nlb_upload_poll_guard)
+				sleep.assert_not_called()
 
 	def test_stash_lock_reuses_assembled_file_after_publication_or_poll_failure(self) -> None:
 		"""Recover using the original publication request without sending the chunks again."""

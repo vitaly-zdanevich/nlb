@@ -31,7 +31,7 @@ import mwparserfromhell
 import requests
 
 from catalog_requests import CatalogRetriesExhausted, InvalidCatalogResponse, get_catalog_response
-from commons_verification import read_file_info
+from commons_verification import is_retryable_verification_error, read_file_info
 from scan_identity import assess_scan_identity, flatten_mets, index_file_volumes
 from work_identity import index_work_titles
 from preservation import ArchiveStore, ArchiveWriteError, file_integrity
@@ -60,6 +60,8 @@ DEFAULT_UNTIL_YEAR = 1900
 SEARCH_PAGE_SIZE = 100
 UPLOAD_CHUNK_SIZE = 4 * 1024 * 1024
 UPLOAD_MAX_RETRIES = 10
+UPLOAD_POLL_TIMEOUT = 30 * 60
+UPLOAD_POLL_LOG_INTERVAL = 60
 DOWNLOAD_MAX_ATTEMPTS = 5
 DOWNLOAD_RETRY_DELAY = 5
 DOWNLOAD_TRANSIENT_STATUSES = frozenset({500, 502, 503, 504})
@@ -2535,13 +2537,64 @@ def patch_mime_multipart_from_mangling(mime_multipart_cls: Any) -> None:
 	mime_multipart_cls._no_from_mangle_patched = True
 
 
+class UploadPollingTimeout(RuntimeError):
+	'''Stop waiting for an asynchronous upload without assuming that it failed.'''
+
+	code = 'upload-poll-timeout'
+
+	def __init__(self, phase: str, elapsed: float) -> None:
+		'''Retain the processing stage and elapsed wait for the saved scan diagnostic.'''
+		self.phase = phase
+		self.elapsed = elapsed
+		super().__init__(f'Commons {phase} has not completed after {elapsed:.0f} seconds of polling')
+
+
+class UploadPollGuard:
+	'''Bound one continuous processing wait across Pywikibot request objects.
+
+	Chunk transfer and publication use separate loops in supported Pywikibot
+	versions. Observing their API responses avoids copying those private loops
+	and gives healthy chunk transfers an independent budget for each later wait.
+	'''
+
+	def __init__(self, filename: str) -> None:
+		'''Start without a timer; transferring file bytes is not a polling wait.'''
+		self.filename = filename
+		self.started: float | None = None
+		self.last_logged: float | None = None
+		self.phase = 'processing'
+
+	def check(self) -> None:
+		'''Stop before another status request once the continuous wait is exhausted.'''
+		if self.started is not None:
+			elapsed = time.monotonic() - self.started
+			if elapsed >= UPLOAD_POLL_TIMEOUT:
+				raise UploadPollingTimeout(self.phase, elapsed)
+
+	def observe(self, request: Any, response: dict[str, Any]) -> None:
+		'''Report waiting stages and reset the timer when the API leaves Poll.'''
+		if response.get('upload', {}).get('result') != 'Poll':
+			self.started = self.last_logged = None
+			return
+		now = time.monotonic()
+		if self.started is None:
+			self.started = now
+			self.phase = 'chunk assembly' if request.get('stash') else 'publication'
+		self.check()
+		if self.last_logged is None or now - self.last_logged >= UPLOAD_POLL_LOG_INTERVAL:
+			log_progress(f'Waiting for Commons {self.phase}: {now - self.started:.0f}s elapsed '
+				f'(limit {UPLOAD_POLL_TIMEOUT:.0f}s), File:{self.filename}')
+			self.last_logged = now
+
+
 def configure_upload_token_recovery(site: Any, request_class: type, api_error_class: type[Exception]) -> None:
 	"""Use current CSRF tokens for this site's uploads, with one refresh per request.
 
 	Pywikibot's chunk uploader retains its initial token for later chunks, polls,
 	and a precreated final request. Refresh at submission so a recovered token
 	reaches all of them. Its private request factory is adapted only for upload
-	requests; queries and cached requests keep their original classes.
+	requests; queries and cached requests keep their original classes. An active
+	poll guard observes upload responses across requests for one driver attempt.
 	"""
 	original_factory = site._request_class
 	if getattr(original_factory, '_nlb_upload_token_recovery', False):
@@ -2551,10 +2604,16 @@ def configure_upload_token_recovery(site: Any, request_class: type, api_error_cl
 		"""Keep chunk and polling tokens current without unbounded token recovery."""
 
 		def submit(self) -> dict[str, Any]:
-			"""Read the current wallet token immediately before submitting an upload."""
+			'''Use the current token and observe any active asynchronous upload wait.'''
+			guard = request_factory._nlb_upload_poll_guard
+			if guard is not None and self.get('checkstatus'):
+				guard.check()
 			self._nlb_token_refreshed = False
 			self['token'] = self.site.tokens['csrf']
-			return super().submit()
+			response = super().submit()
+			if guard is not None:
+				guard.observe(self, response)
+			return response
 
 		def _bad_token(self, code: str) -> bool:
 			"""Allow Pywikibot to refresh once, even when successive error details differ."""
@@ -2573,11 +2632,12 @@ def configure_upload_token_recovery(site: Any, request_class: type, api_error_cl
 		return base_class
 
 	request_factory._nlb_upload_token_recovery = True
+	request_factory._nlb_upload_poll_guard = None
 	site._request_class = request_factory
 
 
 class UploadRetriesExhausted(RuntimeError):
-	"""A transient Commons failure exhausted the scan's shared upload retry budget."""
+	'''An upload exhausted its retry budget or could not finish a bounded status wait.'''
 
 	def __init__(self, last_error: Exception, attempts: int) -> None:
 		"""Retain diagnostics for a pending upload that can be retried on a later run."""
@@ -2682,7 +2742,7 @@ class CommonsUploader:
 		return read_file_info(self.site, title)
 
 	def upload(self, file_path: Path, commons_filename: str, wikitext: str, summary: str) -> dict[str, Any]:
-		'''Upload with one retry budget, reusing the stash when publication is locked.'''
+		'''Bound retries and status waits, reusing the stash when publication is locked.'''
 		self.site.login()
 		if not self.site.has_right('upload'):
 			raise self.pywikibot.exceptions.Error('The Commons account does not have upload permission.')
@@ -2720,12 +2780,40 @@ class CommonsUploader:
 					ignore_warnings=False,
 					retry=retry,
 				)
-				if not driver.upload():
+				# A cached Site can outlive this uploader. Restore its observer even
+				# after an exception or interrupt, and keep each attempt independent.
+				request_factory = self.site._request_class
+				previous_guard = request_factory._nlb_upload_poll_guard
+				request_factory._nlb_upload_poll_guard = UploadPollGuard(commons_filename)
+				try:
+					completed = driver.upload()
+				finally:
+					request_factory._nlb_upload_poll_guard = previous_guard
+				if not completed:
 					raise RuntimeError('Commons upload did not complete.')
 				status = 'existing_title' if driver.already_exists else 'uploaded'
 				return {'status': status, 'commons_title': f'File:{commons_filename}'}
 			except Exception as error:
 				error_code = getattr(error, 'code', None)
+				if isinstance(error, UploadPollingTimeout) or error_code == 'missingresult':
+					# A lost response does not prove that the server abandoned the
+					# upload. Check for publication before deferring, without starting
+					# another asynchronous job. The caller verifies its SHA-1 and size.
+					log_progress(f'Commons upload status unavailable ({error_code}); checking '
+						f'File:{commons_filename} before saving it for retry.')
+					try:
+						self.site.loadpageinfo(file_page)
+					except Exception as check_error:
+						# An exhausted API read is also inconclusive; do not restart its retries.
+						if not (is_retryable_verification_error(check_error)
+							or isinstance(check_error, self.pywikibot.exceptions.ApiTimeoutError)):
+							raise
+						log_progress(f'Commons publication check failed ({type(check_error).__name__}: '
+							f'{check_error}); keeping the upload unfinished.')
+						raise UploadRetriesExhausted(error, failures + 1) from check_error
+					if file_page.exists():
+						return {'status': 'existing_title', 'commons_title': f'File:{commons_filename}'}
+					raise UploadRetriesExhausted(error, failures + 1) from error
 				if isinstance(error, self.pywikibot.exceptions.UploadError) and error_code == 'exists':
 					return {'status': 'existing_title', 'commons_title': f'File:{commons_filename}'}
 				if isinstance(error, self.pywikibot.exceptions.UploadError) and error_code == 'duplicate':
